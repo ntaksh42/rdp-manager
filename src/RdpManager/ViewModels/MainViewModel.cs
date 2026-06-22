@@ -14,6 +14,9 @@ public class MainViewModel : ObservableObject
 
     public RelayCommand ConnectCommand { get; }
 
+    /// <summary>接続起動などの失敗をビューへ通知する。</summary>
+    public event Action<string>? Error;
+
     public MainViewModel()
     {
         Load();
@@ -54,8 +57,13 @@ public class MainViewModel : ObservableObject
     public void Connect(TreeNodeViewModel? node)
     {
         if (node is null || !node.IsConnection) return;
+        if (string.IsNullOrWhiteSpace(node.Host))
+        {
+            Error?.Invoke("ホスト名 / IP が設定されていません。");
+            return;
+        }
         var (user, domain, password) = ResolveCredentials(node);
-        RdpLauncher.Launch(new LaunchInfo
+        TryLaunch(new LaunchInfo
         {
             Host = node.Host,
             Port = node.Port,
@@ -73,7 +81,13 @@ public class MainViewModel : ObservableObject
     public void ConnectAdHoc(string host)
     {
         if (string.IsNullOrWhiteSpace(host)) return;
-        RdpLauncher.Launch(new LaunchInfo { Host = host.Trim() });
+        TryLaunch(new LaunchInfo { Host = host.Trim() });
+    }
+
+    private void TryLaunch(LaunchInfo info)
+    {
+        try { RdpLauncher.Launch(info); }
+        catch (Exception ex) { Error?.Invoke($"接続の起動に失敗しました。\n{ex.Message}"); }
     }
 
     /// <summary>資格情報を解決（direct / profile / 親から継承）。</summary>

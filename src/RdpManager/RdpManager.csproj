@@ -6,6 +6,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <Product>RdpManager</Product>
+    <AssemblyTitle>RdpManager</AssemblyTitle>
+    <Company>ntaksh42</Company>
+    <Version>0.1.1</Version>
+    <Description>接続先を整理し Windows 標準 mstsc で接続する軽量 RDP マネージャ</Description>
   </PropertyGroup>
 
 </Project>

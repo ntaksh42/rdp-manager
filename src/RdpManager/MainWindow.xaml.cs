@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Vm.Error += msg => MessageBox.Show(this, msg, "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void OnTreeSelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
@@ -60,13 +61,7 @@ public partial class MainWindow : Window
         var node = Vm.SelectedNode;
         if (node is null) return;
         if (new ConnectionEditDialog(node, Vm.CredentialProfiles) { Owner = this }.ShowDialog() == true)
-        {
-            Vm.NotifyEdited();
-            // 表示更新のため選択を振り直す
-            var sel = node;
-            Vm.SelectedNode = null;
-            Vm.SelectedNode = sel;
-        }
+            Vm.NotifyEdited(); // 表示はノードの INPC で自動更新
     }
 
     private void OnDeleteNode(object sender, RoutedEventArgs e)

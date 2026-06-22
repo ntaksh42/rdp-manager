@@ -62,16 +62,30 @@ public static class ConnectionStore
 
     public static StoreDocument? Load()
     {
+        if (!File.Exists(FilePath)) return null;
         try
         {
-            if (!File.Exists(FilePath)) return null;
             var json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<StoreDocument>(json, Options);
+            var doc = JsonSerializer.Deserialize<StoreDocument>(json, Options);
+            if (doc is null) BackupCorrupt();
+            return doc;
         }
         catch
         {
+            // 破損ファイルを上書きで失わないよう退避してから既定値にフォールバック
+            BackupCorrupt();
             return null;
         }
+    }
+
+    private static void BackupCorrupt()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+                File.Copy(FilePath, FilePath + ".bak", overwrite: true);
+        }
+        catch { /* 退避失敗は致命的でない */ }
     }
 
     public static void Save(StoreDocument doc)

@@ -20,30 +20,27 @@ public sealed class LaunchInfo
 
 /// <summary>
 /// Windows 標準 RDP クライアント（mstsc.exe）を起動して接続する。
-/// 資格情報は cmdkey で Windows 資格情報マネージャーへ登録してから .rdp で接続するため、
-/// パスワードを平文の .rdp に書かない。
+/// 資格情報は CredWrite API で Windows 資格情報マネージャーへ登録してから .rdp で接続するため、
+/// パスワードを平文の .rdp に書かず、コマンドライン引数にも露出させない。
 /// </summary>
 public static class RdpLauncher
 {
     public static Process Launch(LaunchInfo info)
     {
-        // 1) 資格情報を一時登録（パスワードがある場合）
+        // 1) 資格情報を登録（パスワードがある場合）。CredWrite で直接書き込み。
         if (!string.IsNullOrEmpty(info.Username) && !string.IsNullOrEmpty(info.Password))
         {
             var user = string.IsNullOrEmpty(info.Domain) ? info.Username : $"{info.Domain}\\{info.Username}";
-            RunCmdKey($"/generic:TERMSRV/{info.Host} /user:{user} /pass:{info.Password}");
+            CredentialManager.WriteTerminalServer(info.Host, user, info.Password);
         }
 
         // 2) .rdp ファイルを生成
         var rdpPath = WriteRdpFile(info);
 
-        // 3) mstsc 起動
-        return Process.Start(new ProcessStartInfo
-        {
-            FileName = "mstsc.exe",
-            Arguments = $"\"{rdpPath}\"",
-            UseShellExecute = true
-        })!;
+        // 3) mstsc 起動（ArgumentList でパスのクオートを安全に処理）
+        var psi = new ProcessStartInfo { FileName = "mstsc.exe", UseShellExecute = true };
+        psi.ArgumentList.Add(rdpPath);
+        return Process.Start(psi)!;
     }
 
     private static string WriteRdpFile(LaunchInfo info)
@@ -75,22 +72,5 @@ public static class RdpLauncher
         var path = Path.Combine(dir, $"{safe}.rdp");
         File.WriteAllText(path, sb.ToString());
         return path;
-    }
-
-    private static void RunCmdKey(string args)
-    {
-        try
-        {
-            using var p = Process.Start(new ProcessStartInfo
-            {
-                FileName = "cmdkey.exe",
-                Arguments = args,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true
-            });
-            p?.WaitForExit(3000);
-        }
-        catch { /* 資格情報登録失敗時は mstsc のプロンプトにフォールバック */ }
     }
 }
