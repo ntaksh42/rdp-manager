@@ -1,0 +1,40 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="RdpManager"
+           Manufacturer="ntaksh42"
+           Version="0.1.0"
+           UpgradeCode="FA4710B7-0169-4C65-AF54-1BAD0F03D32E"
+           Scope="perMachine">
+
+    <SummaryInformation Description="RDP 接続マネージャ" Manufacturer="ntaksh42" />
+
+    <MajorUpgrade DowngradeErrorMessage="より新しいバージョンの RdpManager が既にインストールされています。" />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- アプリ本体（self-contained 単一ファイル exe）-->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="RdpManager">
+        <Component Id="MainExe" Guid="*">
+          <File Id="RdpManagerExe" Source="RdpManager.exe" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- スタートメニューのショートカット -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="*">
+        <Shortcut Id="AppShortcut"
+                  Name="RdpManager"
+                  Description="RDP 接続マネージャ"
+                  Target="[INSTALLFOLDER]RdpManager.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\RdpManager" Name="installed"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="RdpManager">
+      <ComponentRef Id="MainExe" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>

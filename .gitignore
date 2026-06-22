@@ -1,0 +1,19 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+publish/
+publish-sc/
+dist/
+*.user
+
+# Rider / VS
+.vs/
+.idea/
+
+# WiX
+*.wixobj
+*.wixpdb
+
+# OS
+Thumbs.db
+desktop.ini
