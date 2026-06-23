@@ -3,6 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:RdpManager">
     <Application.Resources>
-
+        <SolidColorBrush x:Key="WindowBg" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="PanelBg" Color="#FAFAFA"/>
+        <SolidColorBrush x:Key="TextFg" Color="#222222"/>
     </Application.Resources>
 </Application>

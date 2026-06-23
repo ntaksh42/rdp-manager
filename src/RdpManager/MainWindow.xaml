@@ -4,6 +4,8 @@
         xmlns:vm="clr-namespace:RdpManager.ViewModels"
         Title="RdpManager" Height="720" Width="1100"
         WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource WindowBg}"
+        TextElement.Foreground="{DynamicResource TextFg}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
     <Window.Resources>
@@ -42,6 +44,7 @@
             </MenuItem>
             <MenuItem Header="表示(_V)">
                 <MenuItem Header="全画面の切り替え" InputGestureText="F11" Click="OnToggleFullscreenMenu"/>
+                <MenuItem x:Name="DarkModeItem" Header="ダークモード" IsCheckable="True" Click="OnToggleDarkMode"/>
             </MenuItem>
             <MenuItem Header="ヘルプ(_H)">
                 <MenuItem Header="バージョン情報" Click="OnAbout"/>
@@ -70,7 +73,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- 接続ツリー -->
-            <DockPanel x:Name="TreePane" Grid.Column="0" Background="#FAFAFA">
+            <DockPanel x:Name="TreePane" Grid.Column="0" Background="{DynamicResource PanelBg}">
                 <Grid DockPanel.Dock="Top" Margin="6">
                     <TextBox x:Name="SearchBox"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"

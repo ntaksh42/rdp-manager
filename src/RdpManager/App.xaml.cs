@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using RdpManager.Services;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 
@@ -7,6 +8,8 @@ namespace RdpManager;
 
 public partial class App : Application
 {
+    public static AppSettings Settings { get; private set; } = new();
+
     private static readonly string SelfTestLog =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rdpmanager_selftest.txt");
     private bool _selfTest;
@@ -24,6 +27,9 @@ public partial class App : Application
             RunSelfTest();
             return;
         }
+
+        Settings = AppSettings.Load();
+        ThemeManager.Apply(Settings.DarkMode);
 
         new MainWindow().Show();
     }

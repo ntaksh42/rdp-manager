@@ -36,6 +36,14 @@ public partial class MainWindow : Window
         Vm.Error += msg => MessageBox.Show(this, msg, "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
         SourceInitialized += OnSourceInitialized;
         Closed += (_, _) => UnregisterHotkey();
+        DarkModeItem.IsChecked = App.Settings.DarkMode;
+    }
+
+    private void OnToggleDarkMode(object sender, RoutedEventArgs e)
+    {
+        App.Settings.DarkMode = DarkModeItem.IsChecked;
+        Services.ThemeManager.Apply(App.Settings.DarkMode);
+        App.Settings.Save();
     }
 
     // ── 全画面トグル（F11 グローバルホットキー）──
