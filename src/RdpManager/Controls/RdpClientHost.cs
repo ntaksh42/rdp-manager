@@ -164,7 +164,7 @@ public sealed class RdpClientHost : AxHost
         catch
         {
             // 動的解像度に非対応 → スマートサイジングで追従（拡縮表示）
-            TrySet(() => _ocx!.AdvancedSettings9.SmartSizing = true);
+            TrySet(() => { if (_ocx is { } o) o.AdvancedSettings9.SmartSizing = true; });
         }
     }
 
@@ -172,8 +172,7 @@ public sealed class RdpClientHost : AxHost
     {
         try
         {
-            var o = _ocx;
-            if (o != null && (int)o.Connected != 0) o.Disconnect();
+            if (_ocx is { } o && (int)o.Connected != 0) o.Disconnect();
         }
         catch { /* ignore */ }
     }

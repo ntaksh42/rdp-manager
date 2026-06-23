@@ -12,6 +12,8 @@
     <Company>ntaksh42</Company>
     <Version>0.2.1</Version>
     <Description>接続先を整理し Windows 標準 mstsc で接続する軽量 RDP マネージャ</Description>
+    <!-- 起動高速化: 発行時に事前ネイティブコンパイル（JIT コスト削減） -->
+    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 
 </Project>
