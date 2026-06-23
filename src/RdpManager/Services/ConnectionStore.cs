@@ -33,6 +33,7 @@ public sealed class NodeDto
     public bool Fullscreen { get; set; }
     public string ScreenSize { get; set; } = "クライアント領域に合わせる";
     public string Gateway { get; set; } = "";
+    public bool IsFavorite { get; set; }
 
     public List<NodeDto> Children { get; set; } = new();
 }

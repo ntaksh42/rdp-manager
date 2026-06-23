@@ -76,6 +76,7 @@ public class TreeNodeViewModel : ObservableObject
     }
 
     public string Password { get; set; } = ""; // メモリ上のみ平文。保存時 DPAPI 暗号化。
+    public bool IsFavorite { get; set; }
 
     // RDP 設定
     public bool SmartSizing { get; set; } = true;

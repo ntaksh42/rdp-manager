@@ -11,6 +11,7 @@ public class MainViewModel : ObservableObject
 
     public ObservableCollection<TreeNodeViewModel> RootNodes { get; } = new();
     public ObservableCollection<CredentialProfile> CredentialProfiles { get; } = new();
+    public ObservableCollection<TreeNodeViewModel> QuickAccess { get; } = new();
 
     /// <summary>接続起動などの失敗をビューへ通知する。</summary>
     public event Action<string>? Error;
@@ -18,6 +19,52 @@ public class MainViewModel : ObservableObject
     public MainViewModel()
     {
         Load();
+        RefreshQuickAccess();
+    }
+
+    private IEnumerable<TreeNodeViewModel> AllConnections(IEnumerable<TreeNodeViewModel>? nodes = null)
+    {
+        foreach (var n in nodes ?? RootNodes)
+        {
+            if (n.IsConnection) yield return n;
+            foreach (var c in AllConnections(n.Children)) yield return c;
+        }
+    }
+
+    /// <summary>お気に入り + 最近使った接続をクイックアクセス一覧に反映。</summary>
+    public void RefreshQuickAccess()
+    {
+        QuickAccess.Clear();
+        var all = AllConnections().ToList();
+        foreach (var fav in all.Where(c => c.IsFavorite))
+            QuickAccess.Add(fav);
+        var recentIds = App.Settings.RecentIds;
+        foreach (var id in recentIds)
+        {
+            var node = all.FirstOrDefault(c => c.Id.ToString() == id);
+            if (node != null && !node.IsFavorite && !QuickAccess.Contains(node))
+                QuickAccess.Add(node);
+        }
+    }
+
+    public void ToggleFavorite(TreeNodeViewModel? node)
+    {
+        if (node is null || !node.IsConnection) return;
+        node.IsFavorite = !node.IsFavorite;
+        Save();
+        RefreshQuickAccess();
+    }
+
+    public void RecordRecent(TreeNodeViewModel node)
+    {
+        if (!node.IsConnection) return;
+        var id = node.Id.ToString();
+        App.Settings.RecentIds.Remove(id);
+        App.Settings.RecentIds.Insert(0, id);
+        if (App.Settings.RecentIds.Count > 10)
+            App.Settings.RecentIds.RemoveRange(10, App.Settings.RecentIds.Count - 10);
+        App.Settings.Save();
+        RefreshQuickAccess();
     }
 
     public string SearchText
@@ -212,7 +259,7 @@ public class MainViewModel : ObservableObject
         PasswordEncrypted = CredentialProtector.Protect(n.Password),
         SmartSizing = n.SmartSizing, RedirectClipboard = n.RedirectClipboard,
         RedirectDrives = n.RedirectDrives, Fullscreen = n.Fullscreen,
-        ScreenSize = n.ScreenSize, Gateway = n.Gateway,
+        ScreenSize = n.ScreenSize, Gateway = n.Gateway, IsFavorite = n.IsFavorite,
         Children = n.Children.Select(ToDto).ToList()
     };
 
@@ -227,7 +274,7 @@ public class MainViewModel : ObservableObject
             Password = CredentialProtector.Unprotect(d.PasswordEncrypted),
             SmartSizing = d.SmartSizing, RedirectClipboard = d.RedirectClipboard,
             RedirectDrives = d.RedirectDrives, Fullscreen = d.Fullscreen,
-            ScreenSize = d.ScreenSize, Gateway = d.Gateway,
+            ScreenSize = d.ScreenSize, Gateway = d.Gateway, IsFavorite = d.IsFavorite,
             Parent = parent
         };
         foreach (var c in d.Children) n.Children.Add(FromDto(c, n));

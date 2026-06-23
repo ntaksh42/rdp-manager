@@ -184,7 +184,16 @@ public partial class MainWindow : Window
         var info = Vm.BuildLaunchInfo(node);
         if (info is null) return;
         OpenSession(info, node!.Name);
+        Vm.RecordRecent(node);
     }
+
+    private void OnQuickAccessDouble(object sender, MouseButtonEventArgs e)
+    {
+        if (QuickList.SelectedItem is TreeNodeViewModel node)
+            ConnectEmbedded(node);
+    }
+
+    private void OnToggleFavorite(object sender, RoutedEventArgs e) => Vm.ToggleFavorite(Vm.SelectedNode);
 
     private void OnQuickConnect(object sender, RoutedEventArgs e) => QuickConnect();
     private void OnQuickConnectKeyDown(object sender, KeyEventArgs e)
