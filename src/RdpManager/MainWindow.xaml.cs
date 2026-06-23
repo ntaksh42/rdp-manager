@@ -342,6 +342,52 @@ public partial class MainWindow : Window
     }
 
     // ── その他 ──
+    private void OnImportCsv(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "CSV (*.csv)|*.csv|すべて|*.*" };
+        if (dlg.ShowDialog(this) != true) return;
+        var rows = Services.ImportExport.FromCsv(System.IO.File.ReadAllText(dlg.FileName));
+        var nodes = rows.Select(r => new TreeNodeViewModel
+        {
+            Kind = NodeKind.Connection, Name = r.Name, Host = r.Host, Port = r.Port,
+            Domain = r.Domain, Username = r.Username, Comment = r.Comment,
+            CredentialMode = string.IsNullOrEmpty(r.Username) ? "inheritFromParent" : "direct"
+        }).ToList();
+        Vm.AddImported(nodes, TargetFolder());
+        MessageBox.Show(this, $"{nodes.Count} 件の接続をインポートしました。", "インポート", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void OnImportRdp(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "RDP (*.rdp)|*.rdp", Multiselect = true };
+        if (dlg.ShowDialog(this) != true) return;
+        var nodes = new List<TreeNodeViewModel>();
+        foreach (var file in dlg.FileNames)
+        {
+            var conn = Services.ImportExport.FromRdp(System.IO.File.ReadAllText(file),
+                System.IO.Path.GetFileNameWithoutExtension(file));
+            if (conn is null) continue;
+            nodes.Add(new TreeNodeViewModel
+            {
+                Kind = NodeKind.Connection, Name = conn.Name, Host = conn.Host, Port = conn.Port,
+                Domain = conn.Domain, Username = conn.Username,
+                CredentialMode = string.IsNullOrEmpty(conn.Username) ? "inheritFromParent" : "direct"
+            });
+        }
+        Vm.AddImported(nodes, TargetFolder());
+        MessageBox.Show(this, $"{nodes.Count} 件の接続をインポートしました。", "インポート", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void OnExportCsv(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV (*.csv)|*.csv", FileName = "rdpmanager-connections.csv" };
+        if (dlg.ShowDialog(this) != true) return;
+        var rows = Vm.GetAllConnections().Select(c =>
+            new Services.ImportedConn(c.Name, c.Host, c.Port, c.Domain, c.Username, c.Comment));
+        System.IO.File.WriteAllText(dlg.FileName, Services.ImportExport.ToCsv(rows), new System.Text.UTF8Encoding(true));
+        MessageBox.Show(this, "エクスポートしました。", "エクスポート", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     private void OnOpenStoreFolder(object sender, RoutedEventArgs e)
     {
         System.IO.Directory.CreateDirectory(ConnectionStore.Directory);

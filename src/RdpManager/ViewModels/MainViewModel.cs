@@ -50,6 +50,20 @@ public class MainViewModel : ObservableObject
     public TreeNodeViewModel? FindConnectionById(string id)
         => AllConnections().FirstOrDefault(c => c.Id.ToString() == id);
 
+    public IReadOnlyList<TreeNodeViewModel> GetAllConnections() => AllConnections().ToList();
+
+    public void AddImported(IEnumerable<TreeNodeViewModel> nodes, TreeNodeViewModel? parent)
+    {
+        foreach (var node in nodes)
+        {
+            if (parent is null) { node.Parent = null; RootNodes.Add(node); }
+            else { node.Parent = parent; parent.Children.Add(node); }
+        }
+        if (parent != null) parent.IsExpanded = true;
+        Save();
+        RefreshQuickAccess();
+    }
+
     public void ToggleFavorite(TreeNodeViewModel? node)
     {
         if (node is null || !node.IsConnection) return;
