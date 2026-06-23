@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:RdpManager.ViewModels"
-        Title="RdpManager" Height="640" Width="960"
+        Title="RdpManager" Height="720" Width="1100"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
 
@@ -33,6 +33,10 @@
                 <MenuItem Header="編集…" Click="OnEditNode"/>
                 <MenuItem Header="削除" Click="OnDeleteNode"/>
             </MenuItem>
+            <MenuItem Header="セッション(_S)">
+                <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
+                <MenuItem Header="外部ウィンドウで開く (mstsc)" Click="OnConnectExternal"/>
+            </MenuItem>
             <MenuItem Header="ヘルプ(_H)">
                 <MenuItem Header="バージョン情報" Click="OnAbout"/>
             </MenuItem>
@@ -45,7 +49,7 @@
             <Button Content="✎ 編集" Click="OnEditNode"/>
             <Button Content="🗑 削除" Click="OnDeleteNode"/>
             <Separator/>
-            <Button Content="▶ 接続" Command="{Binding ConnectCommand}"/>
+            <Button Content="▶ 接続" Click="OnConnectEmbedded"/>
         </ToolBar>
 
         <StatusBar DockPanel.Dock="Bottom">
@@ -54,7 +58,7 @@
 
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300" MinWidth="220"/>
+                <ColumnDefinition Width="280" MinWidth="200"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
@@ -87,7 +91,8 @@
                           MouseDoubleClick="OnTreeDoubleClick">
                     <TreeView.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Header="接続" Click="OnConnectMenu"/>
+                            <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
+                            <MenuItem Header="外部ウィンドウで開く (mstsc)" Click="OnConnectExternal"/>
                             <Separator/>
                             <MenuItem Header="新規フォルダ" Click="OnNewFolder"/>
                             <MenuItem Header="新規接続" Click="OnNewConnection"/>
@@ -111,7 +116,7 @@
             <GridSplitter Grid.Column="1" Width="4" VerticalAlignment="Stretch"
                           HorizontalAlignment="Center" Background="#E0E0E0"/>
 
-            <!-- 右ペイン -->
+            <!-- 右ペイン: セッションタブ -->
             <DockPanel Grid.Column="2">
                 <Border DockPanel.Dock="Top" Background="#F0F0F0" Padding="8">
                     <StackPanel Orientation="Horizontal">
@@ -122,50 +127,12 @@
                     </StackPanel>
                 </Border>
 
-                <!-- 詳細 / 空状態 -->
-                <Grid Margin="20">
-                    <!-- 接続未選択 -->
-                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                                Visibility="{Binding NoConnectionSelected, Converter={StaticResource BoolToVis}}">
-                        <TextBlock x:Name="EmptyHint" Text="左のツリーから接続を選ぶと詳細が表示されます"
-                                   Foreground="#9E9E9E" FontSize="14" HorizontalAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- 接続選択時の詳細 -->
-                    <StackPanel Visibility="{Binding HasConnectionSelected, Converter={StaticResource BoolToVis}}">
-                        <TextBlock Text="{Binding SelectedNode.Name}" FontSize="22" FontWeight="SemiBold"/>
-                        <TextBlock Text="{Binding SelectedNode.HostDisplay}" Foreground="#666" FontSize="14" Margin="0,2,0,16"/>
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="120"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="ユーザー" Foreground="#888" Margin="0,3"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedNode.Username}" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="ドメイン" Foreground="#888" Margin="0,3"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedNode.Domain}" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="資格情報" Foreground="#888" Margin="0,3"/>
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedNode.CredentialMode}" Margin="0,3"/>
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="ゲートウェイ" Foreground="#888" Margin="0,3"/>
-                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedNode.Gateway}" Margin="0,3"/>
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="コメント" Foreground="#888" Margin="0,3"/>
-                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedNode.Comment}" TextWrapping="Wrap" Margin="0,3"/>
-                        </Grid>
-
-                        <Button Content="▶ 接続" Command="{Binding ConnectCommand}"
-                                HorizontalAlignment="Left" Padding="24,8" Margin="0,24,0,0"
-                                FontSize="14" Background="#1976D2" Foreground="White" BorderThickness="0"/>
-                        <Button Content="✎ この接続を編集" Click="OnEditNode"
-                                HorizontalAlignment="Left" Padding="14,4" Margin="0,10,0,0"/>
-                    </StackPanel>
+                <Grid>
+                    <TabControl x:Name="SessionTabs"/>
+                    <TextBlock x:Name="EmptyHint"
+                               Text="左のツリーから接続をダブルクリックすると、このウィンドウ内に表示されます"
+                               Foreground="#9E9E9E" FontSize="14"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>
             </DockPanel>
         </Grid>

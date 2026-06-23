@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using RdpManager.ViewModels;
+using MessageBox = System.Windows.MessageBox;
 
 namespace RdpManager;
 

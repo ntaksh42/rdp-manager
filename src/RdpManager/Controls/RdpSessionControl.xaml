@@ -1,0 +1,22 @@
+<UserControl x:Class="RdpManager.Controls.RdpSessionControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wfi="clr-namespace:System.Windows.Forms.Integration;assembly=WindowsFormsIntegration">
+    <Grid Background="#1E1E2E">
+        <wfi:WindowsFormsHost x:Name="Host"/>
+
+        <!-- 接続状態オーバーレイ（RDP 画面が出たら隠す）-->
+        <Border x:Name="Overlay" Background="#1E1E2E">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock x:Name="StatusText" Text="接続中…" Foreground="#DDD"
+                           FontSize="16" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="ErrorText" Foreground="#FF8A80" FontSize="12"
+                           Margin="0,8,0,0" HorizontalAlignment="Center" TextWrapping="Wrap"
+                           MaxWidth="420" TextAlignment="Center" Visibility="Collapsed"/>
+                <Button x:Name="ReconnectButton" Content="再接続" Margin="0,16,0,0"
+                        Padding="20,6" HorizontalAlignment="Center"
+                        Visibility="Collapsed" Click="OnReconnect"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

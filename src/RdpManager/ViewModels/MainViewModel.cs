@@ -12,15 +12,12 @@ public class MainViewModel : ObservableObject
     public ObservableCollection<TreeNodeViewModel> RootNodes { get; } = new();
     public ObservableCollection<CredentialProfile> CredentialProfiles { get; } = new();
 
-    public RelayCommand ConnectCommand { get; }
-
     /// <summary>接続起動などの失敗をビューへ通知する。</summary>
     public event Action<string>? Error;
 
     public MainViewModel()
     {
         Load();
-        ConnectCommand = new RelayCommand(_ => Connect(SelectedNode), _ => SelectedNode?.IsConnection == true);
     }
 
     public string SearchText
@@ -53,17 +50,17 @@ public class MainViewModel : ObservableObject
     private static int CountConnections(IEnumerable<TreeNodeViewModel> nodes)
         => nodes.Sum(n => (n.IsConnection ? 1 : 0) + CountConnections(n.Children));
 
-    // ── 接続（mstsc 起動）──
-    public void Connect(TreeNodeViewModel? node)
+    /// <summary>接続ノードから LaunchInfo を生成（資格情報を解決）。無効なら null。</summary>
+    public LaunchInfo? BuildLaunchInfo(TreeNodeViewModel? node)
     {
-        if (node is null || !node.IsConnection) return;
+        if (node is null || !node.IsConnection) return null;
         if (string.IsNullOrWhiteSpace(node.Host))
         {
             Error?.Invoke("ホスト名 / IP が設定されていません。");
-            return;
+            return null;
         }
         var (user, domain, password) = ResolveCredentials(node);
-        TryLaunch(new LaunchInfo
+        return new LaunchInfo
         {
             Host = node.Host,
             Port = node.Port,
@@ -75,17 +72,14 @@ public class MainViewModel : ObservableObject
             RedirectClipboard = node.RedirectClipboard,
             RedirectDrives = node.RedirectDrives,
             Gateway = node.Gateway
-        });
+        };
     }
 
-    public void ConnectAdHoc(string host)
+    /// <summary>外部 mstsc.exe で開く（埋め込みのフォールバック）。</summary>
+    public void ConnectExternal(TreeNodeViewModel? node)
     {
-        if (string.IsNullOrWhiteSpace(host)) return;
-        TryLaunch(new LaunchInfo { Host = host.Trim() });
-    }
-
-    private void TryLaunch(LaunchInfo info)
-    {
+        var info = BuildLaunchInfo(node);
+        if (info is null) return;
         try { RdpLauncher.Launch(info); }
         catch (Exception ex) { Error?.Invoke($"接続の起動に失敗しました。\n{ex.Message}"); }
     }

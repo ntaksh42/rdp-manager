@@ -1,8 +1,19 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using RdpManager.Controls;
+using RdpManager.Services;
 using RdpManager.ViewModels;
+using Button = System.Windows.Controls.Button;
+using Cursors = System.Windows.Input.Cursors;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
+using Key = System.Windows.Input.Key;
+using Orientation = System.Windows.Controls.Orientation;
+using MessageBox = System.Windows.MessageBox;
+using Brushes = System.Windows.Media.Brushes;
 
 namespace RdpManager;
 
@@ -16,22 +27,86 @@ public partial class MainWindow : Window
         Vm.Error += msg => MessageBox.Show(this, msg, "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
+    // ── ツリー ──
     private void OnTreeSelectionChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         => Vm.SelectedNode = e.NewValue as TreeNodeViewModel;
 
     private void OnTreeDoubleClick(object sender, MouseButtonEventArgs e)
     {
         if (Vm.SelectedNode?.IsConnection == true)
-            Vm.Connect(Vm.SelectedNode);
+            ConnectEmbedded(Vm.SelectedNode);
     }
 
-    private void OnConnectMenu(object sender, RoutedEventArgs e)
+    // ── 接続 ──
+    private void OnConnectEmbedded(object sender, RoutedEventArgs e) => ConnectEmbedded(Vm.SelectedNode);
+    private void OnConnectExternal(object sender, RoutedEventArgs e) => Vm.ConnectExternal(Vm.SelectedNode);
+
+    private void ConnectEmbedded(TreeNodeViewModel? node)
     {
-        if (Vm.SelectedNode?.IsConnection == true)
-            Vm.Connect(Vm.SelectedNode);
+        var info = Vm.BuildLaunchInfo(node);
+        if (info is null) return;
+        OpenSession(info, node!.Name);
     }
 
-    // 選択ノードが接続なら、その親フォルダを追加先にする
+    private void OnQuickConnect(object sender, RoutedEventArgs e) => QuickConnect();
+    private void OnQuickConnectKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) QuickConnect();
+    }
+
+    private void QuickConnect()
+    {
+        var host = QuickHostBox.Text.Trim();
+        if (string.IsNullOrEmpty(host)) return;
+        OpenSession(new LaunchInfo { Host = host }, host);
+        QuickHostBox.Clear();
+    }
+
+    // ── セッションタブ管理 ──
+    private void OpenSession(LaunchInfo info, string title)
+    {
+        var session = new RdpSessionControl();
+        var dot = new Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center, Fill = Brushes.Orange };
+
+        var tab = new TabItem { Content = session };
+
+        var close = new Button
+        {
+            Content = "✕", FontSize = 10, Padding = new Thickness(3, 0, 3, 0),
+            Margin = new Thickness(8, 0, 0, 0), BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent, Cursor = Cursors.Hand
+        };
+        close.Click += (_, _) => CloseSession(tab, session);
+
+        var header = new StackPanel { Orientation = Orientation.Horizontal };
+        header.Children.Add(dot);
+        header.Children.Add(new TextBlock { Text = title, VerticalAlignment = VerticalAlignment.Center });
+        header.Children.Add(close);
+        tab.Header = header;
+
+        session.StateChanged += (_, _) => dot.Fill = session.VisualState switch
+        {
+            SessionVisualState.Connected => Brushes.LimeGreen,
+            SessionVisualState.Disconnected => Brushes.Gray,
+            _ => Brushes.Orange
+        };
+
+        SessionTabs.Items.Add(tab);
+        SessionTabs.SelectedItem = tab;
+        EmptyHint.Visibility = Visibility.Collapsed;
+
+        session.Start(info);
+    }
+
+    private void CloseSession(TabItem tab, RdpSessionControl session)
+    {
+        session.Cleanup();
+        SessionTabs.Items.Remove(tab);
+        if (SessionTabs.Items.Count == 0) EmptyHint.Visibility = Visibility.Visible;
+    }
+
+    // ── CRUD ──
     private TreeNodeViewModel? TargetFolder()
     {
         var n = Vm.SelectedNode;
@@ -48,10 +123,7 @@ public partial class MainWindow : Window
 
     private void OnNewConnection(object sender, RoutedEventArgs e)
     {
-        var node = new TreeNodeViewModel
-        {
-            Kind = NodeKind.Connection, Name = "新しい接続", CredentialMode = "direct"
-        };
+        var node = new TreeNodeViewModel { Kind = NodeKind.Connection, Name = "新しい接続", CredentialMode = "direct" };
         if (new ConnectionEditDialog(node, Vm.CredentialProfiles) { Owner = this }.ShowDialog() == true)
             Vm.AddChild(TargetFolder(), node);
     }
@@ -61,7 +133,7 @@ public partial class MainWindow : Window
         var node = Vm.SelectedNode;
         if (node is null) return;
         if (new ConnectionEditDialog(node, Vm.CredentialProfiles) { Owner = this }.ShowDialog() == true)
-            Vm.NotifyEdited(); // 表示はノードの INPC で自動更新
+            Vm.NotifyEdited();
     }
 
     private void OnDeleteNode(object sender, RoutedEventArgs e)
@@ -75,35 +147,16 @@ public partial class MainWindow : Window
             Vm.Remove(node);
     }
 
-    private void OnQuickConnect(object sender, RoutedEventArgs e)
-    {
-        Vm.ConnectAdHoc(QuickHostBox.Text);
-        QuickHostBox.Clear();
-    }
-
-    private void OnQuickConnectKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            Vm.ConnectAdHoc(QuickHostBox.Text);
-            QuickHostBox.Clear();
-        }
-    }
-
+    // ── その他 ──
     private void OnOpenStoreFolder(object sender, RoutedEventArgs e)
     {
-        System.IO.Directory.CreateDirectory(Services.ConnectionStore.Directory);
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = "explorer.exe",
-            Arguments = Services.ConnectionStore.Directory,
-            UseShellExecute = true
-        });
+        System.IO.Directory.CreateDirectory(ConnectionStore.Directory);
+        Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = ConnectionStore.Directory, UseShellExecute = true });
     }
 
     private void OnAbout(object sender, RoutedEventArgs e)
         => MessageBox.Show(this,
-            "RdpManager\n接続先を整理し、Windows 標準の RDP クライアント（mstsc）で接続します。\n資格情報は DPAPI で暗号化保存されます。",
+            "RdpManager\n接続先をツリーで整理し、このウィンドウ内のタブに RDP 画面を埋め込んで表示します。\n資格情報は DPAPI で暗号化保存されます。",
             "バージョン情報", MessageBoxButton.OK, MessageBoxImage.Information);
 
     private void OnExit(object sender, RoutedEventArgs e) => Close();
