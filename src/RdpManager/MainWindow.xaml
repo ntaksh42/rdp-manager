@@ -30,6 +30,7 @@
             <MenuItem Header="編集(_E)">
                 <MenuItem Header="新規フォルダ" Click="OnNewFolder"/>
                 <MenuItem Header="新規接続" Click="OnNewConnection"/>
+                <MenuItem Header="パターンで一括追加…" Click="OnPatternAdd"/>
                 <MenuItem Header="編集…" Click="OnEditNode"/>
                 <MenuItem Header="削除" Click="OnDeleteNode"/>
                 <Separator/>

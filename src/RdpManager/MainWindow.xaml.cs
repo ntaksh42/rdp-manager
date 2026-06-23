@@ -258,6 +258,25 @@ public partial class MainWindow : Window
             Vm.AddChild(TargetFolder(), node);
     }
 
+    private void OnPatternAdd(object sender, RoutedEventArgs e)
+    {
+        var dlg = new PatternAddDialog { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        var parent = TargetFolder();
+        foreach (var host in dlg.Hosts)
+        {
+            var node = new TreeNodeViewModel
+            {
+                Kind = NodeKind.Connection, Name = host, Host = host,
+                Port = dlg.Port, CredentialMode = "inheritFromParent"
+            };
+            if (parent is null) { Vm.RootNodes.Add(node); node.Parent = null; }
+            else { node.Parent = parent; parent.Children.Add(node); }
+        }
+        if (parent != null) parent.IsExpanded = true;
+        Vm.NotifyEdited();
+    }
+
     private void OnEditNode(object sender, RoutedEventArgs e)
     {
         var node = Vm.SelectedNode;
