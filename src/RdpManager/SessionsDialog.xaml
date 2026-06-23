@@ -1,14 +1,14 @@
 <Window x:Class="RdpManager.SessionsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="セッション一覧" Height="360" Width="460"
+        Title="Sessions" Height="360" Width="460"
         WindowStartupLocation="CenterOwner" UseLayoutRounding="True">
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <TextBlock Grid.Row="0" Text="ダブルクリックで対象セッションへ切り替えます" Foreground="#888" Margin="0,0,0,8"/>
+        <TextBlock Grid.Row="0" Text="Double-click to switch to a session" Foreground="#888" Margin="0,0,0,8"/>
         <ListBox x:Name="List" Grid.Row="1" MouseDoubleClick="OnActivate">
             <ListBox.ItemTemplate>
                 <DataTemplate>

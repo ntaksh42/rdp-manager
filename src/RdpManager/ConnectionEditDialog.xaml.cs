@@ -15,7 +15,7 @@ public partial class ConnectionEditDialog : Window
         InitializeComponent();
         _node = node;
 
-        Title = node.IsFolder ? "フォルダの編集" : "接続の編集";
+        Title = node.IsFolder ? "Edit Folder" : "Edit Connection";
         ConnPanel.Visibility = node.IsFolder ? Visibility.Collapsed : Visibility.Visible;
         // フォルダは表示設定の「既定値」を定義する側なので継承チェックは出さない
         InheritSettingsChk.Visibility = node.IsFolder ? Visibility.Collapsed : Visibility.Visible;
@@ -84,7 +84,7 @@ public partial class ConnectionEditDialog : Window
     {
         if (string.IsNullOrWhiteSpace(NameBox.Text))
         {
-            MessageBox.Show(this, "表示名を入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "Please enter a display name.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -102,7 +102,7 @@ public partial class ConnectionEditDialog : Window
         {
             if (string.IsNullOrWhiteSpace(HostBox.Text))
             {
-                MessageBox.Show(this, "ホスト名 / IP を入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "Please enter a host / IP.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             _node.Host = HostBox.Text.Trim();

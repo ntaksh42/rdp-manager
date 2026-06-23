@@ -23,8 +23,8 @@ public partial class PatternAddDialog : Window
         var hosts = PatternExpander.Expand(text);
         var sample = string.Join(", ", hosts.Take(4));
         PreviewText.Text = hosts.Count > 4
-            ? $"{hosts.Count} 件: {sample} …"
-            : $"{hosts.Count} 件: {sample}";
+            ? $"{hosts.Count} host(s): {sample} …"
+            : $"{hosts.Count} host(s): {sample}";
     }
 
     private void OnOk(object sender, RoutedEventArgs e)
@@ -32,7 +32,7 @@ public partial class PatternAddDialog : Window
         var text = PatternBox.Text.Trim();
         if (string.IsNullOrEmpty(text))
         {
-            MessageBox.Show(this, "ホストパターンを入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "Please enter a host pattern.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         Hosts = PatternExpander.Expand(text);

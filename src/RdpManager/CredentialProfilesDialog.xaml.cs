@@ -43,7 +43,7 @@ public partial class CredentialProfilesDialog : Window
         var name = NameBox.Text.Trim();
         if (string.IsNullOrEmpty(name))
         {
-            MessageBox.Show(this, "プロファイル名を入力してください。", "入力エラー", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "Please enter a profile name.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 

@@ -1,24 +1,24 @@
 <Window x:Class="RdpManager.PatternAddDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="接続のパターン一括追加" SizeToContent="Height" Width="460"
+        Title="Add Connections by Pattern" SizeToContent="Height" Width="460"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" UseLayoutRounding="True">
     <StackPanel Margin="14">
-        <TextBlock Text="ホストパターン" Margin="0,0,0,2"/>
+        <TextBlock Text="Host pattern" Margin="0,0,0,2"/>
         <TextBox x:Name="PatternBox" Padding="4,3" TextChanged="OnPatternChanged"/>
-        <TextBlock Text="例: server[01-10]  /  {web,db}-[1-3]  /  10.0.0.[1-20]"
+        <TextBlock Text="e.g. server[01-10]  /  {web,db}-[1-3]  /  10.0.0.[1-20]"
                    Foreground="#9E9E9E" FontSize="11" Margin="0,3,0,10"/>
 
         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBlock Text="ポート" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBlock Text="Port" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox x:Name="PortBox" Text="3389" Width="80" Padding="4,3"/>
         </StackPanel>
 
         <TextBlock x:Name="PreviewText" Foreground="#1976D2" Margin="0,0,0,10"/>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="追加" Width="90" Padding="0,4" Margin="0,0,8,0" IsDefault="True" Click="OnOk"/>
-            <Button Content="キャンセル" Width="90" Padding="0,4" IsCancel="True"/>
+            <Button Content="Add" Width="90" Padding="0,4" Margin="0,0,8,0" IsDefault="True" Click="OnOk"/>
+            <Button Content="Cancel" Width="90" Padding="0,4" IsCancel="True"/>
         </StackPanel>
     </StackPanel>
 </Window>

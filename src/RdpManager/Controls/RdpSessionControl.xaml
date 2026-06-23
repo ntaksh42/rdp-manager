@@ -8,12 +8,12 @@
         <!-- 接続状態オーバーレイ（RDP 画面が出たら隠す）-->
         <Border x:Name="Overlay" Background="#1E1E2E">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock x:Name="StatusText" Text="接続中…" Foreground="#DDD"
+                <TextBlock x:Name="StatusText" Text="Connecting…" Foreground="#DDD"
                            FontSize="16" HorizontalAlignment="Center"/>
                 <TextBlock x:Name="ErrorText" Foreground="#FF8A80" FontSize="12"
                            Margin="0,8,0,0" HorizontalAlignment="Center" TextWrapping="Wrap"
                            MaxWidth="420" TextAlignment="Center" Visibility="Collapsed"/>
-                <Button x:Name="ReconnectButton" Content="再接続" Margin="0,16,0,0"
+                <Button x:Name="ReconnectButton" Content="Reconnect" Margin="0,16,0,0"
                         Padding="20,6" HorizontalAlignment="Center"
                         Visibility="Collapsed" Click="OnReconnect"/>
             </StackPanel>

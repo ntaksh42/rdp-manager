@@ -72,7 +72,7 @@ public partial class App : Application
         {
             _errorShown = true;
             MessageBox.Show(
-                "予期しないエラーが発生しましたが、アプリは継続します。\n\n" + e.Exception.Message,
+                "An unexpected error occurred, but the app will continue.\n\n" + e.Exception.Message,
                 "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         e.Handled = true;

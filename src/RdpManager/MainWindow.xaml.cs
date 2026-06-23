@@ -270,9 +270,9 @@ public partial class MainWindow : Window
 
     private void OnSendCtrlAltDel(object sender, RoutedEventArgs e)
         => MessageBox.Show(this,
-            "RDP セッションにフォーカスがある状態で Ctrl+Alt+End を押すと、リモートに Ctrl+Alt+Del が送信されます。\n" +
-            "（埋め込み RDP コントロールはセキュリティ上、Ctrl+Alt+Del の直接注入に対応していません）",
-            "Ctrl+Alt+Del の送信", MessageBoxButton.OK, MessageBoxImage.Information);
+            "With the RDP session focused, press Ctrl+Alt+End to send Ctrl+Alt+Del to the remote session.\n" +
+            "(The embedded RDP control does not allow injecting Ctrl+Alt+Del directly for security reasons.)",
+            "Send Ctrl+Alt+Del", MessageBoxButton.OK, MessageBoxImage.Information);
 
     private void OnQuickConnect(object sender, RoutedEventArgs e) => QuickConnect();
     private void OnQuickConnectKeyDown(object sender, KeyEventArgs e)
@@ -348,14 +348,14 @@ public partial class MainWindow : Window
 
     private void OnNewFolder(object sender, RoutedEventArgs e)
     {
-        var node = new TreeNodeViewModel { Kind = NodeKind.Folder, Name = "新しいフォルダ" };
+        var node = new TreeNodeViewModel { Kind = NodeKind.Folder, Name = "New Folder" };
         if (new ConnectionEditDialog(node, Vm.CredentialProfiles) { Owner = this }.ShowDialog() == true)
             Vm.AddChild(TargetFolder(), node);
     }
 
     private void OnNewConnection(object sender, RoutedEventArgs e)
     {
-        var node = new TreeNodeViewModel { Kind = NodeKind.Connection, Name = "新しい接続", CredentialMode = "direct" };
+        var node = new TreeNodeViewModel { Kind = NodeKind.Connection, Name = "New Connection", CredentialMode = "direct" };
         if (new ConnectionEditDialog(node, Vm.CredentialProfiles) { Owner = this }.ShowDialog() == true)
             Vm.AddChild(TargetFolder(), node);
     }
@@ -391,9 +391,9 @@ public partial class MainWindow : Window
     {
         var node = Vm.SelectedNode;
         if (node is null) return;
-        var kind = node.IsFolder ? "フォルダ" : "接続";
-        var extra = node.IsFolder && node.Children.Count > 0 ? "\n（中の項目もすべて削除されます）" : "";
-        if (MessageBox.Show(this, $"{kind}「{node.Name}」を削除しますか？{extra}", "削除の確認",
+        var kind = node.IsFolder ? "folder" : "connection";
+        var extra = node.IsFolder && node.Children.Count > 0 ? "\n(All items inside will also be deleted.)" : "";
+        if (MessageBox.Show(this, $"Delete {kind} \"{node.Name}\"?{extra}", "Confirm Delete",
                 MessageBoxButton.OKCancel, MessageBoxImage.Warning) == MessageBoxResult.OK)
             Vm.Remove(node);
     }
@@ -401,7 +401,7 @@ public partial class MainWindow : Window
     // ── その他 ──
     private void OnImportCsv(object sender, RoutedEventArgs e)
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "CSV (*.csv)|*.csv|すべて|*.*" };
+        var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "CSV (*.csv)|*.csv|All files|*.*" };
         if (dlg.ShowDialog(this) != true) return;
         var rows = Services.ImportExport.FromCsv(System.IO.File.ReadAllText(dlg.FileName));
         var nodes = rows.Select(r => new TreeNodeViewModel
@@ -411,7 +411,7 @@ public partial class MainWindow : Window
             CredentialMode = string.IsNullOrEmpty(r.Username) ? "inheritFromParent" : "direct"
         }).ToList();
         Vm.AddImported(nodes, TargetFolder());
-        MessageBox.Show(this, $"{nodes.Count} 件の接続をインポートしました。", "インポート", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(this, $"Imported {nodes.Count} connection(s).", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OnImportRdp(object sender, RoutedEventArgs e)
@@ -432,7 +432,7 @@ public partial class MainWindow : Window
             });
         }
         Vm.AddImported(nodes, TargetFolder());
-        MessageBox.Show(this, $"{nodes.Count} 件の接続をインポートしました。", "インポート", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(this, $"Imported {nodes.Count} connection(s).", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OnExportCsv(object sender, RoutedEventArgs e)
@@ -442,7 +442,7 @@ public partial class MainWindow : Window
         var rows = Vm.GetAllConnections().Select(c =>
             new Services.ImportedConn(c.Name, c.Host, c.Port, c.Domain, c.Username, c.Comment));
         System.IO.File.WriteAllText(dlg.FileName, Services.ImportExport.ToCsv(rows), new System.Text.UTF8Encoding(true));
-        MessageBox.Show(this, "エクスポートしました。", "エクスポート", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(this, "Export complete.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void OnOpenStoreFolder(object sender, RoutedEventArgs e)
@@ -456,25 +456,25 @@ public partial class MainWindow : Window
         var r = await Services.UpdateChecker.CheckAsync();
         if (r is null)
         {
-            MessageBox.Show(this, "更新情報を取得できませんでした。", "更新の確認", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "Could not retrieve update information.", "Check for Updates", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         if (r.IsNewer)
         {
-            if (MessageBox.Show(this, $"新しいバージョン {r.LatestTag} があります（現在 v{r.Current}）。\nダウンロードページを開きますか？",
-                    "更新の確認", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+            if (MessageBox.Show(this, $"A new version {r.LatestTag} is available (current v{r.Current}).\nOpen the download page?",
+                    "Check for Updates", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                 Process.Start(new ProcessStartInfo(Services.UpdateChecker.ReleasesUrl) { UseShellExecute = true });
         }
         else
         {
-            MessageBox.Show(this, $"最新版を使用しています（v{r.Current}）。", "更新の確認", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, $"You are using the latest version (v{r.Current}).", "Check for Updates", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
     private void OnAbout(object sender, RoutedEventArgs e)
         => MessageBox.Show(this,
-            "RdpManager\n接続先をツリーで整理し、このウィンドウ内のタブに RDP 画面を埋め込んで表示します。\n資格情報は DPAPI で暗号化保存されます。",
-            "バージョン情報", MessageBoxButton.OK, MessageBoxImage.Information);
+            "RdpManager\nOrganize connections in a tree and display RDP sessions embedded in tabs within this window.\nCredentials are stored encrypted with DPAPI.",
+            "About", MessageBoxButton.OK, MessageBoxImage.Information);
 
     private void OnManageProfiles(object sender, RoutedEventArgs e)
     {
@@ -502,7 +502,7 @@ public partial class MainWindow : Window
                 entries.Add(new SessionEntry
                 {
                     Title = (tab.Header as System.Windows.Controls.StackPanel)?.Children
-                        .OfType<System.Windows.Controls.TextBlock>().FirstOrDefault()?.Text ?? "セッション",
+                        .OfType<System.Windows.Controls.TextBlock>().FirstOrDefault()?.Text ?? "Session",
                     Host = info?.Host ?? "",
                     StateText = s.VisualState.ToString(),
                     StateColor = color,
@@ -512,7 +512,7 @@ public partial class MainWindow : Window
         }
         if (entries.Count == 0)
         {
-            MessageBox.Show(this, "アクティブなセッションはありません。", "セッション一覧", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, "There are no active sessions.", "Sessions", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         new SessionsDialog(entries) { Owner = this }.ShowDialog();

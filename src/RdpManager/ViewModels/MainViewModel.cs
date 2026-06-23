@@ -109,7 +109,7 @@ public class MainViewModel : ObservableObject
 
     public string StatusText => SelectedNode?.IsConnection == true
         ? $"{SelectedNode.Name}  |  {SelectedNode.HostDisplay}"
-        : $"接続 {CountConnections(RootNodes)} 件 / 保存先: {ConnectionStore.FilePath}";
+        : $"{CountConnections(RootNodes)} connection(s)  |  Store: {ConnectionStore.FilePath}";
 
     private static int CountConnections(IEnumerable<TreeNodeViewModel> nodes)
         => nodes.Sum(n => (n.IsConnection ? 1 : 0) + CountConnections(n.Children));
@@ -120,7 +120,7 @@ public class MainViewModel : ObservableObject
         if (node is null || !node.IsConnection) return null;
         if (string.IsNullOrWhiteSpace(node.Host))
         {
-            Error?.Invoke("ホスト名 / IP が設定されていません。");
+            Error?.Invoke("Host / IP is not set.");
             return null;
         }
         var (user, domain, password) = ResolveCredentials(node);
@@ -154,7 +154,7 @@ public class MainViewModel : ObservableObject
         var info = BuildLaunchInfo(node);
         if (info is null) return;
         try { RdpLauncher.Launch(info); }
-        catch (Exception ex) { Error?.Invoke($"接続の起動に失敗しました。\n{ex.Message}"); }
+        catch (Exception ex) { Error?.Invoke($"Failed to launch the connection.\n{ex.Message}"); }
     }
 
     /// <summary>資格情報を解決（direct / profile / 親から継承）。</summary>
@@ -325,11 +325,11 @@ public class MainViewModel : ObservableObject
 
     private void SeedDefaults()
     {
-        var sample = new TreeNodeViewModel { Kind = NodeKind.Folder, Name = "サンプル" };
+        var sample = new TreeNodeViewModel { Kind = NodeKind.Folder, Name = "Sample" };
         sample.Add(new TreeNodeViewModel
         {
             Kind = NodeKind.Connection, Name = "localhost", Host = "127.0.0.1",
-            Comment = "編集して使ってください", CredentialMode = "direct"
+            Comment = "Edit me to get started", CredentialMode = "direct"
         });
         RootNodes.Add(sample);
     }

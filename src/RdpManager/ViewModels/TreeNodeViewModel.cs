@@ -87,7 +87,7 @@ public class TreeNodeViewModel : ObservableObject
     public bool RedirectClipboard { get; set; } = true;
     public bool RedirectDrives { get; set; }
     public bool Fullscreen { get; set; }
-    public string ScreenSize { get; set; } = "クライアント領域に合わせる";
+    public string ScreenSize { get; set; } = "Fit to client area";
 
     public string Gateway
     {

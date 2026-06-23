@@ -24,54 +24,54 @@
 
     <DockPanel>
         <Menu x:Name="MainMenu" DockPanel.Dock="Top">
-            <MenuItem Header="ファイル(_F)">
-                <MenuItem Header="CSV をインポート…" Click="OnImportCsv"/>
-                <MenuItem Header=".rdp をインポート…" Click="OnImportRdp"/>
-                <MenuItem Header="CSV にエクスポート…" Click="OnExportCsv"/>
+            <MenuItem Header="_File">
+                <MenuItem Header="Import CSV…" Click="OnImportCsv"/>
+                <MenuItem Header="Import .rdp…" Click="OnImportRdp"/>
+                <MenuItem Header="Export CSV…" Click="OnExportCsv"/>
                 <Separator/>
-                <MenuItem Header="保存先フォルダを開く" Click="OnOpenStoreFolder"/>
+                <MenuItem Header="Open Data Folder" Click="OnOpenStoreFolder"/>
                 <Separator/>
-                <MenuItem Header="終了" Click="OnExit"/>
+                <MenuItem Header="Exit" Click="OnExit"/>
             </MenuItem>
-            <MenuItem Header="編集(_E)">
-                <MenuItem Header="新規フォルダ" Click="OnNewFolder"/>
-                <MenuItem Header="新規接続" Click="OnNewConnection"/>
-                <MenuItem Header="パターンで一括追加…" Click="OnPatternAdd"/>
-                <MenuItem Header="編集…" Click="OnEditNode"/>
-                <MenuItem Header="削除" Click="OnDeleteNode"/>
+            <MenuItem Header="_Edit">
+                <MenuItem Header="New Folder" Click="OnNewFolder"/>
+                <MenuItem Header="New Connection" Click="OnNewConnection"/>
+                <MenuItem Header="Add by Pattern…" Click="OnPatternAdd"/>
+                <MenuItem Header="Edit…" Click="OnEditNode"/>
+                <MenuItem Header="Delete" Click="OnDeleteNode"/>
                 <Separator/>
-                <MenuItem Header="資格情報プロファイル管理…" Click="OnManageProfiles"/>
+                <MenuItem Header="Manage Credential Profiles…" Click="OnManageProfiles"/>
             </MenuItem>
-            <MenuItem Header="セッション(_S)">
-                <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
-                <MenuItem Header="外部ウィンドウで開く (mstsc)" Click="OnConnectExternal"/>
+            <MenuItem Header="_Session">
+                <MenuItem Header="Connect (in this window)" Click="OnConnectEmbedded"/>
+                <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
                 <Separator/>
-                <MenuItem Header="キー送信">
-                    <MenuItem Header="Ctrl+Alt+Del の送り方" Click="OnSendCtrlAltDel"/>
+                <MenuItem Header="Send Keys">
+                    <MenuItem Header="How to send Ctrl+Alt+Del" Click="OnSendCtrlAltDel"/>
                 </MenuItem>
             </MenuItem>
-            <MenuItem Header="表示(_V)">
-                <MenuItem Header="セッション一覧（ダッシュボード）…" Click="OnSessionDashboard"/>
+            <MenuItem Header="_View">
+                <MenuItem Header="Sessions (Dashboard)…" Click="OnSessionDashboard"/>
                 <Separator/>
-                <MenuItem Header="全画面の切り替え" InputGestureText="F11" Click="OnToggleFullscreenMenu"/>
-                <MenuItem x:Name="FullscreenSpanItem" Header="全画面で全モニタにまたがる" IsCheckable="True" Click="OnToggleFullscreenSpan"/>
-                <MenuItem x:Name="DarkModeItem" Header="ダークモード" IsCheckable="True" Click="OnToggleDarkMode"/>
-                <MenuItem x:Name="RestoreSessionsItem" Header="起動時にセッションを復元" IsCheckable="True" Click="OnToggleRestoreSessions"/>
+                <MenuItem Header="Toggle Full Screen" InputGestureText="F11" Click="OnToggleFullscreenMenu"/>
+                <MenuItem x:Name="FullscreenSpanItem" Header="Span All Monitors in Full Screen" IsCheckable="True" Click="OnToggleFullscreenSpan"/>
+                <MenuItem x:Name="DarkModeItem" Header="Dark Mode" IsCheckable="True" Click="OnToggleDarkMode"/>
+                <MenuItem x:Name="RestoreSessionsItem" Header="Restore Sessions on Startup" IsCheckable="True" Click="OnToggleRestoreSessions"/>
             </MenuItem>
-            <MenuItem Header="ヘルプ(_H)">
-                <MenuItem Header="更新を確認…" Click="OnCheckUpdate"/>
-                <MenuItem Header="バージョン情報" Click="OnAbout"/>
+            <MenuItem Header="_Help">
+                <MenuItem Header="Check for Updates…" Click="OnCheckUpdate"/>
+                <MenuItem Header="About" Click="OnAbout"/>
             </MenuItem>
         </Menu>
 
         <ToolBar x:Name="MainToolBar" DockPanel.Dock="Top">
-            <Button Content="📁 新規フォルダ" Click="OnNewFolder"/>
-            <Button Content="🖥️ 新規接続" Click="OnNewConnection"/>
+            <Button Content="📁 New Folder" Click="OnNewFolder"/>
+            <Button Content="🖥️ New Connection" Click="OnNewConnection"/>
             <Separator/>
-            <Button Content="✎ 編集" Click="OnEditNode"/>
-            <Button Content="🗑 削除" Click="OnDeleteNode"/>
+            <Button Content="✎ Edit" Click="OnEditNode"/>
+            <Button Content="🗑 Delete" Click="OnDeleteNode"/>
             <Separator/>
-            <Button Content="▶ 接続" Click="OnConnectEmbedded"/>
+            <Button Content="▶ Connect" Click="OnConnectEmbedded"/>
         </ToolBar>
 
         <StatusBar x:Name="MainStatus" DockPanel.Dock="Bottom">
@@ -85,13 +85,13 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 接続ツリー -->
+            <!-- Connection tree -->
             <DockPanel x:Name="TreePane" Grid.Column="0" Background="{DynamicResource PanelBg}">
                 <Grid DockPanel.Dock="Top" Margin="6">
                     <TextBox x:Name="SearchBox"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              VerticalContentAlignment="Center" Padding="4,3"/>
-                    <TextBlock Text="🔍 接続を検索…" Foreground="#9E9E9E" Margin="8,0"
+                    <TextBlock Text="🔍 Search connections…" Foreground="#9E9E9E" Margin="8,0"
                                IsHitTestVisible="False" VerticalAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -117,7 +117,7 @@
                         </Style>
                     </Border.Style>
                     <StackPanel>
-                        <TextBlock Text="★ クイックアクセス" Foreground="#888" FontSize="11" Margin="2,0,0,2"/>
+                        <TextBlock Text="★ Quick Access" Foreground="#888" FontSize="11" Margin="2,0,0,2"/>
                         <ListBox x:Name="QuickList" ItemsSource="{Binding QuickAccess}" MaxHeight="150"
                                  BorderThickness="0" Background="Transparent"
                                  MouseDoubleClick="OnQuickAccessDouble">
@@ -147,15 +147,15 @@
                           Drop="OnTreeDrop">
                     <TreeView.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
-                            <MenuItem Header="右ペインで開く（分割表示）" Click="OnConnectRight"/>
-                            <MenuItem Header="外部ウィンドウで開く (mstsc)" Click="OnConnectExternal"/>
-                            <MenuItem Header="お気に入り 登録/解除" Click="OnToggleFavorite"/>
+                            <MenuItem Header="Connect (in this window)" Click="OnConnectEmbedded"/>
+                            <MenuItem Header="Open in Right Pane (Split)" Click="OnConnectRight"/>
+                            <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
+                            <MenuItem Header="Toggle Favorite" Click="OnToggleFavorite"/>
                             <Separator/>
-                            <MenuItem Header="新規フォルダ" Click="OnNewFolder"/>
-                            <MenuItem Header="新規接続" Click="OnNewConnection"/>
-                            <MenuItem Header="編集…" Click="OnEditNode"/>
-                            <MenuItem Header="削除" Click="OnDeleteNode"/>
+                            <MenuItem Header="New Folder" Click="OnNewFolder"/>
+                            <MenuItem Header="New Connection" Click="OnNewConnection"/>
+                            <MenuItem Header="Edit…" Click="OnEditNode"/>
+                            <MenuItem Header="Delete" Click="OnDeleteNode"/>
                         </ContextMenu>
                     </TreeView.ContextMenu>
                     <TreeView.ItemTemplate>
@@ -174,14 +174,14 @@
             <GridSplitter x:Name="Splitter" Grid.Column="1" Width="4" VerticalAlignment="Stretch"
                           HorizontalAlignment="Center" Background="#E0E0E0"/>
 
-            <!-- 右ペイン: セッションタブ -->
+            <!-- Right pane: session tabs -->
             <DockPanel Grid.Column="2">
                 <Border x:Name="QuickBar" DockPanel.Dock="Top" Background="#F0F0F0" Padding="8">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="クイック接続:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="Quick Connect:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBox x:Name="QuickHostBox" Width="220" VerticalContentAlignment="Center"
                                  Padding="4,2" KeyDown="OnQuickConnectKeyDown"/>
-                        <Button Content="接続" Margin="6,0,0,0" Padding="14,2" Click="OnQuickConnect"/>
+                        <Button Content="Connect" Margin="6,0,0,0" Padding="14,2" Click="OnQuickConnect"/>
                     </StackPanel>
                 </Border>
 
@@ -197,7 +197,7 @@
                                   Background="#E0E0E0" Visibility="Collapsed"/>
                     <TabControl x:Name="SessionTabsRight" Grid.Column="2"/>
                     <TextBlock x:Name="EmptyHint" Grid.Column="0"
-                               Text="左のツリーから接続をダブルクリックすると、このウィンドウ内に表示されます&#x0a;（右クリック「右ペインで開く」で左右分割表示）"
+                               Text="Double-click a connection in the tree to open it here.&#x0a;(Right-click &#8594; Open in Right Pane for split view)"
                                Foreground="#9E9E9E" FontSize="14" TextAlignment="Center"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>

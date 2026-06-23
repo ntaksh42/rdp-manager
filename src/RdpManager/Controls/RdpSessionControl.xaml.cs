@@ -36,7 +36,7 @@ public partial class RdpSessionControl : UserControl
     public void Start(LaunchInfo info)
     {
         _info = info;
-        SetOverlay(SessionVisualState.Connecting, "接続中…");
+        SetOverlay(SessionVisualState.Connecting, "Connecting…");
         if (IsLoaded)
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(BeginConnect));
         else
@@ -60,7 +60,7 @@ public partial class RdpSessionControl : UserControl
         _poll.Start();
         // 接続直後の失敗（即時 LastError）を反映
         if (_client.LastError is not null)
-            SetOverlay(SessionVisualState.Disconnected, "接続を開始できませんでした", _client.LastError);
+            SetOverlay(SessionVisualState.Disconnected, "Could not start the connection", _client.LastError);
     }
 
     private void OnPoll(object? sender, EventArgs e)
@@ -72,14 +72,14 @@ public partial class RdpSessionControl : UserControl
                 SetOverlay(SessionVisualState.Connected, "");
                 break;
             case 2: // connecting
-                SetOverlay(SessionVisualState.Connecting, "接続中…");
+                SetOverlay(SessionVisualState.Connecting, "Connecting…");
                 break;
             default: // 0 disconnected
                 if (_everConnected)
-                    SetOverlay(SessionVisualState.Disconnected, "切断されました");
+                    SetOverlay(SessionVisualState.Disconnected, "Disconnected");
                 else if (VisualState != SessionVisualState.Disconnected)
-                    SetOverlay(SessionVisualState.Disconnected, "接続できませんでした",
-                        _client.LastError ?? "ホストに到達できないか、認証に失敗しました。");
+                    SetOverlay(SessionVisualState.Disconnected, "Could not connect",
+                        _client.LastError ?? "The host is unreachable or authentication failed.");
                 break;
         }
     }

@@ -33,18 +33,18 @@ public static class ProtocolLauncher
                     }
                     catch
                     {
-                        message = "VNC ビューアが見つかりませんでした。VNC クライアントをインストールしてください。";
+                        message = "No VNC viewer found. Please install a VNC client.";
                         return false;
                     }
 
                 default:
-                    message = $"未対応のプロトコルです: {protocol}";
+                    message = $"Unsupported protocol: {protocol}";
                     return false;
             }
         }
         catch (Exception ex)
         {
-            message = $"{protocol} クライアントの起動に失敗しました。\n{ex.Message}";
+            message = $"Failed to launch the {protocol} client.\n{ex.Message}";
             return false;
         }
     }
