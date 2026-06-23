@@ -11,6 +11,9 @@ public sealed class AppSettings
     public bool FullscreenSpan { get; set; }
     public bool PerformanceMode { get; set; } = true;
     public bool AutoReconnect { get; set; } = true;
+    public bool EnableLogging { get; set; }
+    /// <summary>外部 mstsc 起動時に全モニタへ展開する（use multimon）。</summary>
+    public bool UseMultimon { get; set; }
     public List<string> RecentIds { get; set; } = new();
     public List<string> OpenOnExit { get; set; } = new();
 
@@ -33,7 +36,7 @@ public sealed class AppSettings
         try
         {
             Directory.CreateDirectory(ConnectionStore.Directory);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+            AtomicWrite.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         }
         catch { /* 保存失敗は致命的でない */ }
     }

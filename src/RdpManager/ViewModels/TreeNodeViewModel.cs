@@ -98,7 +98,8 @@ public class TreeNodeViewModel : ObservableObject
     public bool RedirectClipboard { get; set; } = true;
     public bool RedirectDrives { get; set; }
     public bool Fullscreen { get; set; }
-    public string ScreenSize { get; set; } = "Fit to client area";
+    /// <summary>サーバー証明書の検証レベル。0=なし / 1=警告 / 2=必須(既定)。</summary>
+    public int AuthenticationLevel { get; set; } = 2;
 
     public string Gateway
     {
@@ -124,7 +125,7 @@ public class TreeNodeViewModel : ObservableObject
     public string Glyph => IsFolder ? "📁" : "🖥️";
 
     public string HostDisplay => IsConnection
-        ? (Port == 3389 ? Host : $"{Host}:{Port}")
+        ? RdpManager.Common.HostAddress.Format(Host, Port)
         : "";
 
     public bool IsExpanded

@@ -87,6 +87,12 @@
                 <StackPanel x:Name="SettingsDetail">
                     <TextBlock Text="RDP Gateway (optional)" Margin="0,0,0,2"/>
                     <TextBox x:Name="GatewayBox" Padding="4,3" Margin="0,0,0,10"/>
+                    <TextBlock Text="Server authentication" Margin="0,0,0,2"/>
+                    <ComboBox x:Name="AuthLevelBox" Margin="0,0,0,10">
+                        <ComboBoxItem Content="Require certificate check (recommended)" Tag="2"/>
+                        <ComboBoxItem Content="Warn on mismatch" Tag="1"/>
+                        <ComboBoxItem Content="No check (insecure)" Tag="0"/>
+                    </ComboBox>
                     <WrapPanel Margin="0,0,0,4">
                         <CheckBox x:Name="FullscreenChk" Content="Open full screen" Margin="0,0,16,6"/>
                         <CheckBox x:Name="SmartSizingChk" Content="Smart sizing" Margin="0,0,16,6"/>

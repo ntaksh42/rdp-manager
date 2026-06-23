@@ -20,6 +20,12 @@ public partial class PatternAddDialog : Window
     {
         var text = PatternBox.Text.Trim();
         if (string.IsNullOrEmpty(text)) { PreviewText.Text = ""; return; }
+        var total = PatternExpander.Count(text);
+        if (total > PatternExpander.MaxResults)
+        {
+            PreviewText.Text = $"{total} host(s) — exceeds the limit of {PatternExpander.MaxResults}.";
+            return;
+        }
         var hosts = PatternExpander.Expand(text);
         var sample = string.Join(", ", hosts.Take(4));
         PreviewText.Text = hosts.Count > 4
@@ -35,7 +41,15 @@ public partial class PatternAddDialog : Window
             MessageBox.Show(this, "Please enter a host pattern.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        Hosts = PatternExpander.Expand(text);
+        try
+        {
+            Hosts = PatternExpander.Expand(text);
+        }
+        catch (PatternTooLargeException ex)
+        {
+            MessageBox.Show(this, ex.Message, "Too Many Hosts", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         Port = int.TryParse(PortBox.Text.Trim(), out var p) ? p : 3389;
         DialogResult = true;
     }

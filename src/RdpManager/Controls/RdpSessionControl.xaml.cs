@@ -5,7 +5,7 @@ using UserControl = System.Windows.Controls.UserControl;
 
 namespace RdpManager.Controls;
 
-public enum SessionVisualState { Connecting, Connected, Disconnected }
+public enum SessionVisualState { Connecting, Connected, Disconnected, Reconnecting }
 
 /// <summary>
 /// 1 セッション分のタブ内容。WindowsFormsHost に RDP コントロールを載せ、
@@ -20,7 +20,7 @@ public partial class RdpSessionControl : UserControl
     private readonly DispatcherTimer _resizeDebounce = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private readonly DispatcherTimer _reconnect = new() { Interval = TimeSpan.FromSeconds(5) };
     private LaunchInfo? _info;
-    private int _prevState = -1;
+    private RdpConnectionState? _prevState;
     private bool _wasConnected;       // 一度でも接続できたか（再接続判定用・リセットしない）
     private int _autoRetries;
     private bool _reconnectScheduled;
@@ -44,7 +44,7 @@ public partial class RdpSessionControl : UserControl
     /// <summary>現在の表示サイズにリモート解像度を合わせる。</summary>
     private void ApplyResize()
     {
-        if (_client.ConnectionState == 1 && _client.Width > 0 && _client.Height > 0)
+        if (_client.ConnectionState == RdpConnectionState.Connected && _client.Width > 0 && _client.Height > 0)
             _client.ResizeRemote(_client.Width, _client.Height);
     }
 
@@ -74,7 +74,7 @@ public partial class RdpSessionControl : UserControl
     private void BeginConnect()
     {
         if (_info is null) return;
-        _prevState = -1;
+        _prevState = null;
         _client.Connect(_info);
         _poll.Start();
         // 接続直後の失敗（即時 LastError）を反映
@@ -84,24 +84,24 @@ public partial class RdpSessionControl : UserControl
 
     private void OnPoll(object? sender, EventArgs e)
     {
-        int st = _client.ConnectionState;
+        var st = _client.ConnectionState;
         switch (st)
         {
-            case 1: // connected
-                if (_prevState != 1) { ApplyResize(); _autoRetries = 0; } // 接続/再接続成立時にサイズ合わせ
+            case RdpConnectionState.Connected:
+                if (_prevState != RdpConnectionState.Connected) { ApplyResize(); _autoRetries = 0; } // 接続/再接続成立時にサイズ合わせ
                 _wasConnected = true;
                 SetOverlay(SessionVisualState.Connected, "");
                 break;
-            case 2: // connecting
+            case RdpConnectionState.Connecting:
                 SetOverlay(SessionVisualState.Connecting, "Connecting…");
                 break;
-            default: // 0 disconnected
+            default: // Disconnected
                 if (_wasConnected)
                 {
                     if (RdpManager.App.Settings.AutoReconnect && _autoRetries < MaxAutoRetries && !_reconnectScheduled)
                     {
                         _reconnectScheduled = true;
-                        SetOverlay(SessionVisualState.Disconnected,
+                        SetOverlay(SessionVisualState.Reconnecting,
                             $"Disconnected — reconnecting ({_autoRetries + 1}/{MaxAutoRetries})…");
                         _reconnect.Start();
                     }

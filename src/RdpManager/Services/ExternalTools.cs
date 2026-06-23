@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using RdpManager.Common;
 
 namespace RdpManager.Services;
 
@@ -8,10 +9,11 @@ public static class ExternalTools
     public static void Run(string? command, LaunchInfo info)
     {
         if (string.IsNullOrWhiteSpace(command)) return;
+        // 置換値は外部由来になり得るため、cmd のメタ文字を除去してコマンドインジェクションを防ぐ
         var cmd = command
-            .Replace("{host}", info.Host)
+            .Replace("{host}", ShellSafe.Strip(info.Host))
             .Replace("{port}", info.Port.ToString())
-            .Replace("{user}", info.Username);
+            .Replace("{user}", ShellSafe.Strip(info.Username));
         try
         {
             Process.Start(new ProcessStartInfo
@@ -22,6 +24,6 @@ public static class ExternalTools
                 CreateNoWindow = true
             });
         }
-        catch { /* 外部ツール失敗は接続を妨げない */ }
+        catch (Exception ex) { Logger.Warn($"External command failed: {ex.Message}"); }
     }
 }

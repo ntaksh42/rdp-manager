@@ -4,16 +4,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Shapes;
 using RdpManager.Controls;
 using RdpManager.Services;
 using RdpManager.ViewModels;
-using Button = System.Windows.Controls.Button;
-using Cursors = System.Windows.Input.Cursors;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using Key = System.Windows.Input.Key;
-using Orientation = System.Windows.Controls.Orientation;
 using MessageBox = System.Windows.MessageBox;
 using Brushes = System.Windows.Media.Brushes;
 using Brush = System.Windows.Media.Brush;
@@ -44,37 +40,15 @@ public partial class MainWindow : Window
         FullscreenSpanItem.IsChecked = App.Settings.FullscreenSpan;
         PerformanceModeItem.IsChecked = App.Settings.PerformanceMode;
         AutoReconnectItem.IsChecked = App.Settings.AutoReconnect;
+        UseMultimonItem.IsChecked = App.Settings.UseMultimon;
+        EnableLoggingItem.IsChecked = App.Settings.EnableLogging;
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
 
-        _activePane = SessionTabs;
-        SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _activePane = SessionTabs; };
-        SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _activePane = SessionTabsRight; };
-    }
-
-    /// <summary>アクティブなペイン内でタブを巡回し、選択したセッションへフォーカスを移す。</summary>
-    private void CycleTab(int delta)
-    {
-        var pane = _activePane is { Items.Count: > 0 } p ? p
-            : (SessionTabs.Items.Count > 0 ? SessionTabs : SessionTabsRight);
-        int n = pane.Items.Count;
-        if (n == 0) return;
-        int idx = pane.SelectedIndex < 0 ? 0 : pane.SelectedIndex;
-        idx = (idx + delta + n) % n;
-        pane.SelectedIndex = idx;
-        if (pane.SelectedItem is TabItem ti && ti.Content is RdpSessionControl s)
-            Dispatcher.BeginInvoke(new Action(s.FocusSession), System.Windows.Threading.DispatcherPriority.Input);
-    }
-
-    /// <summary>アクティブペインの index 番目（0始まり）のタブへ移動。</summary>
-    private void JumpToTab(int index)
-    {
-        var pane = _activePane is { Items.Count: > 0 } p ? p
-            : (SessionTabs.Items.Count > 0 ? SessionTabs : SessionTabsRight);
-        if (index < 0 || index >= pane.Items.Count) return;
-        pane.SelectedIndex = index;
-        if (pane.SelectedItem is TabItem ti && ti.Content is RdpSessionControl s)
-            Dispatcher.BeginInvoke(new Action(s.FocusSession), System.Windows.Threading.DispatcherPriority.Input);
+        _sessions = new SessionManager(SessionTabs, SessionTabsRight, EmptyHint,
+            RightCol, RightSplitterCol, RightSplitter);
+        SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _sessions.OnPaneActivated(SessionTabs); };
+        SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _sessions.OnPaneActivated(SessionTabsRight); };
     }
 
     private void OnLoadedRestore(object sender, RoutedEventArgs e)
@@ -90,7 +64,7 @@ public partial class MainWindow : Window
 
     private void OnClosingSaveSessions(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        var ids = SessionTabs.Items.OfType<TabItem>().Concat(SessionTabsRight.Items.OfType<TabItem>())
+        var ids = _sessions.AllTabs
             .Select(t => (t.Tag as SessionTag)?.NodeId)
             .Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
         App.Settings.OpenOnExit = ids;
@@ -131,7 +105,7 @@ public partial class MainWindow : Window
 
     private IntPtr _hwnd;
     private bool _fullscreen;
-    private TabControl? _activePane;
+    private readonly SessionManager _sessions;
     private WindowStyle _savedStyle;
     private ResizeMode _savedResize;
     private WindowState _savedState;
@@ -174,9 +148,9 @@ public partial class MainWindow : Window
                 ToggleFullscreen();
                 handled = true;
             }
-            else if (id == HotkeyNextTab) { CycleTab(+1); handled = true; }
-            else if (id == HotkeyPrevTab) { CycleTab(-1); handled = true; }
-            else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { JumpToTab(id - HotkeyTab1); handled = true; }
+            else if (id == HotkeyNextTab) { _sessions.CycleTab(+1); handled = true; }
+            else if (id == HotkeyPrevTab) { _sessions.CycleTab(-1); handled = true; }
+            else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { _sessions.JumpToTab(id - HotkeyTab1); handled = true; }
         }
         return IntPtr.Zero;
     }
@@ -275,10 +249,26 @@ public partial class MainWindow : Window
     {
         if (e.Data.GetData(typeof(TreeNodeViewModel)) is not TreeNodeViewModel dragged) return;
         var targetNode = FindNode(e.OriginalSource as DependencyObject);
-        TreeNodeViewModel? newParent = targetNode is null ? null
-            : (targetNode.IsFolder ? targetNode : targetNode.Parent);
-        Vm.MoveNode(dragged, newParent);
+        if (targetNode is null)
+        {
+            Vm.MoveNode(dragged, null); // 空き領域 → ルート末尾へ
+        }
+        else if (targetNode.IsFolder)
+        {
+            Vm.MoveNode(dragged, targetNode); // フォルダへ移動（末尾）
+        }
+        else
+        {
+            // 接続の上にドロップ → その兄弟として同じ位置へ挿入（同一フォルダ内の並べ替え）
+            var siblings = targetNode.Parent?.Children ?? Vm.RootNodes;
+            Vm.MoveNode(dragged, targetNode.Parent, siblings.IndexOf(targetNode));
+        }
         e.Handled = true;
+    }
+
+    private void OnDuplicateNode(object sender, RoutedEventArgs e)
+    {
+        if (Vm.SelectedNode is { } node) Vm.Duplicate(node);
     }
 
     private static TreeNodeViewModel? FindNode(DependencyObject? src)
@@ -310,18 +300,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, info, target ?? SessionTabs);
+        _sessions.OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, target ?? SessionTabs);
         Vm.RecordRecent(node);
-    }
-
-    private sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info);
-
-    private void UpdateRightPane()
-    {
-        bool show = SessionTabsRight.Items.Count > 0;
-        RightCol.Width = show ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        RightSplitterCol.Width = show ? GridLength.Auto : new GridLength(0);
-        RightSplitter.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static IEnumerable<TreeNodeViewModel> DescendantConnections(TreeNodeViewModel folder)
@@ -349,11 +329,10 @@ public partial class MainWindow : Window
     {
         if (Vm.SelectedNode is not { IsFolder: true } folder) return;
         var ids = DescendantConnections(folder).Select(c => c.Id.ToString()).ToHashSet();
-        foreach (var pane in new[] { SessionTabs, SessionTabsRight })
-            foreach (var tab in pane.Items.OfType<TabItem>().ToList())
-                if ((tab.Tag as SessionTag)?.NodeId is { } id && ids.Contains(id) &&
-                    tab.Content is RdpSessionControl s)
-                    CloseSession(tab, s);
+        foreach (var tab in _sessions.AllTabs.ToList())
+            if ((tab.Tag as SessionTag)?.NodeId is { } id && ids.Contains(id) &&
+                tab.Content is RdpSessionControl s)
+                _sessions.CloseSession(tab, s);
     }
 
     private void OnQuickAccessDouble(object sender, MouseButtonEventArgs e)
@@ -380,59 +359,8 @@ public partial class MainWindow : Window
     {
         var host = QuickHostBox.Text.Trim();
         if (string.IsNullOrEmpty(host)) return;
-        OpenSession(new LaunchInfo { Host = host }, host);
+        _sessions.OpenSession(new LaunchInfo { Host = host }, host);
         QuickHostBox.Clear();
-    }
-
-    // ── セッションタブ管理 ──
-    private void OpenSession(LaunchInfo info, string title, string? nodeId = null,
-                             string? postCommand = null, LaunchInfo? postInfo = null, TabControl? target = null)
-    {
-        target ??= SessionTabs;
-        _activePane = target;
-        var session = new RdpSessionControl();
-        var dot = new Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 6, 0),
-            VerticalAlignment = VerticalAlignment.Center, Fill = Brushes.Orange };
-
-        var tab = new TabItem { Content = session, Tag = new SessionTag(nodeId, postCommand, postInfo) };
-
-        var close = new Button
-        {
-            Content = "✕", FontSize = 10, Padding = new Thickness(3, 0, 3, 0),
-            Margin = new Thickness(8, 0, 0, 0), BorderThickness = new Thickness(0),
-            Background = Brushes.Transparent, Cursor = Cursors.Hand
-        };
-        close.Click += (_, _) => CloseSession(tab, session);
-
-        var header = new StackPanel { Orientation = Orientation.Horizontal };
-        header.Children.Add(dot);
-        header.Children.Add(new TextBlock { Text = title, VerticalAlignment = VerticalAlignment.Center });
-        header.Children.Add(close);
-        tab.Header = header;
-
-        session.StateChanged += (_, _) => dot.Fill = session.VisualState switch
-        {
-            SessionVisualState.Connected => Brushes.LimeGreen,
-            SessionVisualState.Disconnected => Brushes.Gray,
-            _ => Brushes.Orange
-        };
-
-        target.Items.Add(tab);
-        target.SelectedItem = tab;
-        EmptyHint.Visibility = SessionTabs.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        UpdateRightPane();
-
-        session.Start(info);
-    }
-
-    private void CloseSession(TabItem tab, RdpSessionControl session)
-    {
-        session.Cleanup();
-        if (tab.Tag is SessionTag { PostCommand: { Length: > 0 } cmd, Info: { } info })
-            Services.ExternalTools.Run(cmd, info);
-        (tab.Parent as TabControl)?.Items.Remove(tab);
-        EmptyHint.Visibility = SessionTabs.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        UpdateRightPane();
     }
 
     // ── CRUD ──
@@ -583,29 +511,27 @@ public partial class MainWindow : Window
     private void OnSessionDashboard(object sender, RoutedEventArgs e)
     {
         var entries = new List<SessionEntry>();
-        foreach (var pane in new[] { SessionTabs, SessionTabsRight })
+        foreach (var tab in _sessions.AllTabs)
         {
-            foreach (var tab in pane.Items.OfType<TabItem>())
+            if (tab.Content is not RdpSessionControl s) continue;
+            var capturedTab = tab;
+            Brush color = s.VisualState switch
             {
-                if (tab.Content is not RdpSessionControl s) continue;
-                var capturedPane = pane; var capturedTab = tab;
-                Brush color = s.VisualState switch
-                {
-                    Controls.SessionVisualState.Connected => Brushes.LimeGreen,
-                    Controls.SessionVisualState.Disconnected => Brushes.Gray,
-                    _ => Brushes.Orange
-                };
-                var info = (tab.Tag as SessionTag)?.Info;
-                entries.Add(new SessionEntry
-                {
-                    Title = (tab.Header as System.Windows.Controls.StackPanel)?.Children
-                        .OfType<System.Windows.Controls.TextBlock>().FirstOrDefault()?.Text ?? "Session",
-                    Host = info?.Host ?? "",
-                    StateText = s.VisualState.ToString(),
-                    StateColor = color,
-                    Activate = () => { capturedPane.SelectedItem = capturedTab; }
-                });
-            }
+                Controls.SessionVisualState.Connected => Brushes.LimeGreen,
+                Controls.SessionVisualState.Disconnected => Brushes.Gray,
+                Controls.SessionVisualState.Reconnecting => Brushes.Gold,
+                _ => Brushes.Orange
+            };
+            var info = (tab.Tag as SessionTag)?.Info;
+            entries.Add(new SessionEntry
+            {
+                Title = (tab.Header as System.Windows.Controls.StackPanel)?.Children
+                    .OfType<System.Windows.Controls.TextBlock>().FirstOrDefault()?.Text ?? "Session",
+                Host = info?.Host ?? "",
+                StateText = s.VisualState.ToString(),
+                StateColor = color,
+                Activate = () => { if (capturedTab.Parent is TabControl tc) tc.SelectedItem = capturedTab; }
+            });
         }
         if (entries.Count == 0)
         {
@@ -634,6 +560,19 @@ public partial class MainWindow : Window
     private void OnToggleAutoReconnect(object sender, RoutedEventArgs e)
     {
         App.Settings.AutoReconnect = AutoReconnectItem.IsChecked;
+        App.Settings.Save();
+    }
+
+    private void OnToggleUseMultimon(object sender, RoutedEventArgs e)
+    {
+        App.Settings.UseMultimon = UseMultimonItem.IsChecked;
+        App.Settings.Save(); // 次回の外部 mstsc 起動から反映
+    }
+
+    private void OnToggleLogging(object sender, RoutedEventArgs e)
+    {
+        App.Settings.EnableLogging = EnableLoggingItem.IsChecked;
+        Services.Logger.Enabled = App.Settings.EnableLogging;
         App.Settings.Save();
     }
 
