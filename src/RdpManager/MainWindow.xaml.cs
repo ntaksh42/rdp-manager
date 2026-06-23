@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         Closed += (_, _) => UnregisterHotkey();
         DarkModeItem.IsChecked = App.Settings.DarkMode;
         RestoreSessionsItem.IsChecked = App.Settings.RestoreSessions;
+        FullscreenSpanItem.IsChecked = App.Settings.FullscreenSpan;
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
     }
@@ -89,6 +90,7 @@ public partial class MainWindow : Window
     private ResizeMode _savedResize;
     private WindowState _savedState;
     private GridLength _savedTreeWidth;
+    private Rect _savedBounds;
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
@@ -122,6 +124,7 @@ public partial class MainWindow : Window
             _savedResize = ResizeMode;
             _savedState = WindowState;
             _savedTreeWidth = TreeColumn.Width;
+            _savedBounds = new Rect(Left, Top, Width, Height);
 
             MainMenu.Visibility = Visibility.Collapsed;
             MainToolBar.Visibility = Visibility.Collapsed;
@@ -134,8 +137,20 @@ public partial class MainWindow : Window
 
             WindowStyle = WindowStyle.None;
             ResizeMode = ResizeMode.NoResize;
-            WindowState = WindowState.Normal; // 一旦戻してから最大化しないと境界が残ることがある
-            WindowState = WindowState.Maximized;
+            if (App.Settings.FullscreenSpan)
+            {
+                // 全モニタにまたがる（仮想スクリーン全体）
+                WindowState = WindowState.Normal;
+                Left = SystemParameters.VirtualScreenLeft;
+                Top = SystemParameters.VirtualScreenTop;
+                Width = SystemParameters.VirtualScreenWidth;
+                Height = SystemParameters.VirtualScreenHeight;
+            }
+            else
+            {
+                WindowState = WindowState.Normal; // 一旦戻してから最大化しないと境界が残ることがある
+                WindowState = WindowState.Maximized;
+            }
             _fullscreen = true;
         }
         else
@@ -151,6 +166,8 @@ public partial class MainWindow : Window
 
             WindowStyle = _savedStyle;
             ResizeMode = _savedResize;
+            Left = _savedBounds.Left; Top = _savedBounds.Top;
+            Width = _savedBounds.Width; Height = _savedBounds.Height;
             WindowState = _savedState;
             _fullscreen = false;
         }
@@ -414,6 +431,12 @@ public partial class MainWindow : Window
     }
 
     private void OnToggleFullscreenMenu(object sender, RoutedEventArgs e) => ToggleFullscreen();
+
+    private void OnToggleFullscreenSpan(object sender, RoutedEventArgs e)
+    {
+        App.Settings.FullscreenSpan = FullscreenSpanItem.IsChecked;
+        App.Settings.Save();
+    }
 
     private void OnExit(object sender, RoutedEventArgs e) => Close();
 }
