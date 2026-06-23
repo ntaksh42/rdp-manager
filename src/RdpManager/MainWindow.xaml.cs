@@ -43,6 +43,7 @@ public partial class MainWindow : Window
         RestoreSessionsItem.IsChecked = App.Settings.RestoreSessions;
         FullscreenSpanItem.IsChecked = App.Settings.FullscreenSpan;
         PerformanceModeItem.IsChecked = App.Settings.PerformanceMode;
+        AutoReconnectItem.IsChecked = App.Settings.AutoReconnect;
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
 
@@ -628,6 +629,12 @@ public partial class MainWindow : Window
     {
         App.Settings.PerformanceMode = PerformanceModeItem.IsChecked;
         App.Settings.Save(); // 次回接続から反映
+    }
+
+    private void OnToggleAutoReconnect(object sender, RoutedEventArgs e)
+    {
+        App.Settings.AutoReconnect = AutoReconnectItem.IsChecked;
+        App.Settings.Save();
     }
 
     private void OnExit(object sender, RoutedEventArgs e) => Close();

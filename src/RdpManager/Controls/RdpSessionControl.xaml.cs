@@ -13,11 +13,17 @@ public enum SessionVisualState { Connecting, Connected, Disconnected }
 /// </summary>
 public partial class RdpSessionControl : UserControl
 {
+    private const int MaxAutoRetries = 5;
+
     private readonly RdpClientHost _client = new();
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromMilliseconds(700) };
     private readonly DispatcherTimer _resizeDebounce = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    private readonly DispatcherTimer _reconnect = new() { Interval = TimeSpan.FromSeconds(5) };
     private LaunchInfo? _info;
-    private bool _everConnected;
+    private int _prevState = -1;
+    private bool _wasConnected;       // 一度でも接続できたか（再接続判定用・リセットしない）
+    private int _autoRetries;
+    private bool _reconnectScheduled;
 
     public event EventHandler? StateChanged;
     public SessionVisualState VisualState { get; private set; } = SessionVisualState.Connecting;
@@ -30,6 +36,8 @@ public partial class RdpSessionControl : UserControl
         // ウィンドウ/タブのサイズ変更に追従（連続変更はデバウンス）
         _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); ApplyResize(); };
         SizeChanged += (_, _) => { _resizeDebounce.Stop(); _resizeDebounce.Start(); };
+        // 自動再接続（一度きりの遅延実行）
+        _reconnect.Tick += (_, _) => { _reconnect.Stop(); _reconnectScheduled = false; _autoRetries++; BeginConnect(); };
         // タブ切替で Unloaded しても切断しない（明示的に閉じた時のみ Cleanup）
     }
 
@@ -66,7 +74,7 @@ public partial class RdpSessionControl : UserControl
     private void BeginConnect()
     {
         if (_info is null) return;
-        _everConnected = false;
+        _prevState = -1;
         _client.Connect(_info);
         _poll.Start();
         // 接続直後の失敗（即時 LastError）を反映
@@ -76,23 +84,40 @@ public partial class RdpSessionControl : UserControl
 
     private void OnPoll(object? sender, EventArgs e)
     {
-        switch (_client.ConnectionState)
+        int st = _client.ConnectionState;
+        switch (st)
         {
             case 1: // connected
-                if (!_everConnected) { _everConnected = true; ApplyResize(); } // 接続直後に現在サイズへ合わせる
+                if (_prevState != 1) { ApplyResize(); _autoRetries = 0; } // 接続/再接続成立時にサイズ合わせ
+                _wasConnected = true;
                 SetOverlay(SessionVisualState.Connected, "");
                 break;
             case 2: // connecting
                 SetOverlay(SessionVisualState.Connecting, "Connecting…");
                 break;
             default: // 0 disconnected
-                if (_everConnected)
-                    SetOverlay(SessionVisualState.Disconnected, "Disconnected");
+                if (_wasConnected)
+                {
+                    if (RdpManager.App.Settings.AutoReconnect && _autoRetries < MaxAutoRetries && !_reconnectScheduled)
+                    {
+                        _reconnectScheduled = true;
+                        SetOverlay(SessionVisualState.Disconnected,
+                            $"Disconnected — reconnecting ({_autoRetries + 1}/{MaxAutoRetries})…");
+                        _reconnect.Start();
+                    }
+                    else if (!_reconnectScheduled)
+                    {
+                        SetOverlay(SessionVisualState.Disconnected, "Disconnected");
+                    }
+                }
                 else if (VisualState != SessionVisualState.Disconnected)
+                {
                     SetOverlay(SessionVisualState.Disconnected, "Could not connect",
                         _client.LastError ?? "The host is unreachable or authentication failed.");
+                }
                 break;
         }
+        _prevState = st;
     }
 
     private void SetOverlay(SessionVisualState state, string status, string? error = null)
@@ -107,7 +132,13 @@ public partial class RdpSessionControl : UserControl
         if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnReconnect(object sender, RoutedEventArgs e) => Start(_info!);
+    private void OnReconnect(object sender, RoutedEventArgs e)
+    {
+        _reconnect.Stop();
+        _reconnectScheduled = false;
+        _autoRetries = 0;
+        Start(_info!);
+    }
 
     /// <summary>埋め込み RDP コントロールへキーボードフォーカスを移す。</summary>
     public void FocusSession()
@@ -117,6 +148,8 @@ public partial class RdpSessionControl : UserControl
 
     public void Cleanup()
     {
+        _reconnect.Stop();
+        _reconnectScheduled = false;
         _poll.Stop();
         _client.DisconnectSession();
     }
