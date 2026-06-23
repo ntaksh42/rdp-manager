@@ -244,6 +244,13 @@ public partial class MainWindow : Window
             "RdpManager\n接続先をツリーで整理し、このウィンドウ内のタブに RDP 画面を埋め込んで表示します。\n資格情報は DPAPI で暗号化保存されます。",
             "バージョン情報", MessageBoxButton.OK, MessageBoxImage.Information);
 
+    private void OnManageProfiles(object sender, RoutedEventArgs e)
+    {
+        var dlg = new CredentialProfilesDialog(Vm.CredentialProfiles) { Owner = this };
+        dlg.ShowDialog();
+        if (dlg.Changed) Vm.NotifyEdited();
+    }
+
     private void OnToggleFullscreenMenu(object sender, RoutedEventArgs e) => ToggleFullscreen();
 
     private void OnExit(object sender, RoutedEventArgs e) => Close();

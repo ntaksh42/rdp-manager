@@ -32,6 +32,8 @@
                 <MenuItem Header="新規接続" Click="OnNewConnection"/>
                 <MenuItem Header="編集…" Click="OnEditNode"/>
                 <MenuItem Header="削除" Click="OnDeleteNode"/>
+                <Separator/>
+                <MenuItem Header="資格情報プロファイル管理…" Click="OnManageProfiles"/>
             </MenuItem>
             <MenuItem Header="セッション(_S)">
                 <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
