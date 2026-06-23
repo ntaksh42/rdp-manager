@@ -83,9 +83,15 @@ public partial class MainWindow : Window
     [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-    private const int HotkeyId = 0x9001;
+    private const int HotkeyF11 = 0x9001;
+    private const int HotkeyPause = 0x9002;
+    private const int HotkeyBreak = 0x9003;
     private const int WmHotkey = 0x0312;
     private const uint VkF11 = 0x7A;
+    private const uint VkPause = 0x13;   // Pause
+    private const uint VkCancel = 0x03;  // Ctrl+Pause = Break
+    private const uint ModAlt = 0x1;
+    private const uint ModControl = 0x2;
 
     private IntPtr _hwnd;
     private bool _fullscreen;
@@ -100,21 +106,30 @@ public partial class MainWindow : Window
         _hwnd = new WindowInteropHelper(this).Handle;
         var src = HwndSource.FromHwnd(_hwnd);
         src?.AddHook(WndProc);
-        // 修飾なし F11 をグローバル登録（RDP セッションにフォーカスがあっても効かせるため）
-        RegisterHotKey(_hwnd, HotkeyId, 0, VkF11);
+        // RDP セッションにフォーカスがあっても効くようグローバル登録
+        RegisterHotKey(_hwnd, HotkeyF11, 0, VkF11);                          // F11
+        RegisterHotKey(_hwnd, HotkeyPause, ModControl | ModAlt, VkPause);    // Ctrl+Alt+Pause
+        RegisterHotKey(_hwnd, HotkeyBreak, ModControl | ModAlt, VkCancel);   // Ctrl+Alt+Break
     }
 
     private void UnregisterHotkey()
     {
-        if (_hwnd != IntPtr.Zero) UnregisterHotKey(_hwnd, HotkeyId);
+        if (_hwnd == IntPtr.Zero) return;
+        UnregisterHotKey(_hwnd, HotkeyF11);
+        UnregisterHotKey(_hwnd, HotkeyPause);
+        UnregisterHotKey(_hwnd, HotkeyBreak);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == WmHotkey && wParam.ToInt32() == HotkeyId)
+        if (msg == WmHotkey)
         {
-            ToggleFullscreen();
-            handled = true;
+            var id = wParam.ToInt32();
+            if (id == HotkeyF11 || id == HotkeyPause || id == HotkeyBreak)
+            {
+                ToggleFullscreen();
+                handled = true;
+            }
         }
         return IntPtr.Zero;
     }
