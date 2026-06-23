@@ -66,15 +66,22 @@
                     <ComboBox x:Name="ProfileBox" Margin="0,0,0,10" DisplayMemberPath="Name"/>
                 </StackPanel>
 
-                <TextBlock Text="RDP ゲートウェイ（任意）" Margin="0,0,0,2"/>
-                <TextBox x:Name="GatewayBox" Padding="4,3" Margin="0,0,0,10"/>
+            </StackPanel>
 
-                <WrapPanel Margin="0,0,0,4">
-                    <CheckBox x:Name="FullscreenChk" Content="全画面で開く" Margin="0,0,16,6"/>
-                    <CheckBox x:Name="SmartSizingChk" Content="スマートサイジング" Margin="0,0,16,6"/>
-                    <CheckBox x:Name="ClipboardChk" Content="クリップボード共有" Margin="0,0,16,6"/>
-                    <CheckBox x:Name="DrivesChk" Content="ドライブ共有" Margin="0,0,16,6"/>
-                </WrapPanel>
+            <!-- 表示/RDP 設定（フォルダでは既定値、接続では継承可）-->
+            <StackPanel x:Name="SettingsPanel">
+                <CheckBox x:Name="InheritSettingsChk" Content="表示設定を親フォルダから継承する"
+                          Margin="0,4,0,8" Click="OnInheritSettingsChanged"/>
+                <StackPanel x:Name="SettingsDetail">
+                    <TextBlock Text="RDP ゲートウェイ（任意）" Margin="0,0,0,2"/>
+                    <TextBox x:Name="GatewayBox" Padding="4,3" Margin="0,0,0,10"/>
+                    <WrapPanel Margin="0,0,0,4">
+                        <CheckBox x:Name="FullscreenChk" Content="全画面で開く" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="SmartSizingChk" Content="スマートサイジング" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="ClipboardChk" Content="クリップボード共有" Margin="0,0,16,6"/>
+                        <CheckBox x:Name="DrivesChk" Content="ドライブ共有" Margin="0,0,16,6"/>
+                    </WrapPanel>
+                </StackPanel>
             </StackPanel>
         </StackPanel>
 

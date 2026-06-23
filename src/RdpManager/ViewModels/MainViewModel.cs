@@ -107,6 +107,7 @@ public class MainViewModel : ObservableObject
             return null;
         }
         var (user, domain, password) = ResolveCredentials(node);
+        var s = ResolveSettingsSource(node);
         return new LaunchInfo
         {
             Host = node.Host,
@@ -114,12 +115,20 @@ public class MainViewModel : ObservableObject
             Username = user,
             Domain = domain,
             Password = password,
-            Fullscreen = node.Fullscreen,
-            SmartSizing = node.SmartSizing,
-            RedirectClipboard = node.RedirectClipboard,
-            RedirectDrives = node.RedirectDrives,
-            Gateway = node.Gateway
+            Fullscreen = s.Fullscreen,
+            SmartSizing = s.SmartSizing,
+            RedirectClipboard = s.RedirectClipboard,
+            RedirectDrives = s.RedirectDrives,
+            Gateway = s.Gateway
         };
+    }
+
+    /// <summary>表示/RDP 設定の解決元。継承指定なら親フォルダを辿る。</summary>
+    private static TreeNodeViewModel ResolveSettingsSource(TreeNodeViewModel node)
+    {
+        var c = node;
+        while (c.InheritSettings && c.Parent != null) c = c.Parent;
+        return c;
     }
 
     /// <summary>外部 mstsc.exe で開く（埋め込みのフォールバック）。</summary>
@@ -257,6 +266,7 @@ public class MainViewModel : ObservableObject
         CredentialMode = n.CredentialMode, CredentialProfile = n.CredentialProfile,
         Username = n.Username, Domain = n.Domain,
         PasswordEncrypted = CredentialProtector.Protect(n.Password),
+        InheritSettings = n.InheritSettings,
         SmartSizing = n.SmartSizing, RedirectClipboard = n.RedirectClipboard,
         RedirectDrives = n.RedirectDrives, Fullscreen = n.Fullscreen,
         ScreenSize = n.ScreenSize, Gateway = n.Gateway, IsFavorite = n.IsFavorite,
@@ -272,6 +282,7 @@ public class MainViewModel : ObservableObject
             CredentialMode = d.CredentialMode, CredentialProfile = d.CredentialProfile,
             Username = d.Username, Domain = d.Domain,
             Password = CredentialProtector.Unprotect(d.PasswordEncrypted),
+            InheritSettings = d.InheritSettings,
             SmartSizing = d.SmartSizing, RedirectClipboard = d.RedirectClipboard,
             RedirectDrives = d.RedirectDrives, Fullscreen = d.Fullscreen,
             ScreenSize = d.ScreenSize, Gateway = d.Gateway, IsFavorite = d.IsFavorite,

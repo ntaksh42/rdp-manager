@@ -17,9 +17,19 @@ public partial class ConnectionEditDialog : Window
 
         Title = node.IsFolder ? "フォルダの編集" : "接続の編集";
         ConnPanel.Visibility = node.IsFolder ? Visibility.Collapsed : Visibility.Visible;
+        // フォルダは表示設定の「既定値」を定義する側なので継承チェックは出さない
+        InheritSettingsChk.Visibility = node.IsFolder ? Visibility.Collapsed : Visibility.Visible;
 
         NameBox.Text = node.Name;
         ProfileBox.ItemsSource = profiles;
+
+        // 表示/RDP 設定はフォルダ・接続ともに編集可
+        GatewayBox.Text = node.Gateway;
+        FullscreenChk.IsChecked = node.Fullscreen;
+        SmartSizingChk.IsChecked = node.SmartSizing;
+        ClipboardChk.IsChecked = node.RedirectClipboard;
+        DrivesChk.IsChecked = node.RedirectDrives;
+        InheritSettingsChk.IsChecked = node.InheritSettings;
 
         if (node.IsConnection)
         {
@@ -29,11 +39,6 @@ public partial class ConnectionEditDialog : Window
             DomainBox.Text = node.Domain;
             UserBox.Text = node.Username;
             PassBox.Password = node.Password;
-            GatewayBox.Text = node.Gateway;
-            FullscreenChk.IsChecked = node.Fullscreen;
-            SmartSizingChk.IsChecked = node.SmartSizing;
-            ClipboardChk.IsChecked = node.RedirectClipboard;
-            DrivesChk.IsChecked = node.RedirectDrives;
             ProfileBox.SelectedItem = profiles.FirstOrDefault(p => p.Name == node.CredentialProfile);
 
             CredModeBox.SelectedIndex = node.CredentialMode switch
@@ -45,8 +50,17 @@ public partial class ConnectionEditDialog : Window
             UpdateCredPanels();
         }
 
+        UpdateSettingsEnabled();
         NameBox.Focus();
         NameBox.SelectAll();
+    }
+
+    private void OnInheritSettingsChanged(object sender, RoutedEventArgs e) => UpdateSettingsEnabled();
+
+    private void UpdateSettingsEnabled()
+    {
+        if (SettingsDetail is null) return;
+        SettingsDetail.IsEnabled = !(InheritSettingsChk.IsChecked == true);
     }
 
     private string SelectedCredMode =>
@@ -72,6 +86,14 @@ public partial class ConnectionEditDialog : Window
 
         _node.Name = NameBox.Text.Trim();
 
+        // 表示/RDP 設定（フォルダ・接続共通）
+        _node.Gateway = GatewayBox.Text.Trim();
+        _node.Fullscreen = FullscreenChk.IsChecked == true;
+        _node.SmartSizing = SmartSizingChk.IsChecked == true;
+        _node.RedirectClipboard = ClipboardChk.IsChecked == true;
+        _node.RedirectDrives = DrivesChk.IsChecked == true;
+        _node.InheritSettings = _node.IsConnection && InheritSettingsChk.IsChecked == true;
+
         if (_node.IsConnection)
         {
             if (string.IsNullOrWhiteSpace(HostBox.Text))
@@ -87,11 +109,6 @@ public partial class ConnectionEditDialog : Window
             _node.Username = UserBox.Text.Trim();
             _node.Password = PassBox.Password;
             _node.CredentialProfile = (ProfileBox.SelectedItem as CredentialProfile)?.Name ?? "";
-            _node.Gateway = GatewayBox.Text.Trim();
-            _node.Fullscreen = FullscreenChk.IsChecked == true;
-            _node.SmartSizing = SmartSizingChk.IsChecked == true;
-            _node.RedirectClipboard = ClipboardChk.IsChecked == true;
-            _node.RedirectDrives = DrivesChk.IsChecked == true;
         }
 
         DialogResult = true;

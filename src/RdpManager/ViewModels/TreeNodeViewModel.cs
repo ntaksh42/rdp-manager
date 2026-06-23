@@ -79,6 +79,7 @@ public class TreeNodeViewModel : ObservableObject
     public bool IsFavorite { get; set; }
 
     // RDP 設定
+    public bool InheritSettings { get; set; } // true なら親フォルダの設定を使用
     public bool SmartSizing { get; set; } = true;
     public bool RedirectClipboard { get; set; } = true;
     public bool RedirectDrives { get; set; }

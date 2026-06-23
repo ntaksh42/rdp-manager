@@ -27,6 +27,7 @@ public sealed class NodeDto
     public string Domain { get; set; } = "";
     public string PasswordEncrypted { get; set; } = ""; // DPAPI(Base64)
 
+    public bool InheritSettings { get; set; }
     public bool SmartSizing { get; set; } = true;
     public bool RedirectClipboard { get; set; } = true;
     public bool RedirectDrives { get; set; }
