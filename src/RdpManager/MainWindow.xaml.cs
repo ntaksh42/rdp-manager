@@ -614,6 +614,8 @@ public partial class MainWindow : Window
         new SessionsDialog(entries) { Owner = this }.ShowDialog();
     }
 
+    private async void OnRefreshStatus(object sender, RoutedEventArgs e) => await Vm.RefreshStatusesAsync();
+
     private void OnToggleFullscreenMenu(object sender, RoutedEventArgs e) => ToggleFullscreen();
 
     private void OnToggleFullscreenSpan(object sender, RoutedEventArgs e)

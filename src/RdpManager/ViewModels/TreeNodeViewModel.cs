@@ -5,6 +5,8 @@ namespace RdpManager.ViewModels;
 
 public enum NodeKind { Folder, Connection }
 
+public enum NodeStatus { Unknown, Up, Down }
+
 /// <summary>
 /// ツリー上のノード（フォルダ または 接続）。1クラスで両方を表現する。
 /// 画面に表示するプロパティは編集後に反映されるよう INPC 対応。
@@ -22,6 +24,7 @@ public class TreeNodeViewModel : ObservableObject
     private bool _isExpanded = true;
     private bool _isSelected;
     private bool _isVisible = true;
+    private NodeStatus _status = NodeStatus.Unknown;
 
     public Guid Id { get; } = Guid.NewGuid();
     public NodeKind Kind { get; init; }
@@ -98,6 +101,13 @@ public class TreeNodeViewModel : ObservableObject
     // 接続前後に実行する外部コマンド（{host} {port} {user} を置換）
     public string PreCommand { get; set; } = "";
     public string PostCommand { get; set; } = "";
+
+    /// <summary>死活状態（TCP ポート到達性）。</summary>
+    public NodeStatus Status
+    {
+        get => _status;
+        set => SetField(ref _status, value);
+    }
 
     public bool IsFolder => Kind == NodeKind.Folder;
     public bool IsConnection => Kind == NodeKind.Connection;

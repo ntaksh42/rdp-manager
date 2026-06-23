@@ -52,6 +52,7 @@
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Sessions (Dashboard)…" Click="OnSessionDashboard"/>
+                <MenuItem Header="Refresh Host Status" Click="OnRefreshStatus"/>
                 <Separator/>
                 <MenuItem Header="Toggle Full Screen" InputGestureText="F11 / Ctrl+Alt+Pause" Click="OnToggleFullscreenMenu"/>
                 <MenuItem x:Name="FullscreenSpanItem" Header="Span All Monitors in Full Screen" IsCheckable="True" Click="OnToggleFullscreenSpan"/>
@@ -165,6 +166,26 @@
                     <TreeView.ItemTemplate>
                         <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                             <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="8" Height="8" Margin="0,0,4,0" VerticalAlignment="Center"
+                                         Visibility="{Binding IsConnection, Converter={StaticResource BoolToVis}}">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="Transparent"/>
+                                            <Setter Property="Stroke" Value="#BBB"/>
+                                            <Setter Property="StrokeThickness" Value="1"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Status}" Value="Up">
+                                                    <Setter Property="Fill" Value="LimeGreen"/>
+                                                    <Setter Property="Stroke" Value="LimeGreen"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Status}" Value="Down">
+                                                    <Setter Property="Fill" Value="OrangeRed"/>
+                                                    <Setter Property="Stroke" Value="OrangeRed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
                                 <TextBlock Text="{Binding Glyph}" Margin="0,0,5,0"/>
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding HostDisplay}" Foreground="#9E9E9E"

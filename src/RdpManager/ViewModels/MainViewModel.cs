@@ -52,6 +52,28 @@ public class MainViewModel : ObservableObject
 
     public IReadOnlyList<TreeNodeViewModel> GetAllConnections() => AllConnections().ToList();
 
+    /// <summary>全接続の死活状態(TCP到達性)を非同期チェックして更新する。</summary>
+    public async Task RefreshStatusesAsync()
+    {
+        var conns = AllConnections().Where(c => !string.IsNullOrWhiteSpace(c.Host)).ToList();
+        await Task.WhenAll(conns.Select(CheckStatusAsync));
+    }
+
+    private static async Task CheckStatusAsync(TreeNodeViewModel node)
+    {
+        try
+        {
+            using var tcp = new System.Net.Sockets.TcpClient();
+            var connect = tcp.ConnectAsync(node.Host, node.Port);
+            var done = await Task.WhenAny(connect, Task.Delay(1500));
+            node.Status = done == connect && tcp.Connected ? NodeStatus.Up : NodeStatus.Down;
+        }
+        catch
+        {
+            node.Status = NodeStatus.Down;
+        }
+    }
+
     public void AddImported(IEnumerable<TreeNodeViewModel> nodes, TreeNodeViewModel? parent)
     {
         foreach (var node in nodes)
