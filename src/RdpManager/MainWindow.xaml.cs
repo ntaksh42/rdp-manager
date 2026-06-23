@@ -451,6 +451,26 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = ConnectionStore.Directory, UseShellExecute = true });
     }
 
+    private async void OnCheckUpdate(object sender, RoutedEventArgs e)
+    {
+        var r = await Services.UpdateChecker.CheckAsync();
+        if (r is null)
+        {
+            MessageBox.Show(this, "更新情報を取得できませんでした。", "更新の確認", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (r.IsNewer)
+        {
+            if (MessageBox.Show(this, $"新しいバージョン {r.LatestTag} があります（現在 v{r.Current}）。\nダウンロードページを開きますか？",
+                    "更新の確認", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+                Process.Start(new ProcessStartInfo(Services.UpdateChecker.ReleasesUrl) { UseShellExecute = true });
+        }
+        else
+        {
+            MessageBox.Show(this, $"最新版を使用しています（v{r.Current}）。", "更新の確認", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
     private void OnAbout(object sender, RoutedEventArgs e)
         => MessageBox.Show(this,
             "RdpManager\n接続先をツリーで整理し、このウィンドウ内のタブに RDP 画面を埋め込んで表示します。\n資格情報は DPAPI で暗号化保存されます。",

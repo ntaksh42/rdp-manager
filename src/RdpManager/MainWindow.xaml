@@ -59,6 +59,7 @@
                 <MenuItem x:Name="RestoreSessionsItem" Header="起動時にセッションを復元" IsCheckable="True" Click="OnToggleRestoreSessions"/>
             </MenuItem>
             <MenuItem Header="ヘルプ(_H)">
+                <MenuItem Header="更新を確認…" Click="OnCheckUpdate"/>
                 <MenuItem Header="バージョン情報" Click="OnAbout"/>
             </MenuItem>
         </Menu>
