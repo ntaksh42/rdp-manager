@@ -123,6 +123,29 @@ public class MainViewModel : ObservableObject
 
     public void NotifyEdited() => Save();
 
+    /// <summary>ノードを別フォルダ（null=ルート）へ移動。循環は禁止。</summary>
+    public void MoveNode(TreeNodeViewModel node, TreeNodeViewModel? newParent)
+    {
+        if (node == newParent) return;
+        if (newParent != null && IsSelfOrDescendant(node, newParent)) return;
+        if (node.Parent == newParent) return;
+
+        if (node.Parent is { } p) p.Children.Remove(node);
+        else RootNodes.Remove(node);
+
+        node.Parent = newParent;
+        if (newParent is null) RootNodes.Add(node);
+        else { newParent.Children.Add(node); newParent.IsExpanded = true; }
+        Save();
+    }
+
+    private static bool IsSelfOrDescendant(TreeNodeViewModel node, TreeNodeViewModel candidate)
+    {
+        var c = candidate;
+        while (c != null) { if (c == node) return true; c = c.Parent; }
+        return false;
+    }
+
     // ── 検索フィルタ ──
     private void ApplyFilter()
     {

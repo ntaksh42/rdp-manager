@@ -16,6 +16,13 @@ using Key = System.Windows.Input.Key;
 using Orientation = System.Windows.Controls.Orientation;
 using MessageBox = System.Windows.MessageBox;
 using Brushes = System.Windows.Media.Brushes;
+using Point = System.Windows.Point;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using MouseButtonState = System.Windows.Input.MouseButtonState;
+using DragEventArgs = System.Windows.DragEventArgs;
+using DragDropEffects = System.Windows.DragDropEffects;
+using DragDrop = System.Windows.DragDrop;
+using DependencyObject = System.Windows.DependencyObject;
 
 namespace RdpManager;
 
@@ -120,6 +127,44 @@ public partial class MainWindow : Window
     {
         if (Vm.SelectedNode?.IsConnection == true)
             ConnectEmbedded(Vm.SelectedNode);
+    }
+
+    // ── ドラッグ&ドロップ並べ替え ──
+    private Point _dragStart;
+
+    private void OnTreeMouseDown(object sender, MouseButtonEventArgs e) => _dragStart = e.GetPosition(null);
+
+    private void OnTreeMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed) return;
+        var diff = _dragStart - e.GetPosition(null);
+        if (Math.Abs(diff.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(diff.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+        if (Vm.SelectedNode is { } node)
+            DragDrop.DoDragDrop(Tree, node, DragDropEffects.Move);
+    }
+
+    private void OnTreeDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(typeof(TreeNodeViewModel)) ? DragDropEffects.Move : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnTreeDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(typeof(TreeNodeViewModel)) is not TreeNodeViewModel dragged) return;
+        var targetNode = FindNode(e.OriginalSource as DependencyObject);
+        TreeNodeViewModel? newParent = targetNode is null ? null
+            : (targetNode.IsFolder ? targetNode : targetNode.Parent);
+        Vm.MoveNode(dragged, newParent);
+        e.Handled = true;
+    }
+
+    private static TreeNodeViewModel? FindNode(DependencyObject? src)
+    {
+        while (src != null && src is not TreeViewItem)
+            src = System.Windows.Media.VisualTreeHelper.GetParent(src);
+        return (src as TreeViewItem)?.DataContext as TreeNodeViewModel;
     }
 
     // ── 接続 ──

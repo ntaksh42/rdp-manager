@@ -93,7 +93,12 @@
                           ItemsSource="{Binding RootNodes}"
                           ItemContainerStyle="{StaticResource TreeItemStyle}"
                           SelectedItemChanged="OnTreeSelectionChanged"
-                          MouseDoubleClick="OnTreeDoubleClick">
+                          MouseDoubleClick="OnTreeDoubleClick"
+                          AllowDrop="True"
+                          PreviewMouseLeftButtonDown="OnTreeMouseDown"
+                          PreviewMouseMove="OnTreeMouseMove"
+                          DragOver="OnTreeDragOver"
+                          Drop="OnTreeDrop">
                     <TreeView.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
