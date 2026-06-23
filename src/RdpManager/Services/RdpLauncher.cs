@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using RdpManager.Common;
 
 namespace RdpManager.Services;
 
@@ -10,7 +11,8 @@ public sealed class LaunchInfo
     public int Port { get; init; } = 3389;
     public string Username { get; init; } = "";
     public string Domain { get; init; } = "";
-    public string Password { get; init; } = "";
+    /// <summary>メモリ上のみ平文。使い終えたら ScrubPassword() でクリアする。</summary>
+    public string Password { get; set; } = "";
     public bool Fullscreen { get; init; }
     public bool SmartSizing { get; init; } = true;
     public bool RedirectClipboard { get; init; } = true;
@@ -18,6 +20,13 @@ public sealed class LaunchInfo
     public string Gateway { get; init; } = "";
     /// <summary>描画パフォーマンス最適化（壁紙/アニメ/テーマ等を無効化）。</summary>
     public bool PerformanceMode { get; init; } = true;
+    /// <summary>サーバー証明書の検証レベル。0=検証なし / 1=警告 / 2=不一致で接続不可（mstsc 既定）。</summary>
+    public int AuthenticationLevel { get; init; } = 2;
+    /// <summary>全モニタにリモートデスクトップを展開（外部 mstsc の use multimon）。</summary>
+    public bool UseMultimon { get; init; }
+
+    /// <summary>不要になったパスワードをメモリ上からクリアする緩和措置。</summary>
+    public void ScrubPassword() => Password = "";
 }
 
 /// <summary>
@@ -30,10 +39,11 @@ public static class RdpLauncher
     public static Process Launch(LaunchInfo info)
     {
         // 1) 資格情報を登録（パスワードがある場合）。CredWrite で直接書き込み。
+        bool wroteCred = false;
         if (!string.IsNullOrEmpty(info.Username) && !string.IsNullOrEmpty(info.Password))
         {
             var user = string.IsNullOrEmpty(info.Domain) ? info.Username : $"{info.Domain}\\{info.Username}";
-            CredentialManager.WriteTerminalServer(info.Host, user, info.Password);
+            wroteCred = CredentialManager.WriteTerminalServer(info.Host, user, info.Password);
         }
 
         // 2) .rdp ファイルを生成
@@ -42,12 +52,29 @@ public static class RdpLauncher
         // 3) mstsc 起動（ArgumentList でパスのクオートを安全に処理）
         var psi = new ProcessStartInfo { FileName = "mstsc.exe", UseShellExecute = true };
         psi.ArgumentList.Add(rdpPath);
-        return Process.Start(psi)!;
+        var proc = Process.Start(psi)!;
+
+        // 4) 書き込んだ TERMSRV 資格情報をクリーンアップ。
+        // CRED_PERSIST_SESSION でもログオフまで残るため、mstsc が読み終えた頃に削除する。
+        if (wroteCred)
+        {
+            var host = info.Host;
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30));
+                CredentialManager.DeleteTerminalServer(host);
+                Logger.Info($"Cleaned up TERMSRV credential for {host}.");
+            });
+        }
+
+        // 5) 外部起動ではこれ以上 LaunchInfo のパスワードは不要なのでクリア（A-4 緩和）。
+        info.ScrubPassword();
+        return proc;
     }
 
     private static string WriteRdpFile(LaunchInfo info)
     {
-        var address = info.Port == 3389 ? info.Host : $"{info.Host}:{info.Port}";
+        var address = HostAddress.Format(info.Host, info.Port);
         var sb = new StringBuilder();
         sb.AppendLine($"full address:s:{address}");
         if (!string.IsNullOrEmpty(info.Username))
@@ -59,8 +86,9 @@ public static class RdpLauncher
         sb.AppendLine($"smart sizing:i:{(info.SmartSizing ? 1 : 0)}");
         sb.AppendLine($"redirectclipboard:i:{(info.RedirectClipboard ? 1 : 0)}");
         sb.AppendLine($"drivestoredirect:s:{(info.RedirectDrives ? "*" : "")}");
-        sb.AppendLine("authentication level:i:0");
+        sb.AppendLine($"authentication level:i:{info.AuthenticationLevel}");
         sb.AppendLine("prompt for credentials:i:0");
+        if (info.UseMultimon) sb.AppendLine("use multimon:i:1");
         if (!string.IsNullOrWhiteSpace(info.Gateway))
         {
             sb.AppendLine($"gatewayhostname:s:{info.Gateway}");

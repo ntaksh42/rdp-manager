@@ -37,6 +37,7 @@
                 <MenuItem Header="New Folder" Click="OnNewFolder"/>
                 <MenuItem Header="New Connection" Click="OnNewConnection"/>
                 <MenuItem Header="Add by Pattern…" Click="OnPatternAdd"/>
+                <MenuItem Header="Duplicate" Click="OnDuplicateNode"/>
                 <MenuItem Header="Edit…" Click="OnEditNode"/>
                 <MenuItem Header="Delete" Click="OnDeleteNode"/>
                 <Separator/>
@@ -59,7 +60,9 @@
                 <MenuItem x:Name="PerformanceModeItem" Header="Optimize for Performance" IsCheckable="True" Click="OnTogglePerformanceMode"/>
                 <MenuItem x:Name="DarkModeItem" Header="Dark Mode" IsCheckable="True" Click="OnToggleDarkMode"/>
                 <MenuItem x:Name="AutoReconnectItem" Header="Auto-reconnect on Disconnect" IsCheckable="True" Click="OnToggleAutoReconnect"/>
+                <MenuItem x:Name="UseMultimonItem" Header="Use All Monitors (external mstsc)" IsCheckable="True" Click="OnToggleUseMultimon"/>
                 <MenuItem x:Name="RestoreSessionsItem" Header="Restore Sessions on Startup" IsCheckable="True" Click="OnToggleRestoreSessions"/>
+                <MenuItem x:Name="EnableLoggingItem" Header="Enable Diagnostic Logging" IsCheckable="True" Click="OnToggleLogging"/>
             </MenuItem>
             <MenuItem Header="_Help">
                 <MenuItem Header="Check for Updates…" Click="OnCheckUpdate"/>
@@ -160,6 +163,7 @@
                             <Separator/>
                             <MenuItem Header="New Folder" Click="OnNewFolder"/>
                             <MenuItem Header="New Connection" Click="OnNewConnection"/>
+                            <MenuItem Header="Duplicate" Click="OnDuplicateNode"/>
                             <MenuItem Header="Edit…" Click="OnEditNode"/>
                             <MenuItem Header="Delete" Click="OnDeleteNode"/>
                         </ContextMenu>

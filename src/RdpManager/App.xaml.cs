@@ -29,6 +29,8 @@ public partial class App : Application
         }
 
         Settings = AppSettings.Load();
+        Logger.Enabled = Settings.EnableLogging;
+        Logger.Info("RdpManager started.");
         ThemeManager.Apply(Settings.DarkMode);
 
         new MainWindow().Show();

@@ -20,10 +20,8 @@ public static class ImportExport
     public static List<ImportedConn> FromCsv(string text)
     {
         var list = new List<ImportedConn>();
-        var lines = text.Replace("\r\n", "\n").Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        foreach (var line in lines)
+        foreach (var f in ParseCsv(text))
         {
-            var f = ParseCsvLine(line);
             if (f.Count == 0) continue;
             // ヘッダ行はスキップ
             if (f[0].Equals("Name", StringComparison.OrdinalIgnoreCase) &&
@@ -51,9 +49,9 @@ public static class ImportExport
             if (line.StartsWith("full address:s:", StringComparison.OrdinalIgnoreCase))
             {
                 var v = line["full address:s:".Length..].Trim();
-                var idx = v.LastIndexOf(':');
-                if (idx > 0 && int.TryParse(v[(idx + 1)..], out var pp)) { host = v[..idx]; port = pp; }
-                else host = v;
+                var (h, p) = RdpManager.Common.HostAddress.Parse(v);
+                host = h;
+                if (p is { } pp) port = pp;
             }
             else if (line.StartsWith("username:s:", StringComparison.OrdinalIgnoreCase))
             {
@@ -75,31 +73,54 @@ public static class ImportExport
         return s;
     }
 
-    private static List<string> ParseCsvLine(string line)
+    /// <summary>
+    /// RFC4180 準拠の CSV パーサ。引用符で囲まれたフィールド内の改行・カンマ・""(=") を正しく扱う。
+    /// 行分割を先に行わず、クォート状態を見ながらレコード/フィールドを切り出す。
+    /// </summary>
+    private static List<List<string>> ParseCsv(string text)
     {
-        var result = new List<string>();
+        var rows = new List<List<string>>();
+        var row = new List<string>();
         var sb = new StringBuilder();
         bool inQuotes = false;
-        for (int i = 0; i < line.Length; i++)
+        bool rowHasContent = false;
+
+        void EndField() { row.Add(sb.ToString()); sb.Clear(); }
+        void EndRow()
         {
-            char c = line[i];
+            EndField();
+            // 空行（フィールドが1つで中身も空）は捨てる
+            if (rowHasContent) rows.Add(row);
+            row = new List<string>();
+            rowHasContent = false;
+        }
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            char c = text[i];
             if (inQuotes)
             {
                 if (c == '"')
                 {
-                    if (i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; }
+                    if (i + 1 < text.Length && text[i + 1] == '"') { sb.Append('"'); i++; }
                     else inQuotes = false;
                 }
                 else sb.Append(c);
             }
             else
             {
-                if (c == '"') inQuotes = true;
-                else if (c == ',') { result.Add(sb.ToString()); sb.Clear(); }
-                else sb.Append(c);
+                switch (c)
+                {
+                    case '"': inQuotes = true; rowHasContent = true; break;
+                    case ',': EndField(); rowHasContent = true; break;
+                    case '\r': break; // \r\n / \r どちらも \n 側 or 次で行終端
+                    case '\n': EndRow(); break;
+                    default: sb.Append(c); rowHasContent = true; break;
+                }
             }
         }
-        result.Add(sb.ToString());
-        return result;
+        // 末尾フィールド/行
+        if (rowHasContent || sb.Length > 0 || row.Count > 0) EndRow();
+        return rows;
     }
 }

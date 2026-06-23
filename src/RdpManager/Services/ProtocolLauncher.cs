@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using RdpManager.Common;
 
 namespace RdpManager.Services;
 
@@ -9,6 +10,17 @@ public static class ProtocolLauncher
     public static bool Launch(string protocol, string host, int port, string user, out string? message)
     {
         message = null;
+        // host/user は cmd 経由で起動するため、メタ文字・空白を含む値はコマンドインジェクション防止のため拒否
+        if (ShellSafe.HasMeta(host) || host.Contains(' '))
+        {
+            message = "The host contains characters that are not allowed.";
+            return false;
+        }
+        if (ShellSafe.HasMeta(user) || user.Contains(' '))
+        {
+            message = "The username contains characters that are not allowed.";
+            return false;
+        }
         try
         {
             switch (protocol.ToUpperInvariant())

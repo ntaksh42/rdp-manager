@@ -25,6 +25,7 @@ public partial class ConnectionEditDialog : Window
 
         // 表示/RDP 設定はフォルダ・接続ともに編集可
         GatewayBox.Text = node.Gateway;
+        AuthLevelBox.SelectedIndex = node.AuthenticationLevel switch { 0 => 2, 1 => 1, _ => 0 };
         FullscreenChk.IsChecked = node.Fullscreen;
         SmartSizingChk.IsChecked = node.SmartSizing;
         ClipboardChk.IsChecked = node.RedirectClipboard;
@@ -92,6 +93,7 @@ public partial class ConnectionEditDialog : Window
 
         // 表示/RDP 設定（フォルダ・接続共通）
         _node.Gateway = GatewayBox.Text.Trim();
+        _node.AuthenticationLevel = int.TryParse((AuthLevelBox.SelectedItem as ComboBoxItem)?.Tag?.ToString(), out var al) ? al : 2;
         _node.Fullscreen = FullscreenChk.IsChecked == true;
         _node.SmartSizing = SmartSizingChk.IsChecked == true;
         _node.RedirectClipboard = ClipboardChk.IsChecked == true;

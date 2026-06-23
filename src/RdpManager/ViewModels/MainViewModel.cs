@@ -159,7 +159,9 @@ public class MainViewModel : ObservableObject
             RedirectClipboard = s.RedirectClipboard,
             RedirectDrives = s.RedirectDrives,
             Gateway = s.Gateway,
-            PerformanceMode = App.Settings.PerformanceMode
+            PerformanceMode = App.Settings.PerformanceMode,
+            AuthenticationLevel = s.AuthenticationLevel,
+            UseMultimon = App.Settings.UseMultimon
         };
     }
 
@@ -199,10 +201,16 @@ public class MainViewModel : ObservableObject
                             ? (cred.user[(bs + 1)..], cred.user[..bs], cred.password)
                             : (cred.user, "", cred.password);
                     }
+                    Logger.Warn($"Windows credential 'TERMSRV/{node.Host}' not found.");
+                    Error?.Invoke($"No saved Windows credential was found for \"{node.Host}\".\n" +
+                                  "The connection will continue without credentials.");
                     return ("", "", "");
                 case "profile":
                     var p = CredentialProfiles.FirstOrDefault(x => x.Name == cur.CredentialProfile);
                     if (p != null) return (p.Username, p.Domain, p.Password);
+                    Logger.Warn($"Credential profile '{cur.CredentialProfile}' not found.");
+                    Error?.Invoke($"Credential profile \"{cur.CredentialProfile}\" was not found.\n" +
+                                  "The connection will continue without credentials.");
                     return ("", "", "");
                 default: // inheritFromParent
                     cur = cur.Parent;
@@ -224,25 +232,60 @@ public class MainViewModel : ObservableObject
     {
         if (node.Parent is { } p) p.Children.Remove(node);
         else RootNodes.Remove(node);
+
+        // 削除したノード（子孫含む）の ID が Recent/OpenOnExit に孤児として残らないよう除去
+        var removedIds = SelfAndDescendants(node).Select(n => n.Id.ToString()).ToHashSet();
+        int before = App.Settings.RecentIds.Count + App.Settings.OpenOnExit.Count;
+        App.Settings.RecentIds.RemoveAll(removedIds.Contains);
+        App.Settings.OpenOnExit.RemoveAll(removedIds.Contains);
+        if (before != App.Settings.RecentIds.Count + App.Settings.OpenOnExit.Count)
+            App.Settings.Save();
+
         Save();
+        RefreshQuickAccess();
+    }
+
+    private static IEnumerable<TreeNodeViewModel> SelfAndDescendants(TreeNodeViewModel node)
+    {
+        yield return node;
+        foreach (var c in node.Children)
+            foreach (var d in SelfAndDescendants(c)) yield return d;
     }
 
     public void NotifyEdited() => Save();
 
-    /// <summary>ノードを別フォルダ（null=ルート）へ移動。循環は禁止。</summary>
-    public void MoveNode(TreeNodeViewModel node, TreeNodeViewModel? newParent)
+    /// <summary>ノードを別フォルダ（null=ルート）へ移動。index>=0 ならその位置へ挿入（同一フォルダ内の並べ替え）。循環は禁止。</summary>
+    public void MoveNode(TreeNodeViewModel node, TreeNodeViewModel? newParent, int index = -1)
     {
         if (node == newParent) return;
         if (newParent != null && IsSelfOrDescendant(node, newParent)) return;
-        if (node.Parent == newParent) return;
+        if (node.Parent == newParent && index < 0) return;
 
-        if (node.Parent is { } p) p.Children.Remove(node);
-        else RootNodes.Remove(node);
+        var target = newParent?.Children ?? RootNodes;
+        var source = node.Parent?.Children ?? RootNodes;
+
+        int oldIndex = source.IndexOf(node);
+        source.Remove(node);
+        // 同一コレクション内で削除した位置より後ろへ挿入する場合は 1 つ詰める
+        if (ReferenceEquals(source, target) && index > oldIndex) index--;
 
         node.Parent = newParent;
-        if (newParent is null) RootNodes.Add(node);
-        else { newParent.Children.Add(node); newParent.IsExpanded = true; }
+        if (index < 0 || index > target.Count) target.Add(node);
+        else target.Insert(index, node);
+        if (newParent != null) newParent.IsExpanded = true;
         Save();
+    }
+
+    /// <summary>ノード（フォルダなら子孫ごと）を複製し、元の直後に挿入する。</summary>
+    public void Duplicate(TreeNodeViewModel node)
+    {
+        var clone = FromDto(ToDto(node), node.Parent); // ToDto→FromDto で新しい Id を採番しつつ深いコピー
+        clone.Name = node.Name + " (copy)";
+        var siblings = node.Parent?.Children ?? RootNodes;
+        int idx = siblings.IndexOf(node);
+        siblings.Insert(idx < 0 ? siblings.Count : idx + 1, clone);
+        Save();
+        RefreshQuickAccess();
     }
 
     private static bool IsSelfOrDescendant(TreeNodeViewModel node, TreeNodeViewModel candidate)
@@ -320,7 +363,8 @@ public class MainViewModel : ObservableObject
         InheritSettings = n.InheritSettings,
         SmartSizing = n.SmartSizing, RedirectClipboard = n.RedirectClipboard,
         RedirectDrives = n.RedirectDrives, Fullscreen = n.Fullscreen,
-        ScreenSize = n.ScreenSize, Gateway = n.Gateway, IsFavorite = n.IsFavorite,
+        AuthenticationLevel = n.AuthenticationLevel,
+        Gateway = n.Gateway, IsFavorite = n.IsFavorite,
         PreCommand = n.PreCommand, PostCommand = n.PostCommand,
         Children = n.Children.Select(ToDto).ToList()
     };
@@ -338,7 +382,8 @@ public class MainViewModel : ObservableObject
             InheritSettings = d.InheritSettings,
             SmartSizing = d.SmartSizing, RedirectClipboard = d.RedirectClipboard,
             RedirectDrives = d.RedirectDrives, Fullscreen = d.Fullscreen,
-            ScreenSize = d.ScreenSize, Gateway = d.Gateway, IsFavorite = d.IsFavorite,
+            AuthenticationLevel = d.AuthenticationLevel,
+            Gateway = d.Gateway, IsFavorite = d.IsFavorite,
             PreCommand = d.PreCommand, PostCommand = d.PostCommand,
             Parent = parent
         };
