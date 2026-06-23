@@ -51,6 +51,8 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="表示(_V)">
+                <MenuItem Header="セッション一覧（ダッシュボード）…" Click="OnSessionDashboard"/>
+                <Separator/>
                 <MenuItem Header="全画面の切り替え" InputGestureText="F11" Click="OnToggleFullscreenMenu"/>
                 <MenuItem x:Name="FullscreenSpanItem" Header="全画面で全モニタにまたがる" IsCheckable="True" Click="OnToggleFullscreenSpan"/>
                 <MenuItem x:Name="DarkModeItem" Header="ダークモード" IsCheckable="True" Click="OnToggleDarkMode"/>

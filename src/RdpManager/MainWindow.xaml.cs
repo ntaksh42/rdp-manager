@@ -16,6 +16,7 @@ using Key = System.Windows.Input.Key;
 using Orientation = System.Windows.Controls.Orientation;
 using MessageBox = System.Windows.MessageBox;
 using Brushes = System.Windows.Media.Brushes;
+using Brush = System.Windows.Media.Brush;
 using Point = System.Windows.Point;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using MouseButtonState = System.Windows.Input.MouseButtonState;
@@ -449,6 +450,41 @@ public partial class MainWindow : Window
         var dlg = new CredentialProfilesDialog(Vm.CredentialProfiles) { Owner = this };
         dlg.ShowDialog();
         if (dlg.Changed) Vm.NotifyEdited();
+    }
+
+    private void OnSessionDashboard(object sender, RoutedEventArgs e)
+    {
+        var entries = new List<SessionEntry>();
+        foreach (var pane in new[] { SessionTabs, SessionTabsRight })
+        {
+            foreach (var tab in pane.Items.OfType<TabItem>())
+            {
+                if (tab.Content is not RdpSessionControl s) continue;
+                var capturedPane = pane; var capturedTab = tab;
+                Brush color = s.VisualState switch
+                {
+                    Controls.SessionVisualState.Connected => Brushes.LimeGreen,
+                    Controls.SessionVisualState.Disconnected => Brushes.Gray,
+                    _ => Brushes.Orange
+                };
+                var info = (tab.Tag as SessionTag)?.Info;
+                entries.Add(new SessionEntry
+                {
+                    Title = (tab.Header as System.Windows.Controls.StackPanel)?.Children
+                        .OfType<System.Windows.Controls.TextBlock>().FirstOrDefault()?.Text ?? "セッション",
+                    Host = info?.Host ?? "",
+                    StateText = s.VisualState.ToString(),
+                    StateColor = color,
+                    Activate = () => { capturedPane.SelectedItem = capturedTab; }
+                });
+            }
+        }
+        if (entries.Count == 0)
+        {
+            MessageBox.Show(this, "アクティブなセッションはありません。", "セッション一覧", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        new SessionsDialog(entries) { Owner = this }.ShowDialog();
     }
 
     private void OnToggleFullscreenMenu(object sender, RoutedEventArgs e) => ToggleFullscreen();
