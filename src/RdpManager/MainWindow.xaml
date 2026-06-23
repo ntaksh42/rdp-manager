@@ -45,6 +45,10 @@
             <MenuItem Header="セッション(_S)">
                 <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
                 <MenuItem Header="外部ウィンドウで開く (mstsc)" Click="OnConnectExternal"/>
+                <Separator/>
+                <MenuItem Header="キー送信">
+                    <MenuItem Header="Ctrl+Alt+Del の送り方" Click="OnSendCtrlAltDel"/>
+                </MenuItem>
             </MenuItem>
             <MenuItem Header="表示(_V)">
                 <MenuItem Header="全画面の切り替え" InputGestureText="F11" Click="OnToggleFullscreenMenu"/>

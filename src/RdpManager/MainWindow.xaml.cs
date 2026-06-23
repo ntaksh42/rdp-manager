@@ -244,6 +244,12 @@ public partial class MainWindow : Window
 
     private void OnToggleFavorite(object sender, RoutedEventArgs e) => Vm.ToggleFavorite(Vm.SelectedNode);
 
+    private void OnSendCtrlAltDel(object sender, RoutedEventArgs e)
+        => MessageBox.Show(this,
+            "RDP セッションにフォーカスがある状態で Ctrl+Alt+End を押すと、リモートに Ctrl+Alt+Del が送信されます。\n" +
+            "（埋め込み RDP コントロールはセキュリティ上、Ctrl+Alt+Del の直接注入に対応していません）",
+            "Ctrl+Alt+Del の送信", MessageBoxButton.OK, MessageBoxImage.Information);
+
     private void OnQuickConnect(object sender, RoutedEventArgs e) => QuickConnect();
     private void OnQuickConnectKeyDown(object sender, KeyEventArgs e)
     {

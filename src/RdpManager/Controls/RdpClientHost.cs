@@ -103,6 +103,8 @@ public sealed class RdpClientHost : AxHost
             TrySet(() => adv.EnableCredSspSupport = true);
             TrySet(() => adv.AuthenticationLevel = 0u);
             TrySet(() => adv.DisplayConnectionBar = false);
+            // Windows キー組み合わせ・Ctrl+Alt+End(=リモート Ctrl+Alt+Del) をリモートへ送る
+            TrySet(() => adv.KeyboardHookMode = 1);
 
             if (!string.IsNullOrWhiteSpace(info.Gateway))
             {
