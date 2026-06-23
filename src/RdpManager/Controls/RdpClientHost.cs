@@ -112,8 +112,10 @@ public sealed class RdpClientHost : AxHost
             TrySet(() => adv.EnableCredSspSupport = true);
             TrySet(() => adv.AuthenticationLevel = 0u);
             TrySet(() => adv.DisplayConnectionBar = false);
-            // Windows キー組み合わせ・Ctrl+Alt+End(=リモート Ctrl+Alt+Del) をリモートへ送る
-            TrySet(() => adv.KeyboardHookMode = 1);
+            // Windows キー組み合わせ(Alt+Tab, Win, Ctrl+Alt+End 等)を常にリモートへ送る。
+            // KeyboardHookMode は SecuredSettings 側のプロパティ（既定は「コントロール全画面時のみ」）。
+            TrySet(() => ocx.SecuredSettings.KeyboardHookMode = 1);
+            TrySet(() => ocx.SecuredSettings3.KeyboardHookMode = 1);
 
             if (!string.IsNullOrWhiteSpace(info.Gateway))
             {
