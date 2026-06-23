@@ -47,6 +47,9 @@ public class MainViewModel : ObservableObject
         }
     }
 
+    public TreeNodeViewModel? FindConnectionById(string id)
+        => AllConnections().FirstOrDefault(c => c.Id.ToString() == id);
+
     public void ToggleFavorite(TreeNodeViewModel? node)
     {
         if (node is null || !node.IsConnection) return;

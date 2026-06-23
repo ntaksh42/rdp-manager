@@ -45,6 +45,7 @@
             <MenuItem Header="表示(_V)">
                 <MenuItem Header="全画面の切り替え" InputGestureText="F11" Click="OnToggleFullscreenMenu"/>
                 <MenuItem x:Name="DarkModeItem" Header="ダークモード" IsCheckable="True" Click="OnToggleDarkMode"/>
+                <MenuItem x:Name="RestoreSessionsItem" Header="起動時にセッションを復元" IsCheckable="True" Click="OnToggleRestoreSessions"/>
             </MenuItem>
             <MenuItem Header="ヘルプ(_H)">
                 <MenuItem Header="バージョン情報" Click="OnAbout"/>

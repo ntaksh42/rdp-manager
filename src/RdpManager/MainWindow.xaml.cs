@@ -37,6 +37,34 @@ public partial class MainWindow : Window
         SourceInitialized += OnSourceInitialized;
         Closed += (_, _) => UnregisterHotkey();
         DarkModeItem.IsChecked = App.Settings.DarkMode;
+        RestoreSessionsItem.IsChecked = App.Settings.RestoreSessions;
+        Loaded += OnLoadedRestore;
+        Closing += OnClosingSaveSessions;
+    }
+
+    private void OnLoadedRestore(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedRestore;
+        if (!App.Settings.RestoreSessions) return;
+        foreach (var id in App.Settings.OpenOnExit.ToList())
+        {
+            var node = Vm.FindConnectionById(id);
+            if (node != null) ConnectEmbedded(node);
+        }
+    }
+
+    private void OnClosingSaveSessions(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        var ids = SessionTabs.Items.OfType<TabItem>()
+            .Select(t => t.Tag as string).Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
+        App.Settings.OpenOnExit = ids;
+        App.Settings.Save();
+    }
+
+    private void OnToggleRestoreSessions(object sender, RoutedEventArgs e)
+    {
+        App.Settings.RestoreSessions = RestoreSessionsItem.IsChecked;
+        App.Settings.Save();
     }
 
     private void OnToggleDarkMode(object sender, RoutedEventArgs e)
@@ -183,7 +211,7 @@ public partial class MainWindow : Window
     {
         var info = Vm.BuildLaunchInfo(node);
         if (info is null) return;
-        OpenSession(info, node!.Name);
+        OpenSession(info, node!.Name, node.Id.ToString());
         Vm.RecordRecent(node);
     }
 
@@ -210,13 +238,13 @@ public partial class MainWindow : Window
     }
 
     // ── セッションタブ管理 ──
-    private void OpenSession(LaunchInfo info, string title)
+    private void OpenSession(LaunchInfo info, string title, string? nodeId = null)
     {
         var session = new RdpSessionControl();
         var dot = new Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center, Fill = Brushes.Orange };
 
-        var tab = new TabItem { Content = session };
+        var tab = new TabItem { Content = session, Tag = nodeId };
 
         var close = new Button
         {
