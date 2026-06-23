@@ -56,11 +56,17 @@ public sealed class RdpClientHost : AxHost
 
     public string? LastError { get; private set; }
 
+    /// <summary>ハンドルを確実に生成して OCX(dynamic) を返す。</summary>
+    private dynamic GetClient()
+    {
+        if (!IsHandleCreated) CreateControl();
+        return _ocx ??= GetOcx()!;
+    }
+
     /// <summary>埋め込み検証用: ハンドル生成・OCX取得・プロパティ読み書きを確認。</summary>
     public string SelfCheck()
     {
-        if (!IsHandleCreated) CreateControl();
-        dynamic ocx = _ocx ??= GetOcx();
+        dynamic ocx = GetClient();
         ocx.Server = "192.0.2.1";
         string server = ocx.Server;
         int connected = (int)ocx.Connected;
@@ -72,7 +78,11 @@ public sealed class RdpClientHost : AxHost
     {
         get
         {
-            try { return _ocx is null ? 0 : (int)_ocx.Connected; }
+            try
+            {
+                var o = _ocx;
+                return o is null ? 0 : (int)o.Connected;
+            }
             catch { return 0; }
         }
     }
@@ -81,8 +91,7 @@ public sealed class RdpClientHost : AxHost
     {
         try
         {
-            if (!IsHandleCreated) CreateControl();
-            dynamic ocx = _ocx ??= GetOcx();
+            dynamic ocx = GetClient();
 
             ocx.Server = info.Host;
             if (!string.IsNullOrEmpty(info.Username)) ocx.UserName = info.Username;
@@ -125,7 +134,11 @@ public sealed class RdpClientHost : AxHost
 
     public void DisconnectSession()
     {
-        try { if (_ocx != null && (int)_ocx.Connected != 0) _ocx.Disconnect(); }
+        try
+        {
+            var o = _ocx;
+            if (o != null && (int)o.Connected != 0) o.Disconnect();
+        }
         catch { /* ignore */ }
     }
 

@@ -26,16 +26,30 @@ public partial class RdpSessionControl : UserControl
         InitializeComponent();
         Host.Child = _client;
         _poll.Tick += OnPoll;
-        Unloaded += (_, _) => Cleanup();
+        // タブ切替で Unloaded しても切断しない（明示的に閉じた時のみ Cleanup）
     }
 
-    /// <summary>接続を開始する。ハンドル生成後に接続するためレイアウト完了後へ遅延。</summary>
+    /// <summary>
+    /// 接続を開始する。実際に可視（visual tree にロード）された時点で接続することで、
+    /// 非表示タブでの不安定なハンドル生成を避け、タブ切替でも接続を維持する。
+    /// </summary>
     public void Start(LaunchInfo info)
     {
         _info = info;
         SetOverlay(SessionVisualState.Connecting, "接続中…");
-        // WindowsFormsHost のハンドルが生成されてから接続する
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(BeginConnect));
+        if (IsLoaded)
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(BeginConnect));
+        else
+        {
+            Loaded -= OnLoadedConnect;
+            Loaded += OnLoadedConnect;
+        }
+    }
+
+    private void OnLoadedConnect(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedConnect;
+        BeginConnect();
     }
 
     private void BeginConnect()
