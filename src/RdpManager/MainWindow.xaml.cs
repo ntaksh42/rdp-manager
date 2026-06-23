@@ -65,6 +65,17 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(new Action(s.FocusSession), System.Windows.Threading.DispatcherPriority.Input);
     }
 
+    /// <summary>アクティブペインの index 番目（0始まり）のタブへ移動。</summary>
+    private void JumpToTab(int index)
+    {
+        var pane = _activePane is { Items.Count: > 0 } p ? p
+            : (SessionTabs.Items.Count > 0 ? SessionTabs : SessionTabsRight);
+        if (index < 0 || index >= pane.Items.Count) return;
+        pane.SelectedIndex = index;
+        if (pane.SelectedItem is TabItem ti && ti.Content is RdpSessionControl s)
+            Dispatcher.BeginInvoke(new Action(s.FocusSession), System.Windows.Threading.DispatcherPriority.Input);
+    }
+
     private void OnLoadedRestore(object sender, RoutedEventArgs e)
     {
         Loaded -= OnLoadedRestore;
@@ -107,6 +118,7 @@ public partial class MainWindow : Window
     private const int HotkeyBreak = 0x9003;
     private const int HotkeyNextTab = 0x9004;
     private const int HotkeyPrevTab = 0x9005;
+    private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int WmHotkey = 0x0312;
     private const uint VkF11 = 0x7A;
     private const uint VkPause = 0x13;   // Pause
@@ -136,6 +148,8 @@ public partial class MainWindow : Window
         RegisterHotKey(_hwnd, HotkeyBreak, ModControl | ModAlt, VkCancel);   // Ctrl+Alt+Break
         RegisterHotKey(_hwnd, HotkeyNextTab, ModControl | ModAlt, VkPageDown); // Ctrl+Alt+PageDown
         RegisterHotKey(_hwnd, HotkeyPrevTab, ModControl | ModAlt, VkPageUp);   // Ctrl+Alt+PageUp
+        for (uint i = 0; i < 9; i++)
+            RegisterHotKey(_hwnd, HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i); // Ctrl+Alt+1..9
     }
 
     private void UnregisterHotkey()
@@ -146,6 +160,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyBreak);
         UnregisterHotKey(_hwnd, HotkeyNextTab);
         UnregisterHotKey(_hwnd, HotkeyPrevTab);
+        for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -160,6 +175,7 @@ public partial class MainWindow : Window
             }
             else if (id == HotkeyNextTab) { CycleTab(+1); handled = true; }
             else if (id == HotkeyPrevTab) { CycleTab(-1); handled = true; }
+            else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { JumpToTab(id - HotkeyTab1); handled = true; }
         }
         return IntPtr.Zero;
     }
