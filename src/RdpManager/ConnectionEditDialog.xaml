@@ -66,6 +66,10 @@
                     <ComboBox x:Name="ProfileBox" Margin="0,0,0,10" DisplayMemberPath="Name"/>
                 </StackPanel>
 
+                <TextBlock Text="接続前コマンド（任意, {host} {port} {user} 可）" Margin="0,0,0,2"/>
+                <TextBox x:Name="PreCmdBox" Padding="4,3" Margin="0,0,0,8"/>
+                <TextBlock Text="切断後コマンド（任意）" Margin="0,0,0,2"/>
+                <TextBox x:Name="PostCmdBox" Padding="4,3" Margin="0,0,0,4"/>
             </StackPanel>
 
             <!-- 表示/RDP 設定（フォルダでは既定値、接続では継承可）-->

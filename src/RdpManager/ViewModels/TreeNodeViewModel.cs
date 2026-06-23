@@ -92,6 +92,10 @@ public class TreeNodeViewModel : ObservableObject
         set => SetField(ref _gateway, value);
     }
 
+    // 接続前後に実行する外部コマンド（{host} {port} {user} を置換）
+    public string PreCommand { get; set; } = "";
+    public string PostCommand { get; set; } = "";
+
     public bool IsFolder => Kind == NodeKind.Folder;
     public bool IsConnection => Kind == NodeKind.Connection;
 

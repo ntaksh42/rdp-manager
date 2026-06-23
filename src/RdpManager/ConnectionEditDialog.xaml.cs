@@ -39,6 +39,8 @@ public partial class ConnectionEditDialog : Window
             DomainBox.Text = node.Domain;
             UserBox.Text = node.Username;
             PassBox.Password = node.Password;
+            PreCmdBox.Text = node.PreCommand;
+            PostCmdBox.Text = node.PostCommand;
             ProfileBox.SelectedItem = profiles.FirstOrDefault(p => p.Name == node.CredentialProfile);
 
             CredModeBox.SelectedIndex = node.CredentialMode switch
@@ -109,6 +111,8 @@ public partial class ConnectionEditDialog : Window
             _node.Username = UserBox.Text.Trim();
             _node.Password = PassBox.Password;
             _node.CredentialProfile = (ProfileBox.SelectedItem as CredentialProfile)?.Name ?? "";
+            _node.PreCommand = PreCmdBox.Text.Trim();
+            _node.PostCommand = PostCmdBox.Text.Trim();
         }
 
         DialogResult = true;

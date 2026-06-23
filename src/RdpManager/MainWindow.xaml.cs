@@ -56,7 +56,8 @@ public partial class MainWindow : Window
     private void OnClosingSaveSessions(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         var ids = SessionTabs.Items.OfType<TabItem>()
-            .Select(t => t.Tag as string).Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
+            .Select(t => (t.Tag as SessionTag)?.NodeId)
+            .Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
         App.Settings.OpenOnExit = ids;
         App.Settings.Save();
     }
@@ -211,9 +212,12 @@ public partial class MainWindow : Window
     {
         var info = Vm.BuildLaunchInfo(node);
         if (info is null) return;
-        OpenSession(info, node!.Name, node.Id.ToString());
+        Services.ExternalTools.Run(node!.PreCommand, info);
+        OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, info);
         Vm.RecordRecent(node);
     }
+
+    private sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info);
 
     private void OnQuickAccessDouble(object sender, MouseButtonEventArgs e)
     {
@@ -238,13 +242,14 @@ public partial class MainWindow : Window
     }
 
     // ── セッションタブ管理 ──
-    private void OpenSession(LaunchInfo info, string title, string? nodeId = null)
+    private void OpenSession(LaunchInfo info, string title, string? nodeId = null,
+                             string? postCommand = null, LaunchInfo? postInfo = null)
     {
         var session = new RdpSessionControl();
         var dot = new Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center, Fill = Brushes.Orange };
 
-        var tab = new TabItem { Content = session, Tag = nodeId };
+        var tab = new TabItem { Content = session, Tag = new SessionTag(nodeId, postCommand, postInfo) };
 
         var close = new Button
         {
@@ -277,6 +282,8 @@ public partial class MainWindow : Window
     private void CloseSession(TabItem tab, RdpSessionControl session)
     {
         session.Cleanup();
+        if (tab.Tag is SessionTag { PostCommand: { Length: > 0 } cmd, Info: { } info })
+            Services.ExternalTools.Run(cmd, info);
         SessionTabs.Items.Remove(tab);
         if (SessionTabs.Items.Count == 0) EmptyHint.Visibility = Visibility.Visible;
     }

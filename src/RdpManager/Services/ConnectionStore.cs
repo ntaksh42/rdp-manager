@@ -35,6 +35,8 @@ public sealed class NodeDto
     public string ScreenSize { get; set; } = "クライアント領域に合わせる";
     public string Gateway { get; set; } = "";
     public bool IsFavorite { get; set; }
+    public string PreCommand { get; set; } = "";
+    public string PostCommand { get; set; } = "";
 
     public List<NodeDto> Children { get; set; } = new();
 }

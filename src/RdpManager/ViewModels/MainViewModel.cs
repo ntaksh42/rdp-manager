@@ -287,6 +287,7 @@ public class MainViewModel : ObservableObject
         SmartSizing = n.SmartSizing, RedirectClipboard = n.RedirectClipboard,
         RedirectDrives = n.RedirectDrives, Fullscreen = n.Fullscreen,
         ScreenSize = n.ScreenSize, Gateway = n.Gateway, IsFavorite = n.IsFavorite,
+        PreCommand = n.PreCommand, PostCommand = n.PostCommand,
         Children = n.Children.Select(ToDto).ToList()
     };
 
@@ -303,6 +304,7 @@ public class MainViewModel : ObservableObject
             SmartSizing = d.SmartSizing, RedirectClipboard = d.RedirectClipboard,
             RedirectDrives = d.RedirectDrives, Fullscreen = d.Fullscreen,
             ScreenSize = d.ScreenSize, Gateway = d.Gateway, IsFavorite = d.IsFavorite,
+            PreCommand = d.PreCommand, PostCommand = d.PostCommand,
             Parent = parent
         };
         foreach (var c in d.Children) n.Children.Add(FromDto(c, n));
