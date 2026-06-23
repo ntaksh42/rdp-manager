@@ -150,6 +150,7 @@ public partial class MainWindow : Window
             TreePane.Visibility = Visibility.Collapsed;
             Splitter.Visibility = Visibility.Collapsed;
             QuickBar.Visibility = Visibility.Collapsed;
+            TreeColumn.MinWidth = 0; // MinWidth(200) が残ると左に空白が出るため0に
             TreeColumn.Width = new GridLength(0);
             SplitterColumn.Width = new GridLength(0);
 
@@ -179,6 +180,7 @@ public partial class MainWindow : Window
             TreePane.Visibility = Visibility.Visible;
             Splitter.Visibility = Visibility.Visible;
             QuickBar.Visibility = Visibility.Visible;
+            TreeColumn.MinWidth = 200;
             TreeColumn.Width = _savedTreeWidth;
             SplitterColumn.Width = GridLength.Auto;
 
