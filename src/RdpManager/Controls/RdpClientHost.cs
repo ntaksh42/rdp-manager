@@ -132,6 +132,27 @@ public sealed class RdpClientHost : AxHost
         }
     }
 
+    /// <summary>
+    /// 接続中セッションのリモート解像度を指定サイズに合わせる（動的解像度, RDP 8.1+）。
+    /// 非対応サーバーでは例外になるため、その場合は SmartSizing による拡縮にフォールバック。
+    /// </summary>
+    public void ResizeRemote(int width, int height)
+    {
+        try
+        {
+            var o = _ocx;
+            if (o is null || (int)o.Connected != 1) return;
+            uint w = (uint)Math.Clamp(width & ~1, 200, 8192);   // 偶数・範囲内
+            uint h = (uint)Math.Clamp(height & ~1, 200, 8192);
+            o.UpdateSessionDisplaySettings(w, h, w, h, 0u, 100u, 100u);
+        }
+        catch
+        {
+            // 動的解像度に非対応 → スマートサイジングで追従（拡縮表示）
+            TrySet(() => _ocx!.AdvancedSettings9.SmartSizing = true);
+        }
+    }
+
     public void DisconnectSession()
     {
         try

@@ -15,6 +15,7 @@ public partial class RdpSessionControl : UserControl
 {
     private readonly RdpClientHost _client = new();
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromMilliseconds(700) };
+    private readonly DispatcherTimer _resizeDebounce = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private LaunchInfo? _info;
     private bool _everConnected;
 
@@ -26,7 +27,17 @@ public partial class RdpSessionControl : UserControl
         InitializeComponent();
         Host.Child = _client;
         _poll.Tick += OnPoll;
+        // ウィンドウ/タブのサイズ変更に追従（連続変更はデバウンス）
+        _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); ApplyResize(); };
+        SizeChanged += (_, _) => { _resizeDebounce.Stop(); _resizeDebounce.Start(); };
         // タブ切替で Unloaded しても切断しない（明示的に閉じた時のみ Cleanup）
+    }
+
+    /// <summary>現在の表示サイズにリモート解像度を合わせる。</summary>
+    private void ApplyResize()
+    {
+        if (_client.ConnectionState == 1 && _client.Width > 0 && _client.Height > 0)
+            _client.ResizeRemote(_client.Width, _client.Height);
     }
 
     /// <summary>
@@ -68,7 +79,7 @@ public partial class RdpSessionControl : UserControl
         switch (_client.ConnectionState)
         {
             case 1: // connected
-                _everConnected = true;
+                if (!_everConnected) { _everConnected = true; ApplyResize(); } // 接続直後に現在サイズへ合わせる
                 SetOverlay(SessionVisualState.Connected, "");
                 break;
             case 2: // connecting
