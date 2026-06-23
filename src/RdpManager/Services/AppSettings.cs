@@ -9,6 +9,7 @@ public sealed class AppSettings
     public bool DarkMode { get; set; }
     public bool RestoreSessions { get; set; } = true;
     public bool FullscreenSpan { get; set; }
+    public bool PerformanceMode { get; set; } = true;
     public List<string> RecentIds { get; set; } = new();
     public List<string> OpenOnExit { get; set; } = new();
 

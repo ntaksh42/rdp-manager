@@ -42,6 +42,7 @@ public partial class MainWindow : Window
         DarkModeItem.IsChecked = App.Settings.DarkMode;
         RestoreSessionsItem.IsChecked = App.Settings.RestoreSessions;
         FullscreenSpanItem.IsChecked = App.Settings.FullscreenSpan;
+        PerformanceModeItem.IsChecked = App.Settings.PerformanceMode;
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
 
@@ -571,6 +572,12 @@ public partial class MainWindow : Window
     {
         App.Settings.FullscreenSpan = FullscreenSpanItem.IsChecked;
         App.Settings.Save();
+    }
+
+    private void OnTogglePerformanceMode(object sender, RoutedEventArgs e)
+    {
+        App.Settings.PerformanceMode = PerformanceModeItem.IsChecked;
+        App.Settings.Save(); // 次回接続から反映
     }
 
     private void OnExit(object sender, RoutedEventArgs e) => Close();

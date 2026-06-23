@@ -117,6 +117,19 @@ public sealed class RdpClientHost : AxHost
             TrySet(() => ocx.SecuredSettings.KeyboardHookMode = 1);
             TrySet(() => ocx.SecuredSettings3.KeyboardHookMode = 1);
 
+            // ── 描画パフォーマンス最適化 ──
+            // 再描画削減（視覚変化なしの純粋な高速化）: 永続ビットマップキャッシュ
+            TrySet(() => adv.BitmapPeristence = 1);          // ※API名のスペルは "Peristence"
+            TrySet(() => adv.CachePersistenceActive = 1);
+            // 帯域/コーデック自動最適化のヒント（LAN=6）
+            TrySet(() => adv.NetworkConnectionType = 6u);
+            if (info.PerformanceMode)
+            {
+                // サーバー側の装飾を無効化（壁紙/フルウィンドウドラッグ/メニューアニメ/テーマ/カーソル影）
+                // TS_PERF_DISABLE_WALLPAPER|FULLWINDOWDRAG|MENUANIMATIONS|THEMING|CURSOR_SHADOW = 0x2F
+                TrySet(() => adv.PerformanceFlags = 0x2F);
+            }
+
             if (!string.IsNullOrWhiteSpace(info.Gateway))
             {
                 dynamic ts = ocx.TransportSettings2;

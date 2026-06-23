@@ -136,7 +136,8 @@ public class MainViewModel : ObservableObject
             SmartSizing = s.SmartSizing,
             RedirectClipboard = s.RedirectClipboard,
             RedirectDrives = s.RedirectDrives,
-            Gateway = s.Gateway
+            Gateway = s.Gateway,
+            PerformanceMode = App.Settings.PerformanceMode
         };
     }
 

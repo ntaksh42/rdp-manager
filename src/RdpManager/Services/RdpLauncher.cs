@@ -16,6 +16,8 @@ public sealed class LaunchInfo
     public bool RedirectClipboard { get; init; } = true;
     public bool RedirectDrives { get; init; }
     public string Gateway { get; init; } = "";
+    /// <summary>描画パフォーマンス最適化（壁紙/アニメ/テーマ等を無効化）。</summary>
+    public bool PerformanceMode { get; init; } = true;
 }
 
 /// <summary>

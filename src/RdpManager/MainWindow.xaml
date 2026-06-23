@@ -55,6 +55,7 @@
                 <Separator/>
                 <MenuItem Header="Toggle Full Screen" InputGestureText="F11 / Ctrl+Alt+Pause" Click="OnToggleFullscreenMenu"/>
                 <MenuItem x:Name="FullscreenSpanItem" Header="Span All Monitors in Full Screen" IsCheckable="True" Click="OnToggleFullscreenSpan"/>
+                <MenuItem x:Name="PerformanceModeItem" Header="Optimize for Performance" IsCheckable="True" Click="OnTogglePerformanceMode"/>
                 <MenuItem x:Name="DarkModeItem" Header="Dark Mode" IsCheckable="True" Click="OnToggleDarkMode"/>
                 <MenuItem x:Name="RestoreSessionsItem" Header="Restore Sessions on Startup" IsCheckable="True" Click="OnToggleRestoreSessions"/>
             </MenuItem>
