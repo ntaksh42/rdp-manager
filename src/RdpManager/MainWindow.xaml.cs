@@ -235,6 +235,17 @@ public partial class MainWindow : Window
         var info = Vm.BuildLaunchInfo(node);
         if (info is null) return;
         Services.ExternalTools.Run(node!.PreCommand, info);
+
+        // RDP 以外は対応する外部クライアントで起動
+        if (!string.Equals(node.Protocol, "RDP", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Services.ProtocolLauncher.Launch(node.Protocol, info.Host, info.Port, info.Username, out var msg)
+                && msg != null)
+                MessageBox.Show(this, msg, "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Vm.RecordRecent(node);
+            return;
+        }
+
         OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, info, target ?? SessionTabs);
         Vm.RecordRecent(node);
     }

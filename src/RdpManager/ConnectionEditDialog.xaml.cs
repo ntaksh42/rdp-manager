@@ -36,6 +36,7 @@ public partial class ConnectionEditDialog : Window
             HostBox.Text = node.Host;
             PortBox.Text = node.Port.ToString();
             CommentBox.Text = node.Comment;
+            ProtocolBox.SelectedIndex = node.Protocol switch { "SSH" => 1, "Telnet" => 2, "VNC" => 3, _ => 0 };
             DomainBox.Text = node.Domain;
             UserBox.Text = node.Username;
             PassBox.Password = node.Password;
@@ -107,6 +108,7 @@ public partial class ConnectionEditDialog : Window
             _node.Host = HostBox.Text.Trim();
             _node.Port = int.TryParse(PortBox.Text.Trim(), out var port) ? port : 3389;
             _node.Comment = CommentBox.Text.Trim();
+            _node.Protocol = (ProtocolBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "RDP";
             _node.CredentialMode = SelectedCredMode;
             _node.Domain = DomainBox.Text.Trim();
             _node.Username = UserBox.Text.Trim();

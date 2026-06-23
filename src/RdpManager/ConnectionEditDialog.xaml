@@ -17,6 +17,13 @@
 
             <!-- 接続専用 -->
             <StackPanel x:Name="ConnPanel">
+                <TextBlock Text="プロトコル" Margin="0,0,0,2"/>
+                <ComboBox x:Name="ProtocolBox" Margin="0,0,0,10">
+                    <ComboBoxItem Content="RDP" Tag="RDP"/>
+                    <ComboBoxItem Content="SSH" Tag="SSH"/>
+                    <ComboBoxItem Content="Telnet" Tag="Telnet"/>
+                    <ComboBoxItem Content="VNC" Tag="VNC"/>
+                </ComboBox>
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>

@@ -16,6 +16,7 @@ public sealed class StoreDocument
 public sealed class NodeDto
 {
     public string Kind { get; set; } = "folder"; // folder | connection
+    public string Protocol { get; set; } = "RDP";
     public string Name { get; set; } = "";
     public string Host { get; set; } = "";
     public int Port { get; set; } = 3389;

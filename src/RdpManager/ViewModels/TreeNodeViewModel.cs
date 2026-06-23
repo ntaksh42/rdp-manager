@@ -27,6 +27,9 @@ public class TreeNodeViewModel : ObservableObject
     public NodeKind Kind { get; init; }
     public TreeNodeViewModel? Parent { get; set; }
 
+    /// <summary>接続プロトコル: RDP / SSH / Telnet / VNC</summary>
+    public string Protocol { get; set; } = "RDP";
+
     public ObservableCollection<TreeNodeViewModel> Children { get; } = new();
 
     public string Name

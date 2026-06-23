@@ -289,6 +289,7 @@ public class MainViewModel : ObservableObject
     private static NodeDto ToDto(TreeNodeViewModel n) => new()
     {
         Kind = n.IsFolder ? "folder" : "connection",
+        Protocol = n.Protocol,
         Name = n.Name, Host = n.Host, Port = n.Port, Comment = n.Comment,
         CredentialMode = n.CredentialMode, CredentialProfile = n.CredentialProfile,
         Username = n.Username, Domain = n.Domain,
@@ -306,6 +307,7 @@ public class MainViewModel : ObservableObject
         var n = new TreeNodeViewModel
         {
             Kind = d.Kind == "connection" ? NodeKind.Connection : NodeKind.Folder,
+            Protocol = string.IsNullOrEmpty(d.Protocol) ? "RDP" : d.Protocol,
             Name = d.Name, Host = d.Host, Port = d.Port, Comment = d.Comment,
             CredentialMode = d.CredentialMode, CredentialProfile = d.CredentialProfile,
             Username = d.Username, Domain = d.Domain,
