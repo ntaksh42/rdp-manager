@@ -21,7 +21,7 @@
     </Window.DataContext>
 
     <DockPanel>
-        <Menu DockPanel.Dock="Top">
+        <Menu x:Name="MainMenu" DockPanel.Dock="Top">
             <MenuItem Header="ファイル(_F)">
                 <MenuItem Header="保存先フォルダを開く" Click="OnOpenStoreFolder"/>
                 <Separator/>
@@ -37,12 +37,15 @@
                 <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
                 <MenuItem Header="外部ウィンドウで開く (mstsc)" Click="OnConnectExternal"/>
             </MenuItem>
+            <MenuItem Header="表示(_V)">
+                <MenuItem Header="全画面の切り替え" InputGestureText="F11" Click="OnToggleFullscreenMenu"/>
+            </MenuItem>
             <MenuItem Header="ヘルプ(_H)">
                 <MenuItem Header="バージョン情報" Click="OnAbout"/>
             </MenuItem>
         </Menu>
 
-        <ToolBar DockPanel.Dock="Top">
+        <ToolBar x:Name="MainToolBar" DockPanel.Dock="Top">
             <Button Content="📁 新規フォルダ" Click="OnNewFolder"/>
             <Button Content="🖥️ 新規接続" Click="OnNewConnection"/>
             <Separator/>
@@ -52,19 +55,19 @@
             <Button Content="▶ 接続" Click="OnConnectEmbedded"/>
         </ToolBar>
 
-        <StatusBar DockPanel.Dock="Bottom">
+        <StatusBar x:Name="MainStatus" DockPanel.Dock="Bottom">
             <StatusBarItem><TextBlock Text="{Binding StatusText}"/></StatusBarItem>
         </StatusBar>
 
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="280" MinWidth="200"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition x:Name="TreeColumn" Width="280" MinWidth="200"/>
+                <ColumnDefinition x:Name="SplitterColumn" Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <!-- 接続ツリー -->
-            <DockPanel Grid.Column="0" Background="#FAFAFA">
+            <DockPanel x:Name="TreePane" Grid.Column="0" Background="#FAFAFA">
                 <Grid DockPanel.Dock="Top" Margin="6">
                     <TextBox x:Name="SearchBox"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
@@ -113,12 +116,12 @@
                 </TreeView>
             </DockPanel>
 
-            <GridSplitter Grid.Column="1" Width="4" VerticalAlignment="Stretch"
+            <GridSplitter x:Name="Splitter" Grid.Column="1" Width="4" VerticalAlignment="Stretch"
                           HorizontalAlignment="Center" Background="#E0E0E0"/>
 
             <!-- 右ペイン: セッションタブ -->
             <DockPanel Grid.Column="2">
-                <Border DockPanel.Dock="Top" Background="#F0F0F0" Padding="8">
+                <Border x:Name="QuickBar" DockPanel.Dock="Top" Background="#F0F0F0" Padding="8">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="クイック接続:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBox x:Name="QuickHostBox" Width="220" VerticalContentAlignment="Center"

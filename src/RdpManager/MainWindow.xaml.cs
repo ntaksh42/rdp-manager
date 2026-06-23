@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using RdpManager.Controls;
@@ -25,6 +27,89 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Vm.Error += msg => MessageBox.Show(this, msg, "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
+        SourceInitialized += OnSourceInitialized;
+        Closed += (_, _) => UnregisterHotkey();
+    }
+
+    // ── 全画面トグル（F11 グローバルホットキー）──
+    [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    private const int HotkeyId = 0x9001;
+    private const int WmHotkey = 0x0312;
+    private const uint VkF11 = 0x7A;
+
+    private IntPtr _hwnd;
+    private bool _fullscreen;
+    private WindowStyle _savedStyle;
+    private ResizeMode _savedResize;
+    private WindowState _savedState;
+    private GridLength _savedTreeWidth;
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        _hwnd = new WindowInteropHelper(this).Handle;
+        var src = HwndSource.FromHwnd(_hwnd);
+        src?.AddHook(WndProc);
+        // 修飾なし F11 をグローバル登録（RDP セッションにフォーカスがあっても効かせるため）
+        RegisterHotKey(_hwnd, HotkeyId, 0, VkF11);
+    }
+
+    private void UnregisterHotkey()
+    {
+        if (_hwnd != IntPtr.Zero) UnregisterHotKey(_hwnd, HotkeyId);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WmHotkey && wParam.ToInt32() == HotkeyId)
+        {
+            ToggleFullscreen();
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
+
+    private void ToggleFullscreen()
+    {
+        if (!_fullscreen)
+        {
+            _savedStyle = WindowStyle;
+            _savedResize = ResizeMode;
+            _savedState = WindowState;
+            _savedTreeWidth = TreeColumn.Width;
+
+            MainMenu.Visibility = Visibility.Collapsed;
+            MainToolBar.Visibility = Visibility.Collapsed;
+            MainStatus.Visibility = Visibility.Collapsed;
+            TreePane.Visibility = Visibility.Collapsed;
+            Splitter.Visibility = Visibility.Collapsed;
+            QuickBar.Visibility = Visibility.Collapsed;
+            TreeColumn.Width = new GridLength(0);
+            SplitterColumn.Width = new GridLength(0);
+
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            WindowState = WindowState.Normal; // 一旦戻してから最大化しないと境界が残ることがある
+            WindowState = WindowState.Maximized;
+            _fullscreen = true;
+        }
+        else
+        {
+            MainMenu.Visibility = Visibility.Visible;
+            MainToolBar.Visibility = Visibility.Visible;
+            MainStatus.Visibility = Visibility.Visible;
+            TreePane.Visibility = Visibility.Visible;
+            Splitter.Visibility = Visibility.Visible;
+            QuickBar.Visibility = Visibility.Visible;
+            TreeColumn.Width = _savedTreeWidth;
+            SplitterColumn.Width = GridLength.Auto;
+
+            WindowStyle = _savedStyle;
+            ResizeMode = _savedResize;
+            WindowState = _savedState;
+            _fullscreen = false;
+        }
     }
 
     // ── ツリー ──
@@ -158,6 +243,8 @@ public partial class MainWindow : Window
         => MessageBox.Show(this,
             "RdpManager\n接続先をツリーで整理し、このウィンドウ内のタブに RDP 画面を埋め込んで表示します。\n資格情報は DPAPI で暗号化保存されます。",
             "バージョン情報", MessageBoxButton.OK, MessageBoxImage.Information);
+
+    private void OnToggleFullscreenMenu(object sender, RoutedEventArgs e) => ToggleFullscreen();
 
     private void OnExit(object sender, RoutedEventArgs e) => Close();
 }
