@@ -145,6 +145,7 @@
                     <TreeView.ContextMenu>
                         <ContextMenu>
                             <MenuItem Header="接続（このウィンドウ内）" Click="OnConnectEmbedded"/>
+                            <MenuItem Header="右ペインで開く（分割表示）" Click="OnConnectRight"/>
                             <MenuItem Header="外部ウィンドウで開く (mstsc)" Click="OnConnectExternal"/>
                             <MenuItem Header="お気に入り 登録/解除" Click="OnToggleFavorite"/>
                             <Separator/>
@@ -182,10 +183,19 @@
                 </Border>
 
                 <Grid>
-                    <TabControl x:Name="SessionTabs"/>
-                    <TextBlock x:Name="EmptyHint"
-                               Text="左のツリーから接続をダブルクリックすると、このウィンドウ内に表示されます"
-                               Foreground="#9E9E9E" FontSize="14"
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition x:Name="RightSplitterCol" Width="0"/>
+                        <ColumnDefinition x:Name="RightCol" Width="0"/>
+                    </Grid.ColumnDefinitions>
+                    <TabControl x:Name="SessionTabs" Grid.Column="0"/>
+                    <GridSplitter x:Name="RightSplitter" Grid.Column="1" Width="4"
+                                  HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                                  Background="#E0E0E0" Visibility="Collapsed"/>
+                    <TabControl x:Name="SessionTabsRight" Grid.Column="2"/>
+                    <TextBlock x:Name="EmptyHint" Grid.Column="0"
+                               Text="左のツリーから接続をダブルクリックすると、このウィンドウ内に表示されます&#x0a;（右クリック「右ペインで開く」で左右分割表示）"
+                               Foreground="#9E9E9E" FontSize="14" TextAlignment="Center"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>
             </DockPanel>

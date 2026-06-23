@@ -23,6 +23,8 @@ using DragEventArgs = System.Windows.DragEventArgs;
 using DragDropEffects = System.Windows.DragDropEffects;
 using DragDrop = System.Windows.DragDrop;
 using DependencyObject = System.Windows.DependencyObject;
+using TabControl = System.Windows.Controls.TabControl;
+using TabItem = System.Windows.Controls.TabItem;
 
 namespace RdpManager;
 
@@ -56,7 +58,7 @@ public partial class MainWindow : Window
 
     private void OnClosingSaveSessions(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        var ids = SessionTabs.Items.OfType<TabItem>()
+        var ids = SessionTabs.Items.OfType<TabItem>().Concat(SessionTabsRight.Items.OfType<TabItem>())
             .Select(t => (t.Tag as SessionTag)?.NodeId)
             .Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
         App.Settings.OpenOnExit = ids;
@@ -225,16 +227,26 @@ public partial class MainWindow : Window
     private void OnConnectEmbedded(object sender, RoutedEventArgs e) => ConnectEmbedded(Vm.SelectedNode);
     private void OnConnectExternal(object sender, RoutedEventArgs e) => Vm.ConnectExternal(Vm.SelectedNode);
 
-    private void ConnectEmbedded(TreeNodeViewModel? node)
+    private void OnConnectRight(object sender, RoutedEventArgs e) => ConnectEmbedded(Vm.SelectedNode, SessionTabsRight);
+
+    private void ConnectEmbedded(TreeNodeViewModel? node, TabControl? target = null)
     {
         var info = Vm.BuildLaunchInfo(node);
         if (info is null) return;
         Services.ExternalTools.Run(node!.PreCommand, info);
-        OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, info);
+        OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, info, target ?? SessionTabs);
         Vm.RecordRecent(node);
     }
 
     private sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info);
+
+    private void UpdateRightPane()
+    {
+        bool show = SessionTabsRight.Items.Count > 0;
+        RightCol.Width = show ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        RightSplitterCol.Width = show ? GridLength.Auto : new GridLength(0);
+        RightSplitter.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private void OnQuickAccessDouble(object sender, MouseButtonEventArgs e)
     {
@@ -266,8 +278,9 @@ public partial class MainWindow : Window
 
     // ── セッションタブ管理 ──
     private void OpenSession(LaunchInfo info, string title, string? nodeId = null,
-                             string? postCommand = null, LaunchInfo? postInfo = null)
+                             string? postCommand = null, LaunchInfo? postInfo = null, TabControl? target = null)
     {
+        target ??= SessionTabs;
         var session = new RdpSessionControl();
         var dot = new Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center, Fill = Brushes.Orange };
@@ -295,9 +308,10 @@ public partial class MainWindow : Window
             _ => Brushes.Orange
         };
 
-        SessionTabs.Items.Add(tab);
-        SessionTabs.SelectedItem = tab;
-        EmptyHint.Visibility = Visibility.Collapsed;
+        target.Items.Add(tab);
+        target.SelectedItem = tab;
+        EmptyHint.Visibility = SessionTabs.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateRightPane();
 
         session.Start(info);
     }
@@ -307,8 +321,9 @@ public partial class MainWindow : Window
         session.Cleanup();
         if (tab.Tag is SessionTag { PostCommand: { Length: > 0 } cmd, Info: { } info })
             Services.ExternalTools.Run(cmd, info);
-        SessionTabs.Items.Remove(tab);
-        if (SessionTabs.Items.Count == 0) EmptyHint.Visibility = Visibility.Visible;
+        (tab.Parent as TabControl)?.Items.Remove(tab);
+        EmptyHint.Visibility = SessionTabs.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateRightPane();
     }
 
     // ── CRUD ──
