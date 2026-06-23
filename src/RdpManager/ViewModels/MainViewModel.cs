@@ -316,7 +316,7 @@ public class MainViewModel : ObservableObject
         Name = n.Name, Host = n.Host, Port = n.Port, Comment = n.Comment,
         CredentialMode = n.CredentialMode, CredentialProfile = n.CredentialProfile,
         Username = n.Username, Domain = n.Domain,
-        PasswordEncrypted = CredentialProtector.Protect(n.Password),
+        PasswordEncrypted = n.CachedPasswordEnc ??= CredentialProtector.Protect(n.Password),
         InheritSettings = n.InheritSettings,
         SmartSizing = n.SmartSizing, RedirectClipboard = n.RedirectClipboard,
         RedirectDrives = n.RedirectDrives, Fullscreen = n.Fullscreen,
@@ -342,6 +342,8 @@ public class MainViewModel : ObservableObject
             PreCommand = d.PreCommand, PostCommand = d.PostCommand,
             Parent = parent
         };
+        // 読み込んだ暗号化値をそのままキャッシュ → 平文未変更なら保存時に再暗号化しない
+        n.CachedPasswordEnc = d.PasswordEncrypted;
         foreach (var c in d.Children) n.Children.Add(FromDto(c, n));
         return n;
     }

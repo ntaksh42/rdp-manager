@@ -81,7 +81,15 @@ public class TreeNodeViewModel : ObservableObject
         set => SetField(ref _domain, value);
     }
 
-    public string Password { get; set; } = ""; // メモリ上のみ平文。保存時 DPAPI 暗号化。
+    private string _password = "";
+    /// <summary>メモリ上のみ平文。保存時 DPAPI 暗号化。</summary>
+    public string Password
+    {
+        get => _password;
+        set { if (_password != value) { _password = value; CachedPasswordEnc = null; } }
+    }
+    /// <summary>暗号化済みパスワードのキャッシュ（平文が未変更なら保存時に再暗号化しない）。</summary>
+    public string? CachedPasswordEnc { get; set; }
     public bool IsFavorite { get; set; }
 
     // RDP 設定
