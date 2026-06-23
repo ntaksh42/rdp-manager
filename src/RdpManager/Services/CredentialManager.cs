@@ -36,6 +36,30 @@ public static class CredentialManager
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CredDelete(string target, uint type, uint flags);
 
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "CredReadW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CredRead(string target, uint type, uint flags, out IntPtr credential);
+
+    [DllImport("advapi32.dll")]
+    private static extern void CredFree(IntPtr buffer);
+
+    /// <summary>資格情報マネージャーから TERMSRV/&lt;host&gt; の資格情報を読み出す。無ければ null。</summary>
+    public static (string user, string password)? ReadTerminalServer(string host)
+    {
+        if (!CredRead($"TERMSRV/{host}", CRED_TYPE_GENERIC, 0, out var ptr))
+            return null;
+        try
+        {
+            var cred = Marshal.PtrToStructure<CREDENTIAL>(ptr);
+            string user = cred.UserName ?? "";
+            string pass = "";
+            if (cred.CredentialBlobSize > 0 && cred.CredentialBlob != IntPtr.Zero)
+                pass = Marshal.PtrToStringUni(cred.CredentialBlob, (int)cred.CredentialBlobSize / 2) ?? "";
+            return (user, pass);
+        }
+        finally { CredFree(ptr); }
+    }
+
     /// <summary>TERMSRV/&lt;host&gt; 形式の汎用資格情報を書き込む。</summary>
     public static bool WriteTerminalServer(string host, string user, string password)
     {

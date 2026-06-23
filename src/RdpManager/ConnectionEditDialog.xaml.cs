@@ -47,7 +47,8 @@ public partial class ConnectionEditDialog : Window
             {
                 "direct" => 0,
                 "profile" => 1,
-                _ => 2
+                "winCred" => 2,
+                _ => 3
             };
             UpdateCredPanels();
         }

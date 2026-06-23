@@ -39,6 +39,7 @@
                 <ComboBox x:Name="CredModeBox" Margin="0,0,0,8" SelectionChanged="OnCredModeChanged">
                     <ComboBoxItem Content="直接入力" Tag="direct"/>
                     <ComboBoxItem Content="プロファイルを使用" Tag="profile"/>
+                    <ComboBoxItem Content="Windows 資格情報マネージャー" Tag="winCred"/>
                     <ComboBoxItem Content="親フォルダから継承" Tag="inheritFromParent"/>
                 </ComboBox>
 

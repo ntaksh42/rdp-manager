@@ -167,6 +167,16 @@ public class MainViewModel : ObservableObject
             {
                 case "direct":
                     return (cur.Username, cur.Domain, cur.Password);
+                case "winCred":
+                    var w = CredentialManager.ReadTerminalServer(node.Host);
+                    if (w is { } cred)
+                    {
+                        var bs = cred.user.IndexOf('\\');
+                        return bs > 0
+                            ? (cred.user[(bs + 1)..], cred.user[..bs], cred.password)
+                            : (cred.user, "", cred.password);
+                    }
+                    return ("", "", "");
                 case "profile":
                     var p = CredentialProfiles.FirstOrDefault(x => x.Name == cur.CredentialProfile);
                     if (p != null) return (p.Username, p.Domain, p.Password);
