@@ -153,6 +153,9 @@
                             <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
                             <MenuItem Header="Toggle Favorite" Click="OnToggleFavorite"/>
                             <Separator/>
+                            <MenuItem Header="Connect All in Folder" Click="OnConnectAll"/>
+                            <MenuItem Header="Disconnect All in Folder" Click="OnDisconnectAll"/>
+                            <Separator/>
                             <MenuItem Header="New Folder" Click="OnNewFolder"/>
                             <MenuItem Header="New Connection" Click="OnNewConnection"/>
                             <MenuItem Header="Edit…" Click="OnEditNode"/>

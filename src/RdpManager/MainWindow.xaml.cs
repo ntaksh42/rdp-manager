@@ -307,6 +307,38 @@ public partial class MainWindow : Window
         RightSplitter.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private static IEnumerable<TreeNodeViewModel> DescendantConnections(TreeNodeViewModel folder)
+    {
+        foreach (var c in folder.Children)
+        {
+            if (c.IsConnection) yield return c;
+            else foreach (var d in DescendantConnections(c)) yield return d;
+        }
+    }
+
+    private void OnConnectAll(object sender, RoutedEventArgs e)
+    {
+        if (Vm.SelectedNode is not { IsFolder: true } folder) return;
+        var conns = DescendantConnections(folder).ToList();
+        if (conns.Count == 0) return;
+        if (conns.Count > 8 && MessageBox.Show(this,
+                $"Connect to {conns.Count} sessions?", "Connect All",
+                MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
+            return;
+        foreach (var c in conns) ConnectEmbedded(c);
+    }
+
+    private void OnDisconnectAll(object sender, RoutedEventArgs e)
+    {
+        if (Vm.SelectedNode is not { IsFolder: true } folder) return;
+        var ids = DescendantConnections(folder).Select(c => c.Id.ToString()).ToHashSet();
+        foreach (var pane in new[] { SessionTabs, SessionTabsRight })
+            foreach (var tab in pane.Items.OfType<TabItem>().ToList())
+                if ((tab.Tag as SessionTag)?.NodeId is { } id && ids.Contains(id) &&
+                    tab.Content is RdpSessionControl s)
+                    CloseSession(tab, s);
+    }
+
     private void OnQuickAccessDouble(object sender, MouseButtonEventArgs e)
     {
         if (QuickList.SelectedItem is TreeNodeViewModel node)
