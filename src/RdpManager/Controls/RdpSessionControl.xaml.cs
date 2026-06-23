@@ -109,6 +109,12 @@ public partial class RdpSessionControl : UserControl
 
     private void OnReconnect(object sender, RoutedEventArgs e) => Start(_info!);
 
+    /// <summary>埋め込み RDP コントロールへキーボードフォーカスを移す。</summary>
+    public void FocusSession()
+    {
+        try { _client.Focus(); } catch { /* 未生成などは無視 */ }
+    }
+
     public void Cleanup()
     {
         _poll.Stop();

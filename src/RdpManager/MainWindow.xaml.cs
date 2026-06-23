@@ -44,6 +44,24 @@ public partial class MainWindow : Window
         FullscreenSpanItem.IsChecked = App.Settings.FullscreenSpan;
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
+
+        _activePane = SessionTabs;
+        SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _activePane = SessionTabs; };
+        SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _activePane = SessionTabsRight; };
+    }
+
+    /// <summary>アクティブなペイン内でタブを巡回し、選択したセッションへフォーカスを移す。</summary>
+    private void CycleTab(int delta)
+    {
+        var pane = _activePane is { Items.Count: > 0 } p ? p
+            : (SessionTabs.Items.Count > 0 ? SessionTabs : SessionTabsRight);
+        int n = pane.Items.Count;
+        if (n == 0) return;
+        int idx = pane.SelectedIndex < 0 ? 0 : pane.SelectedIndex;
+        idx = (idx + delta + n) % n;
+        pane.SelectedIndex = idx;
+        if (pane.SelectedItem is TabItem ti && ti.Content is RdpSessionControl s)
+            Dispatcher.BeginInvoke(new Action(s.FocusSession), System.Windows.Threading.DispatcherPriority.Input);
     }
 
     private void OnLoadedRestore(object sender, RoutedEventArgs e)
@@ -86,15 +104,20 @@ public partial class MainWindow : Window
     private const int HotkeyF11 = 0x9001;
     private const int HotkeyPause = 0x9002;
     private const int HotkeyBreak = 0x9003;
+    private const int HotkeyNextTab = 0x9004;
+    private const int HotkeyPrevTab = 0x9005;
     private const int WmHotkey = 0x0312;
     private const uint VkF11 = 0x7A;
     private const uint VkPause = 0x13;   // Pause
     private const uint VkCancel = 0x03;  // Ctrl+Pause = Break
+    private const uint VkLeft = 0x25;
+    private const uint VkRight = 0x27;
     private const uint ModAlt = 0x1;
     private const uint ModControl = 0x2;
 
     private IntPtr _hwnd;
     private bool _fullscreen;
+    private TabControl? _activePane;
     private WindowStyle _savedStyle;
     private ResizeMode _savedResize;
     private WindowState _savedState;
@@ -110,6 +133,8 @@ public partial class MainWindow : Window
         RegisterHotKey(_hwnd, HotkeyF11, 0, VkF11);                          // F11
         RegisterHotKey(_hwnd, HotkeyPause, ModControl | ModAlt, VkPause);    // Ctrl+Alt+Pause
         RegisterHotKey(_hwnd, HotkeyBreak, ModControl | ModAlt, VkCancel);   // Ctrl+Alt+Break
+        RegisterHotKey(_hwnd, HotkeyNextTab, ModControl | ModAlt, VkRight);  // Ctrl+Alt+Right
+        RegisterHotKey(_hwnd, HotkeyPrevTab, ModControl | ModAlt, VkLeft);   // Ctrl+Alt+Left
     }
 
     private void UnregisterHotkey()
@@ -118,6 +143,8 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyF11);
         UnregisterHotKey(_hwnd, HotkeyPause);
         UnregisterHotKey(_hwnd, HotkeyBreak);
+        UnregisterHotKey(_hwnd, HotkeyNextTab);
+        UnregisterHotKey(_hwnd, HotkeyPrevTab);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -130,6 +157,8 @@ public partial class MainWindow : Window
                 ToggleFullscreen();
                 handled = true;
             }
+            else if (id == HotkeyNextTab) { CycleTab(+1); handled = true; }
+            else if (id == HotkeyPrevTab) { CycleTab(-1); handled = true; }
         }
         return IntPtr.Zero;
     }
@@ -310,6 +339,7 @@ public partial class MainWindow : Window
                              string? postCommand = null, LaunchInfo? postInfo = null, TabControl? target = null)
     {
         target ??= SessionTabs;
+        _activePane = target;
         var session = new RdpSessionControl();
         var dot = new Ellipse { Width = 8, Height = 8, Margin = new Thickness(0, 0, 6, 0),
             VerticalAlignment = VerticalAlignment.Center, Fill = Brushes.Orange };
