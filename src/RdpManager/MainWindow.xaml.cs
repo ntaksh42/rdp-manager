@@ -110,8 +110,8 @@ public partial class MainWindow : Window
     private const uint VkF11 = 0x7A;
     private const uint VkPause = 0x13;   // Pause
     private const uint VkCancel = 0x03;  // Ctrl+Pause = Break
-    private const uint VkLeft = 0x25;
-    private const uint VkRight = 0x27;
+    private const uint VkPageUp = 0x21;
+    private const uint VkPageDown = 0x22;
     private const uint ModAlt = 0x1;
     private const uint ModControl = 0x2;
 
@@ -133,8 +133,8 @@ public partial class MainWindow : Window
         RegisterHotKey(_hwnd, HotkeyF11, 0, VkF11);                          // F11
         RegisterHotKey(_hwnd, HotkeyPause, ModControl | ModAlt, VkPause);    // Ctrl+Alt+Pause
         RegisterHotKey(_hwnd, HotkeyBreak, ModControl | ModAlt, VkCancel);   // Ctrl+Alt+Break
-        RegisterHotKey(_hwnd, HotkeyNextTab, ModControl | ModAlt, VkRight);  // Ctrl+Alt+Right
-        RegisterHotKey(_hwnd, HotkeyPrevTab, ModControl | ModAlt, VkLeft);   // Ctrl+Alt+Left
+        RegisterHotKey(_hwnd, HotkeyNextTab, ModControl | ModAlt, VkPageDown); // Ctrl+Alt+PageDown
+        RegisterHotKey(_hwnd, HotkeyPrevTab, ModControl | ModAlt, VkPageUp);   // Ctrl+Alt+PageUp
     }
 
     private void UnregisterHotkey()
