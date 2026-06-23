@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using RdpManager.Services;
 
@@ -19,19 +20,52 @@ public sealed class RdpClientHost : AxHost
         "A3BC03A0-041D-42E3-AD22-882B7865C9C5", // v9
     };
 
+    private static string? _resolvedClsid;
     private dynamic? _ocx;
 
     public RdpClientHost() : base(ResolveClsid()) { }
 
+    /// <summary>
+    /// 実際に CoCreate できる CLSID を選ぶ。GetTypeFromCLSID は未登録でも非 null を返すため、
+    /// 一部マシンで登録はあっても生成不可（CLASS_E_CLASSNOTAVAILABLE）の版を避けるには
+    /// 実インスタンス化で確認する必要がある。結果は静的にキャッシュ。
+    /// </summary>
     private static string ResolveClsid()
     {
+        if (_resolvedClsid != null) return _resolvedClsid;
         foreach (var clsid in CandidateClsids)
-            if (Type.GetTypeFromCLSID(new Guid(clsid)) is not null)
+        {
+            try
+            {
+                var type = Type.GetTypeFromCLSID(new Guid(clsid));
+                if (type is null) continue;
+                var probe = Activator.CreateInstance(type);
+                if (probe is null) continue;
+                Marshal.FinalReleaseComObject(probe);
+                _resolvedClsid = clsid;
                 return clsid;
-        return CandidateClsids[^1];
+            }
+            catch
+            {
+                // この版は生成不可。次の候補へ。
+            }
+        }
+        _resolvedClsid = CandidateClsids[^1];
+        return _resolvedClsid;
     }
 
     public string? LastError { get; private set; }
+
+    /// <summary>埋め込み検証用: ハンドル生成・OCX取得・プロパティ読み書きを確認。</summary>
+    public string SelfCheck()
+    {
+        if (!IsHandleCreated) CreateControl();
+        dynamic ocx = _ocx ??= GetOcx();
+        ocx.Server = "192.0.2.1";
+        string server = ocx.Server;
+        int connected = (int)ocx.Connected;
+        return $"OK: clsid={_resolvedClsid}, OCX実体化/読み書き成功 (Server={server}, Connected={connected})";
+    }
 
     /// <summary>0=切断 / 1=接続済み / 2=接続中。</summary>
     public int ConnectionState
