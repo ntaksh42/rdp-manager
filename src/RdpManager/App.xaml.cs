@@ -3,6 +3,8 @@ using System.Windows.Threading;
 using RdpManager.Services;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
+using WinFormsApplication = System.Windows.Forms.Application;
+using WinFormsUnhandledExceptionMode = System.Windows.Forms.UnhandledExceptionMode;
 
 namespace RdpManager;
 
@@ -13,6 +15,14 @@ public partial class App : Application
     private static readonly string SelfTestLog =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rdpmanager_selftest.txt");
     private bool _selfTest;
+    private bool _winFormsErrorShown;
+
+    public App()
+    {
+        WinFormsApplication.SetUnhandledExceptionMode(WinFormsUnhandledExceptionMode.CatchException);
+        WinFormsApplication.ThreadException += OnWinFormsThreadException;
+        AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -78,5 +88,41 @@ public partial class App : Application
                 "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         e.Handled = true;
+    }
+
+    private void OnWinFormsThreadException(object sender, System.Threading.ThreadExceptionEventArgs e)
+    {
+        Logger.Error("WinForms/ActiveX thread exception.", e.Exception);
+
+        if (_selfTest)
+        {
+            if (!System.IO.File.Exists(SelfTestLog))
+                System.IO.File.WriteAllText(SelfTestLog, $"WINFORMS: {e.Exception.Message}");
+            Shutdown(11);
+            return;
+        }
+
+        if (_winFormsErrorShown) return;
+        _winFormsErrorShown = true;
+
+        try
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                MessageBox.Show(
+                    "The embedded RDP control reported an error, but the app will continue.\n\n" + e.Exception.Message,
+                    "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }));
+        }
+        catch
+        {
+            // 既定の WinForms 例外ダイアログは WPF/ActiveX の再入時にクラッシュすることがあるため出さない。
+        }
+    }
+
+    private static void OnAppDomainUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception ex)
+            Logger.Error("Unhandled AppDomain exception.", ex);
     }
 }
