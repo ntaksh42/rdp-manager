@@ -1,7 +1,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="RdpManager"
            Manufacturer="ntaksh42"
-           Version="0.3.0"
+           Version="0.3.1"
            UpgradeCode="FA4710B7-0169-4C65-AF54-1BAD0F03D32E"
            Scope="perMachine">
 

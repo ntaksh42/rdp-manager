@@ -21,9 +21,12 @@ dotnet run --project src/RdpManager
 # Writes result to %TEMP%\rdpmanager_selftest.txt and exits.
 src/RdpManager/bin/Debug/net10.0-windows/RdpManager.exe --selftest
 
-# Publish self-contained single-file exe (MSI payload)
+# Publish self-contained single-file exe (MSI payload).
+# IncludeAllContentForSelfExtract / SatelliteResourceLanguages are set in the csproj so
+# WPF native libs AND the `en` satellite are embedded in the exe — the MSI ships only the
+# exe, so anything left loose in publish-sc would be missing on the user's machine.
 dotnet publish src/RdpManager/RdpManager.csproj -c Release -r win-x64 `
-  --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish-sc
+  --self-contained true -p:PublishSingleFile=true -o publish-sc
 
 # Build the MSI (requires WiX 5 — NOT 7, which needs a paid OSMF EULA)
 dotnet tool install --global wix --version 5.0.2   # one-time

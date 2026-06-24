@@ -10,12 +10,19 @@
     <Product>RdpManager</Product>
     <AssemblyTitle>RdpManager</AssemblyTitle>
     <Company>ntaksh42</Company>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <Description>接続先を整理し Windows 標準 mstsc で接続する軽量 RDP マネージャ</Description>
     <!-- パフォーマンス: 起動高速化(事前ネイティブコンパイル)・定常性能(PGO)・ICU除去 -->
     <PublishReadyToRun>true</PublishReadyToRun>
     <TieredPGO>true</TieredPGO>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- 単一ファイル発行で WPF のネイティブDLL・サテライト(en 等)も exe へ内包し、
+         実行時に同一フォルダへまとめて展開する。これが無いと publish-sc 直下に
+         en フォルダ等がばらけて残り、exe だけを同梱する MSI ではインストール先に
+         サテライトが無く「en が見つからない」で起動失敗する。 -->
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <!-- UI は英語のみ。不要な多言語サテライトを除外し発行サイズ・展開数を削減 -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
 </Project>
