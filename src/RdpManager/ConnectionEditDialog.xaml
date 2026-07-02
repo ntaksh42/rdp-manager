@@ -3,7 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Edit Connection" SizeToContent="Height" Width="440"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
-        UseLayoutRounding="True">
+        UseLayoutRounding="True"
+        Background="{DynamicResource WindowBg}"
+        TextElement.Foreground="{DynamicResource TextFg}">
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

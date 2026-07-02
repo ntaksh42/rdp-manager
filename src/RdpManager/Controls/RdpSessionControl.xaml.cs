@@ -132,12 +132,16 @@ public partial class RdpSessionControl : UserControl
         if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnReconnect(object sender, RoutedEventArgs e)
+    private void OnReconnect(object sender, RoutedEventArgs e) => Reconnect();
+
+    /// <summary>手動再接続。切断状態からリトライ回数をリセットして接続し直す。</summary>
+    public void Reconnect()
     {
+        if (_info is null) return;
         _reconnect.Stop();
         _reconnectScheduled = false;
         _autoRetries = 0;
-        Start(_info!);
+        Start(_info);
     }
 
     /// <summary>埋め込み RDP コントロールへキーボードフォーカスを移す。</summary>

@@ -22,6 +22,8 @@ using DragDrop = System.Windows.DragDrop;
 using DependencyObject = System.Windows.DependencyObject;
 using TabControl = System.Windows.Controls.TabControl;
 using TabItem = System.Windows.Controls.TabItem;
+using Keyboard = System.Windows.Input.Keyboard;
+using ModifierKeys = System.Windows.Input.ModifierKeys;
 
 namespace RdpManager;
 
@@ -49,6 +51,53 @@ public partial class MainWindow : Window
             RightCol, RightSplitterCol, RightSplitter);
         SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _sessions.OnPaneActivated(SessionTabs); };
         SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _sessions.OnPaneActivated(SessionTabsRight); };
+        _sessions.SessionsChanged += UpdateSessionCount;
+
+        RestoreWindowBounds();
+    }
+
+    private void UpdateSessionCount()
+    {
+        int n = _sessions.SessionCount;
+        SessionCountText.Text = $"{n} session(s)";
+        Title = n == 0 ? "RdpManager" : $"RdpManager ({n})";
+    }
+
+    /// <summary>前回終了時のウィンドウ位置・サイズを復元（画面外に出る場合は既定のまま）。</summary>
+    private void RestoreWindowBounds()
+    {
+        var s = App.Settings;
+        if (s.WindowLeft is { } l && s.WindowTop is { } t &&
+            s.WindowWidth is { } w && s.WindowHeight is { } h &&
+            w >= 400 && h >= 300)
+        {
+            double vl = SystemParameters.VirtualScreenLeft, vt = SystemParameters.VirtualScreenTop;
+            double vw = SystemParameters.VirtualScreenWidth, vh = SystemParameters.VirtualScreenHeight;
+            // モニタ構成が変わっていても、一部でも画面内に入るときだけ復元する
+            if (l < vl + vw - 100 && l + w > vl + 100 && t < vt + vh - 100 && t + h > vt)
+            {
+                WindowStartupLocation = WindowStartupLocation.Manual;
+                Left = l; Top = t; Width = w; Height = h;
+            }
+        }
+        if (s.WindowMaximized) WindowState = WindowState.Maximized;
+    }
+
+    private void SaveWindowBounds()
+    {
+        var s = App.Settings;
+        // 全画面中はトグル前の通常時の値を、最大化中は復元境界を保存する
+        var bounds = _fullscreen ? _savedBounds
+            : WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height)
+            : RestoreBounds;
+        s.WindowMaximized = _fullscreen
+            ? _savedState == WindowState.Maximized
+            : WindowState == WindowState.Maximized;
+        if (bounds.Width > 0 && bounds.Height > 0)
+        {
+            s.WindowLeft = bounds.Left; s.WindowTop = bounds.Top;
+            s.WindowWidth = bounds.Width; s.WindowHeight = bounds.Height;
+        }
     }
 
     private void OnLoadedRestore(object sender, RoutedEventArgs e)
@@ -64,11 +113,29 @@ public partial class MainWindow : Window
 
     private void OnClosingSaveSessions(object? sender, System.ComponentModel.CancelEventArgs e)
     {
-        var ids = _sessions.AllTabs
+        var tabs = _sessions.AllTabs.ToList();
+        int active = tabs.Count(t => t.Content is RdpSessionControl s &&
+                                     s.VisualState != Controls.SessionVisualState.Disconnected);
+        if (active > 0 && MessageBox.Show(this,
+                $"{active} session(s) are still connected.\nExit and disconnect them all?",
+                "Exit RdpManager", MessageBoxButton.OKCancel, MessageBoxImage.Question)
+            != MessageBoxResult.OK)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        var ids = tabs
             .Select(t => (t.Tag as SessionTag)?.NodeId)
             .Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
         App.Settings.OpenOnExit = ids;
+        SaveWindowBounds();
         App.Settings.Save();
+
+        // 各セッションを正規の手順で閉じる（切断 + PostCommand 実行）
+        foreach (var tab in tabs)
+            if (tab.Content is RdpSessionControl s)
+                _sessions.CloseSession(tab, s);
     }
 
     private void OnToggleRestoreSessions(object sender, RoutedEventArgs e)
@@ -286,6 +353,16 @@ public partial class MainWindow : Window
 
     private void ConnectEmbedded(TreeNodeViewModel? node, TabControl? target = null)
     {
+        // 同じ接続のタブが既にあれば前面に出すだけ（PreCommand の再実行や二重接続を避ける）。
+        // 右ペインを明示指定した場合は分割表示用の2セッション目として従来どおり開く。
+        if (target is null && node?.IsConnection == true &&
+            string.Equals(node.Protocol, "RDP", StringComparison.OrdinalIgnoreCase) &&
+            _sessions.TryActivateExisting(node.Id.ToString()))
+        {
+            Vm.RecordRecent(node);
+            return;
+        }
+
         var info = Vm.BuildLaunchInfo(node);
         if (info is null) return;
         Services.ExternalTools.Run(node!.PreCommand, info);
@@ -353,14 +430,85 @@ public partial class MainWindow : Window
     private void OnQuickConnectKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Enter) QuickConnect();
+        else if (e.Key == Key.Escape) QuickHostBox.Clear();
     }
 
     private void QuickConnect()
     {
-        var host = QuickHostBox.Text.Trim();
+        var text = QuickHostBox.Text.Trim();
+        if (string.IsNullOrEmpty(text)) return;
+        // "host:port" / "[ipv6]:port" 形式にも対応
+        var (host, port) = Common.HostAddress.Parse(text);
         if (string.IsNullOrEmpty(host)) return;
-        _sessions.OpenSession(new LaunchInfo { Host = host }, host);
+        var info = new LaunchInfo
+        {
+            Host = host,
+            Port = port ?? 3389,
+            PerformanceMode = App.Settings.PerformanceMode
+        };
+        _sessions.OpenSession(info, Common.HostAddress.Format(host, info.Port));
         QuickHostBox.Clear();
+    }
+
+    // ── キーボードショートカット ──
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+
+        if (e.Key == Key.Escape && _fullscreen)
+        {
+            ToggleFullscreen();
+            e.Handled = true;
+        }
+        else if (ctrl && shift && e.Key == Key.N) { OnNewFolder(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (ctrl && e.Key == Key.N) { OnNewConnection(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (ctrl && e.Key == Key.F) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
+        else if (ctrl && e.Key == Key.D) { OnDuplicateNode(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (ctrl && e.Key == Key.W) { _sessions.CloseActiveTab(); e.Handled = true; }
+    }
+
+    private void OnTreeKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && Vm.SelectedNode?.IsConnection == true)
+        {
+            ConnectEmbedded(Vm.SelectedNode);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Delete && Vm.SelectedNode != null)
+        {
+            OnDeleteNode(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F2 && Vm.SelectedNode != null)
+        {
+            OnEditNode(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
+    }
+
+    private void OnSearchKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            SearchBox.Clear();
+            Tree.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void OnFocusSearch(object sender, RoutedEventArgs e)
+    {
+        SearchBox.Focus();
+        SearchBox.SelectAll();
+    }
+
+    private void OnCloseCurrentTab(object sender, RoutedEventArgs e) => _sessions.CloseActiveTab();
+    private void OnCloseAllTabs(object sender, RoutedEventArgs e) => _sessions.CloseAll();
+
+    private void OnSortChildren(object sender, RoutedEventArgs e)
+    {
+        if (Vm.SelectedNode is { IsFolder: true } folder) Vm.SortChildren(folder);
     }
 
     // ── CRUD ──

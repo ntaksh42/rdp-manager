@@ -1,10 +1,15 @@
 using System.Windows;
 using System.Windows.Shapes;
+using RdpManager.Common;
 using RdpManager.Services;
 using Button = System.Windows.Controls.Button;
 using Cursors = System.Windows.Input.Cursors;
+using MouseButton = System.Windows.Input.MouseButton;
 using Orientation = System.Windows.Controls.Orientation;
 using Brushes = System.Windows.Media.Brushes;
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
+using Separator = System.Windows.Controls.Separator;
 using TabControl = System.Windows.Controls.TabControl;
 using TabItem = System.Windows.Controls.TabItem;
 using TextBlock = System.Windows.Controls.TextBlock;
@@ -33,6 +38,9 @@ public sealed class SessionManager
     private readonly GridSplitter _rightSplitter;
     private TabControl _activePane;
 
+    /// <summary>タブの開閉でセッション数が変わったときに通知（ステータスバー表示用）。</summary>
+    public event Action? SessionsChanged;
+
     public SessionManager(TabControl left, TabControl right, TextBlock emptyHint,
         ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
     {
@@ -51,8 +59,29 @@ public sealed class SessionManager
     public IEnumerable<TabItem> AllTabs
         => _left.Items.OfType<TabItem>().Concat(_right.Items.OfType<TabItem>());
 
+    public int SessionCount => _left.Items.Count + _right.Items.Count;
+
     /// <summary>ペイン選択時に呼ぶ（ホットキーの対象ペイン追跡）。</summary>
     public void OnPaneActivated(TabControl pane) => _activePane = pane;
+
+    /// <summary>
+    /// 同じノードのタブが既に開いていれば、それを前面に出して true を返す。
+    /// 切断状態なら再接続も開始する（同一接続の二重タブを作らない）。
+    /// </summary>
+    public bool TryActivateExisting(string nodeId)
+    {
+        var tab = AllTabs.FirstOrDefault(t => (t.Tag as SessionTag)?.NodeId == nodeId);
+        if (tab is null) return false;
+        if (tab.Parent is TabControl tc)
+        {
+            _activePane = tc;
+            tc.SelectedItem = tab;
+            FocusSelected(tc);
+        }
+        if (tab.Content is RdpSessionControl s && s.VisualState == SessionVisualState.Disconnected)
+            s.Reconnect();
+        return true;
+    }
 
     public void OpenSession(LaunchInfo info, string title, string? nodeId = null,
                             string? postCommand = null, TabControl? target = null)
@@ -66,7 +95,12 @@ public sealed class SessionManager
             VerticalAlignment = VerticalAlignment.Center, Fill = Brushes.Orange
         };
 
-        var tab = new TabItem { Content = session, Tag = new SessionTag(nodeId, postCommand, info) };
+        var tab = new TabItem
+        {
+            Content = session,
+            Tag = new SessionTag(nodeId, postCommand, info),
+            ToolTip = HostAddress.FormatWithPort(info.Host, info.Port)
+        };
 
         var close = new Button
         {
@@ -82,6 +116,13 @@ public sealed class SessionManager
         header.Children.Add(close);
         tab.Header = header;
 
+        // 中クリックで閉じる（一般的なタブ UI の慣習に合わせる）
+        tab.MouseDown += (_, e) =>
+        {
+            if (e.ChangedButton == MouseButton.Middle) { CloseSession(tab, session); e.Handled = true; }
+        };
+        tab.ContextMenu = BuildTabMenu(tab, session);
+
         session.StateChanged += (_, _) => dot.Fill = session.VisualState switch
         {
             SessionVisualState.Connected => Brushes.LimeGreen,
@@ -94,8 +135,31 @@ public sealed class SessionManager
         target.SelectedItem = tab;
         UpdateEmptyHint();
         UpdateRightPane();
+        SessionsChanged?.Invoke();
 
         session.Start(info);
+    }
+
+    private ContextMenu BuildTabMenu(TabItem tab, RdpSessionControl session)
+    {
+        var reconnect = new MenuItem { Header = "Reconnect" };
+        reconnect.Click += (_, _) => { if (session.VisualState == SessionVisualState.Disconnected) session.Reconnect(); };
+        var close = new MenuItem { Header = "Close", InputGestureText = "Ctrl+W" };
+        close.Click += (_, _) => CloseSession(tab, session);
+        var closeOthers = new MenuItem { Header = "Close Other Tabs" };
+        closeOthers.Click += (_, _) => CloseOthers(tab);
+        var closeAll = new MenuItem { Header = "Close All Tabs" };
+        closeAll.Click += (_, _) => CloseAll();
+
+        var menu = new ContextMenu();
+        // 接続中の Reconnect は ActiveX が例外を投げるため、切断時のみ有効化
+        menu.Opened += (_, _) => reconnect.IsEnabled = session.VisualState == SessionVisualState.Disconnected;
+        menu.Items.Add(reconnect);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(close);
+        menu.Items.Add(closeOthers);
+        menu.Items.Add(closeAll);
+        return menu;
     }
 
     public void CloseSession(TabItem tab, RdpSessionControl session)
@@ -106,6 +170,29 @@ public sealed class SessionManager
         (tab.Parent as TabControl)?.Items.Remove(tab);
         UpdateEmptyHint();
         UpdateRightPane();
+        SessionsChanged?.Invoke();
+    }
+
+    /// <summary>アクティブペインの選択中タブを閉じる（Ctrl+W）。</summary>
+    public void CloseActiveTab()
+    {
+        var pane = ResolveActivePane();
+        if (pane.SelectedItem is TabItem tab && tab.Content is RdpSessionControl s)
+            CloseSession(tab, s);
+    }
+
+    public void CloseOthers(TabItem keep)
+    {
+        foreach (var tab in AllTabs.Where(t => t != keep).ToList())
+            if (tab.Content is RdpSessionControl s)
+                CloseSession(tab, s);
+    }
+
+    public void CloseAll()
+    {
+        foreach (var tab in AllTabs.ToList())
+            if (tab.Content is RdpSessionControl s)
+                CloseSession(tab, s);
     }
 
     /// <summary>アクティブなペイン内でタブを巡回し、選択したセッションへフォーカスを移す。</summary>

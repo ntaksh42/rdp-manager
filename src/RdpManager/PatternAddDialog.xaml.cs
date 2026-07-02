@@ -41,6 +41,11 @@ public partial class PatternAddDialog : Window
             MessageBox.Show(this, "Please enter a host pattern.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+        if (!int.TryParse(PortBox.Text.Trim(), out var p) || p < 1 || p > 65535)
+        {
+            MessageBox.Show(this, "Port must be a number between 1 and 65535.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         try
         {
             Hosts = PatternExpander.Expand(text);
@@ -50,7 +55,7 @@ public partial class PatternAddDialog : Window
             MessageBox.Show(this, ex.Message, "Too Many Hosts", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        Port = int.TryParse(PortBox.Text.Trim(), out var p) ? p : 3389;
+        Port = p;
         DialogResult = true;
     }
 }

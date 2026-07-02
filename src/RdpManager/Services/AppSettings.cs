@@ -17,6 +17,13 @@ public sealed class AppSettings
     public List<string> RecentIds { get; set; } = new();
     public List<string> OpenOnExit { get; set; } = new();
 
+    // 前回終了時のウィンドウ位置・サイズ（未保存なら null で既定のまま）
+    public double? WindowLeft { get; set; }
+    public double? WindowTop { get; set; }
+    public double? WindowWidth { get; set; }
+    public double? WindowHeight { get; set; }
+    public bool WindowMaximized { get; set; }
+
     private static string FilePath =>
         Path.Combine(ConnectionStore.Directory, "appsettings.json");
 

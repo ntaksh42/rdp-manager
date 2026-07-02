@@ -107,8 +107,13 @@ public partial class ConnectionEditDialog : Window
                 MessageBox.Show(this, "Please enter a host / IP.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+            if (!int.TryParse(PortBox.Text.Trim(), out var port) || port < 1 || port > 65535)
+            {
+                MessageBox.Show(this, "Port must be a number between 1 and 65535.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             _node.Host = HostBox.Text.Trim();
-            _node.Port = int.TryParse(PortBox.Text.Trim(), out var port) ? port : 3389;
+            _node.Port = port;
             _node.Comment = CommentBox.Text.Trim();
             _node.Protocol = (ProtocolBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "RDP";
             _node.CredentialMode = SelectedCredMode;
