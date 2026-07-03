@@ -12,10 +12,11 @@
     <Company>ntaksh42</Company>
     <Version>0.3.0</Version>
     <Description>接続先を整理し Windows 標準 mstsc で接続する軽量 RDP マネージャ</Description>
-    <!-- パフォーマンス: 起動高速化(事前ネイティブコンパイル)・定常性能(PGO)・ICU除去 -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- パフォーマンス: 起動高速化(事前ネイティブコンパイル)・定常性能(PGO) -->
+    <!-- InvariantGlobalization は WPF 非互換(en-US カルチャ解決で起動時に InvalidOperationException)のため使用しない -->
     <PublishReadyToRun>true</PublishReadyToRun>
     <TieredPGO>true</TieredPGO>
-    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
 </Project>

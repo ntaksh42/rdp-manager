@@ -14,6 +14,10 @@ public sealed class AppSettings
     public bool EnableLogging { get; set; }
     /// <summary>外部 mstsc 起動時に全モニタへ展開する（use multimon）。</summary>
     public bool UseMultimon { get; set; }
+    /// <summary>Quick Switch を開くグローバルホットキーの修飾キー（MOD_* のビット和）。既定は Ctrl+Alt。</summary>
+    public uint QuickSwitchModifiers { get; set; } = 0x1 | 0x2;
+    /// <summary>Quick Switch を開くグローバルホットキーの仮想キーコード。既定は VK_HOME。</summary>
+    public uint QuickSwitchKey { get; set; } = 0x24;
     public List<string> RecentIds { get; set; } = new();
     public List<string> OpenOnExit { get; set; } = new();
 

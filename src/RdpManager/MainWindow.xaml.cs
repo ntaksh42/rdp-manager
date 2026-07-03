@@ -160,6 +160,7 @@ public partial class MainWindow : Window
     private const int HotkeyBreak = 0x9003;
     private const int HotkeyNextTab = 0x9004;
     private const int HotkeyPrevTab = 0x9005;
+    private const int HotkeyQuickSwitch = 0x9006;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int WmHotkey = 0x0312;
     private const uint VkF11 = 0x7A;
@@ -173,6 +174,7 @@ public partial class MainWindow : Window
     private IntPtr _hwnd;
     private bool _fullscreen;
     private readonly SessionManager _sessions;
+    private QuickSwitchDialog? _quickSwitch;
     private WindowStyle _savedStyle;
     private ResizeMode _savedResize;
     private WindowState _savedState;
@@ -190,6 +192,8 @@ public partial class MainWindow : Window
         RegisterHotKey(_hwnd, HotkeyBreak, ModControl | ModAlt, VkCancel);   // Ctrl+Alt+Break
         RegisterHotKey(_hwnd, HotkeyNextTab, ModControl | ModAlt, VkPageDown); // Ctrl+Alt+PageDown
         RegisterHotKey(_hwnd, HotkeyPrevTab, ModControl | ModAlt, VkPageUp);   // Ctrl+Alt+PageUp
+        RegisterHotKey(_hwnd, HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey); // 設定可能な Quick Switch ホットキー
+        QuickSwitchMenuItem.InputGestureText = HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey);
         for (uint i = 0; i < 9; i++)
             RegisterHotKey(_hwnd, HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i); // Ctrl+Alt+1..9
     }
@@ -202,6 +206,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyBreak);
         UnregisterHotKey(_hwnd, HotkeyNextTab);
         UnregisterHotKey(_hwnd, HotkeyPrevTab);
+        UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
@@ -217,6 +222,7 @@ public partial class MainWindow : Window
             }
             else if (id == HotkeyNextTab) { _sessions.CycleTab(+1); handled = true; }
             else if (id == HotkeyPrevTab) { _sessions.CycleTab(-1); handled = true; }
+            else if (id == HotkeyQuickSwitch) { OnQuickSwitch(this, new RoutedEventArgs()); handled = true; }
             else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { _sessions.JumpToTab(id - HotkeyTab1); handled = true; }
         }
         return IntPtr.Zero;
@@ -237,7 +243,6 @@ public partial class MainWindow : Window
             MainStatus.Visibility = Visibility.Collapsed;
             TreePane.Visibility = Visibility.Collapsed;
             Splitter.Visibility = Visibility.Collapsed;
-            QuickBar.Visibility = Visibility.Collapsed;
             TreeColumn.MinWidth = 0; // MinWidth(200) が残ると左に空白が出るため0に
             TreeColumn.Width = new GridLength(0);
             SplitterColumn.Width = new GridLength(0);
@@ -267,7 +272,6 @@ public partial class MainWindow : Window
             MainStatus.Visibility = Visibility.Visible;
             TreePane.Visibility = Visibility.Visible;
             Splitter.Visibility = Visibility.Visible;
-            QuickBar.Visibility = Visibility.Visible;
             TreeColumn.MinWidth = 200;
             TreeColumn.Width = _savedTreeWidth;
             SplitterColumn.Width = GridLength.Auto;
@@ -425,30 +429,6 @@ public partial class MainWindow : Window
             "With the RDP session focused, press Ctrl+Alt+End to send Ctrl+Alt+Del to the remote session.\n" +
             "(The embedded RDP control does not allow injecting Ctrl+Alt+Del directly for security reasons.)",
             "Send Ctrl+Alt+Del", MessageBoxButton.OK, MessageBoxImage.Information);
-
-    private void OnQuickConnect(object sender, RoutedEventArgs e) => QuickConnect();
-    private void OnQuickConnectKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter) QuickConnect();
-        else if (e.Key == Key.Escape) QuickHostBox.Clear();
-    }
-
-    private void QuickConnect()
-    {
-        var text = QuickHostBox.Text.Trim();
-        if (string.IsNullOrEmpty(text)) return;
-        // "host:port" / "[ipv6]:port" 形式にも対応
-        var (host, port) = Common.HostAddress.Parse(text);
-        if (string.IsNullOrEmpty(host)) return;
-        var info = new LaunchInfo
-        {
-            Host = host,
-            Port = port ?? 3389,
-            PerformanceMode = App.Settings.PerformanceMode
-        };
-        _sessions.OpenSession(info, Common.HostAddress.Format(host, info.Port));
-        QuickHostBox.Clear();
-    }
 
     // ── キーボードショートカット ──
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
@@ -687,6 +667,50 @@ public partial class MainWindow : Window
             return;
         }
         new SessionsDialog(entries) { Owner = this }.ShowDialog();
+    }
+
+    // ── クイック切替（Ctrl+Alt+Home グローバルホットキー）──
+    private void OnQuickSwitch(object sender, RoutedEventArgs e)
+    {
+        if (_quickSwitch != null) return; // 二重表示防止
+
+        var openIds = _sessions.AllTabs
+            .Select(t => (t.Tag as SessionTag)?.NodeId)
+            .Where(id => !string.IsNullOrEmpty(id)).Cast<string>().ToHashSet();
+        var dlg = new QuickSwitchDialog(Vm.GetAllConnections(), openIds) { Owner = this };
+        _quickSwitch = dlg;
+        dlg.Closed += (_, _) =>
+        {
+            _quickSwitch = null;
+            if (dlg.SelectedNode is { } node && !_sessions.TryActivateExisting(node.Id.ToString()))
+                ConnectEmbedded(node);
+        };
+        dlg.Show();
+        dlg.Activate();
+        dlg.FocusFilter();
+    }
+
+    private void OnSetQuickSwitchHotkey(object sender, RoutedEventArgs e)
+    {
+        var dlg = new HotkeyCaptureDialog { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        var oldModifiers = App.Settings.QuickSwitchModifiers;
+        var oldKey = App.Settings.QuickSwitchKey;
+        UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
+        if (!RegisterHotKey(_hwnd, HotkeyQuickSwitch, dlg.Modifiers, dlg.Key))
+        {
+            // 他アプリと衝突している場合は旧設定に戻す
+            RegisterHotKey(_hwnd, HotkeyQuickSwitch, oldModifiers, oldKey);
+            MessageBox.Show(this, "This hotkey is already in use by another application.",
+                "Set Quick Switch Hotkey", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        App.Settings.QuickSwitchModifiers = dlg.Modifiers;
+        App.Settings.QuickSwitchKey = dlg.Key;
+        App.Settings.Save();
+        QuickSwitchMenuItem.InputGestureText = dlg.DisplayText;
     }
 
     private async void OnRefreshStatus(object sender, RoutedEventArgs e) => await Vm.RefreshStatusesAsync();

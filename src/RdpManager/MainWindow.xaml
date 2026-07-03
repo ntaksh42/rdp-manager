@@ -24,7 +24,11 @@
     </Window.DataContext>
 
     <DockPanel>
-        <Menu x:Name="MainMenu" DockPanel.Dock="Top">
+        <!-- メニューとツールボタンを1行に統合してヘッダを省スペース化 -->
+        <Border x:Name="MainToolBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}"
+                BorderBrush="{DynamicResource SplitterBg}" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="False">
+                <Menu x:Name="MainMenu" DockPanel.Dock="Left" Background="Transparent" VerticalAlignment="Center">
             <MenuItem Header="_File">
                 <MenuItem Header="Import CSV…" Click="OnImportCsv"/>
                 <MenuItem Header="Import .rdp…" Click="OnImportRdp"/>
@@ -49,6 +53,8 @@
             <MenuItem Header="_Session">
                 <MenuItem Header="Connect (in this window)" InputGestureText="Enter" Click="OnConnectEmbedded"/>
                 <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
+                <MenuItem x:Name="QuickSwitchMenuItem" Header="Quick Switch…" InputGestureText="Ctrl+Alt+Home" Click="OnQuickSwitch"/>
+                <MenuItem Header="Set Quick Switch Hotkey…" Click="OnSetQuickSwitchHotkey"/>
                 <Separator/>
                 <MenuItem Header="Close Current Tab" InputGestureText="Ctrl+W" Click="OnCloseCurrentTab"/>
                 <MenuItem Header="Close All Tabs" Click="OnCloseAllTabs"/>
@@ -74,19 +80,17 @@
                 <MenuItem Header="Check for Updates…" Click="OnCheckUpdate"/>
                 <MenuItem Header="About" Click="OnAbout"/>
             </MenuItem>
-        </Menu>
+                </Menu>
 
-        <Border x:Name="MainToolBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}"
-                BorderBrush="{DynamicResource SplitterBg}" BorderThickness="0,0,0,1" Padding="4,2">
-            <StackPanel Orientation="Horizontal">
-                <Button Style="{StaticResource ToolButton}" Content="📁 New Folder" Click="OnNewFolder"/>
-                <Button Style="{StaticResource ToolButton}" Content="🖥️ New Connection" Click="OnNewConnection"/>
-                <Border Width="1" Background="{DynamicResource SplitterBg}" Margin="4,3"/>
-                <Button Style="{StaticResource ToolButton}" Content="✎ Edit" Click="OnEditNode"/>
-                <Button Style="{StaticResource ToolButton}" Content="🗑 Delete" Click="OnDeleteNode"/>
-                <Border Width="1" Background="{DynamicResource SplitterBg}" Margin="4,3"/>
-                <Button Style="{StaticResource ToolButton}" Content="▶ Connect" Click="OnConnectEmbedded"/>
-            </StackPanel>
+                <Border DockPanel.Dock="Left" Width="1" Background="{DynamicResource SplitterBg}" Margin="6,4"/>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                    <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="📁" ToolTip="New Folder (Ctrl+Shift+N)" Click="OnNewFolder"/>
+                    <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="🖥️" ToolTip="New Connection (Ctrl+N)" Click="OnNewConnection"/>
+                    <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="✎" ToolTip="Edit (F2)" Click="OnEditNode"/>
+                    <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="🗑" ToolTip="Delete (Del)" Click="OnDeleteNode"/>
+                    <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="▶" ToolTip="Connect (Enter)" Click="OnConnectEmbedded"/>
+                </StackPanel>
+            </DockPanel>
         </Border>
 
         <StatusBar x:Name="MainStatus" DockPanel.Dock="Bottom"
@@ -221,16 +225,6 @@
 
             <!-- Right pane: session tabs -->
             <DockPanel Grid.Column="2">
-                <Border x:Name="QuickBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}" Padding="8">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Quick Connect:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                        <TextBox x:Name="QuickHostBox" Width="220" VerticalContentAlignment="Center"
-                                 Padding="4,2" KeyDown="OnQuickConnectKeyDown"
-                                 ToolTip="host or host:port (IPv6: [::1]:3389)"/>
-                        <Button Content="Connect" Margin="6,0,0,0" Padding="14,2" Click="OnQuickConnect"/>
-                    </StackPanel>
-                </Border>
-
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
