@@ -288,6 +288,19 @@ public class MainViewModel : ObservableObject
         RefreshQuickAccess();
     }
 
+    /// <summary>フォルダ直下の子をフォルダ→接続、名前順に並べ替える。</summary>
+    public void SortChildren(TreeNodeViewModel folder)
+    {
+        if (!folder.IsFolder || folder.Children.Count < 2) return;
+        var sorted = folder.Children
+            .OrderBy(c => c.IsConnection ? 1 : 0)
+            .ThenBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        folder.Children.Clear();
+        foreach (var c in sorted) folder.Children.Add(c);
+        Save();
+    }
+
     private static bool IsSelfOrDescendant(TreeNodeViewModel node, TreeNodeViewModel candidate)
     {
         var c = candidate;

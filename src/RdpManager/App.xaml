@@ -3,8 +3,100 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:RdpManager">
     <Application.Resources>
+        <!-- テーマブラシ（ThemeManager がライト/ダークで差し替える。ここはライトの既定値）-->
         <SolidColorBrush x:Key="WindowBg" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="PanelBg" Color="#FAFAFA"/>
         <SolidColorBrush x:Key="TextFg" Color="#222222"/>
+        <SolidColorBrush x:Key="SubtleFg" Color="#9E9E9E"/>
+        <SolidColorBrush x:Key="BarBg" Color="#F0F0F0"/>
+        <SolidColorBrush x:Key="SplitterBg" Color="#E0E0E0"/>
+        <SolidColorBrush x:Key="ControlBg" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="ControlBorder" Color="#CCCCCC"/>
+        <SolidColorBrush x:Key="TabBg" Color="#ECECEC"/>
+        <SolidColorBrush x:Key="TabSelectedBg" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="HoverBg" Color="#1A000000"/>
+        <SolidColorBrush x:Key="PressedBg" Color="#33000000"/>
+
+        <!-- 入力系はテーマブラシに追従（ダークモードで白背景が残らないように）-->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource ControlBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorder}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextFg}"/>
+        </Style>
+        <Style TargetType="PasswordBox">
+            <Setter Property="Background" Value="{DynamicResource ControlBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorder}"/>
+            <Setter Property="CaretBrush" Value="{DynamicResource TextFg}"/>
+        </Style>
+        <Style TargetType="ListBox">
+            <Setter Property="Background" Value="{DynamicResource ControlBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorder}"/>
+        </Style>
+        <!-- CheckBox は既定スタイルが Foreground にシステム色(黒)を持つため、ダークで読めるよう明示 -->
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextFg}"/>
+        </Style>
+
+        <!-- ツールバー用のフラットボタン（ホバー/押下の色をテーマで制御）-->
+        <Style x:Key="ToolButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFg}"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Margin" Value="1,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PressedBg}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- セッションタブをテーマ追従にする（既定テンプレートはダークで白いままのため）-->
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SplitterBg}"/>
+            <Setter Property="BorderThickness" Value="0,1,0,0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextFg}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd" Background="{DynamicResource TabBg}"
+                                BorderBrush="{DynamicResource SplitterBg}" BorderThickness="1,1,1,0"
+                                Margin="0,2,2,0" Padding="10,4">
+                            <ContentPresenter ContentSource="Header" VerticalAlignment="Center"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <!-- IsSelected を後に置き、選択中はホバーで色が変わらないようにする -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource HoverBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource TabSelectedBg}"/>
+                                <Setter TargetName="Bd" Property="Margin" Value="0,0,2,0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Application.Resources>
 </Application>

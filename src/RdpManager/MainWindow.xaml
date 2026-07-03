@@ -6,7 +6,8 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource WindowBg}"
         TextElement.Foreground="{DynamicResource TextFg}"
-        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+        UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -34,18 +35,23 @@
                 <MenuItem Header="Exit" Click="OnExit"/>
             </MenuItem>
             <MenuItem Header="_Edit">
-                <MenuItem Header="New Folder" Click="OnNewFolder"/>
-                <MenuItem Header="New Connection" Click="OnNewConnection"/>
+                <MenuItem Header="New Folder" InputGestureText="Ctrl+Shift+N" Click="OnNewFolder"/>
+                <MenuItem Header="New Connection" InputGestureText="Ctrl+N" Click="OnNewConnection"/>
                 <MenuItem Header="Add by Pattern…" Click="OnPatternAdd"/>
-                <MenuItem Header="Duplicate" Click="OnDuplicateNode"/>
-                <MenuItem Header="Edit…" Click="OnEditNode"/>
-                <MenuItem Header="Delete" Click="OnDeleteNode"/>
+                <MenuItem Header="Duplicate" InputGestureText="Ctrl+D" Click="OnDuplicateNode"/>
+                <MenuItem Header="Edit…" InputGestureText="F2" Click="OnEditNode"/>
+                <MenuItem Header="Delete" InputGestureText="Del" Click="OnDeleteNode"/>
+                <Separator/>
+                <MenuItem Header="Find" InputGestureText="Ctrl+F" Click="OnFocusSearch"/>
                 <Separator/>
                 <MenuItem Header="Manage Credential Profiles…" Click="OnManageProfiles"/>
             </MenuItem>
             <MenuItem Header="_Session">
-                <MenuItem Header="Connect (in this window)" Click="OnConnectEmbedded"/>
+                <MenuItem Header="Connect (in this window)" InputGestureText="Enter" Click="OnConnectEmbedded"/>
                 <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
+                <Separator/>
+                <MenuItem Header="Close Current Tab" InputGestureText="Ctrl+W" Click="OnCloseCurrentTab"/>
+                <MenuItem Header="Close All Tabs" Click="OnCloseAllTabs"/>
                 <Separator/>
                 <MenuItem Header="Send Keys">
                     <MenuItem Header="How to send Ctrl+Alt+Del" Click="OnSendCtrlAltDel"/>
@@ -70,18 +76,24 @@
             </MenuItem>
         </Menu>
 
-        <ToolBar x:Name="MainToolBar" DockPanel.Dock="Top">
-            <Button Content="📁 New Folder" Click="OnNewFolder"/>
-            <Button Content="🖥️ New Connection" Click="OnNewConnection"/>
-            <Separator/>
-            <Button Content="✎ Edit" Click="OnEditNode"/>
-            <Button Content="🗑 Delete" Click="OnDeleteNode"/>
-            <Separator/>
-            <Button Content="▶ Connect" Click="OnConnectEmbedded"/>
-        </ToolBar>
+        <Border x:Name="MainToolBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}"
+                BorderBrush="{DynamicResource SplitterBg}" BorderThickness="0,0,0,1" Padding="4,2">
+            <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource ToolButton}" Content="📁 New Folder" Click="OnNewFolder"/>
+                <Button Style="{StaticResource ToolButton}" Content="🖥️ New Connection" Click="OnNewConnection"/>
+                <Border Width="1" Background="{DynamicResource SplitterBg}" Margin="4,3"/>
+                <Button Style="{StaticResource ToolButton}" Content="✎ Edit" Click="OnEditNode"/>
+                <Button Style="{StaticResource ToolButton}" Content="🗑 Delete" Click="OnDeleteNode"/>
+                <Border Width="1" Background="{DynamicResource SplitterBg}" Margin="4,3"/>
+                <Button Style="{StaticResource ToolButton}" Content="▶ Connect" Click="OnConnectEmbedded"/>
+            </StackPanel>
+        </Border>
 
-        <StatusBar x:Name="MainStatus" DockPanel.Dock="Bottom">
+        <StatusBar x:Name="MainStatus" DockPanel.Dock="Bottom"
+                   Background="{DynamicResource BarBg}" Foreground="{DynamicResource TextFg}">
             <StatusBarItem><TextBlock Text="{Binding StatusText}"/></StatusBarItem>
+            <Separator Background="{DynamicResource SplitterBg}"/>
+            <StatusBarItem><TextBlock x:Name="SessionCountText" Text="0 session(s)"/></StatusBarItem>
         </StatusBar>
 
         <Grid>
@@ -96,8 +108,9 @@
                 <Grid DockPanel.Dock="Top" Margin="6">
                     <TextBox x:Name="SearchBox"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             VerticalContentAlignment="Center" Padding="4,3"/>
-                    <TextBlock Text="🔍 Search connections…" Foreground="#9E9E9E" Margin="8,0"
+                             VerticalContentAlignment="Center" Padding="4,3"
+                             KeyDown="OnSearchKeyDown"/>
+                    <TextBlock Text="🔍 Search connections…  (Ctrl+F)" Foreground="{DynamicResource SubtleFg}" Margin="8,0"
                                IsHitTestVisible="False" VerticalAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -123,7 +136,7 @@
                         </Style>
                     </Border.Style>
                     <StackPanel>
-                        <TextBlock Text="★ Quick Access" Foreground="#888" FontSize="11" Margin="2,0,0,2"/>
+                        <TextBlock Text="★ Quick Access" Foreground="{DynamicResource SubtleFg}" FontSize="11" Margin="2,0,0,2"/>
                         <ListBox x:Name="QuickList" ItemsSource="{Binding QuickAccess}" MaxHeight="150"
                                  BorderThickness="0" Background="Transparent"
                                  MouseDoubleClick="OnQuickAccessDouble">
@@ -132,7 +145,7 @@
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="{Binding Glyph}" Margin="0,0,5,0"/>
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding HostDisplay}" Foreground="#9E9E9E"
+                                        <TextBlock Text="{Binding HostDisplay}" Foreground="{DynamicResource SubtleFg}"
                                                    Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
                                     </StackPanel>
                                 </DataTemplate>
@@ -147,6 +160,7 @@
                           SelectedItemChanged="OnTreeSelectionChanged"
                           MouseDoubleClick="OnTreeDoubleClick"
                           AllowDrop="True"
+                          KeyDown="OnTreeKeyDown"
                           PreviewMouseLeftButtonDown="OnTreeMouseDown"
                           PreviewMouseMove="OnTreeMouseMove"
                           DragOver="OnTreeDragOver"
@@ -160,6 +174,7 @@
                             <Separator/>
                             <MenuItem Header="Connect All in Folder" Click="OnConnectAll"/>
                             <MenuItem Header="Disconnect All in Folder" Click="OnDisconnectAll"/>
+                            <MenuItem Header="Sort Children by Name" Click="OnSortChildren"/>
                             <Separator/>
                             <MenuItem Header="New Folder" Click="OnNewFolder"/>
                             <MenuItem Header="New Connection" Click="OnNewConnection"/>
@@ -193,7 +208,7 @@
                                 </Ellipse>
                                 <TextBlock Text="{Binding Glyph}" Margin="0,0,5,0"/>
                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding HostDisplay}" Foreground="#9E9E9E"
+                                <TextBlock Text="{Binding HostDisplay}" Foreground="{DynamicResource SubtleFg}"
                                            Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
                             </StackPanel>
                         </HierarchicalDataTemplate>
@@ -202,15 +217,16 @@
             </DockPanel>
 
             <GridSplitter x:Name="Splitter" Grid.Column="1" Width="4" VerticalAlignment="Stretch"
-                          HorizontalAlignment="Center" Background="#E0E0E0"/>
+                          HorizontalAlignment="Center" Background="{DynamicResource SplitterBg}"/>
 
             <!-- Right pane: session tabs -->
             <DockPanel Grid.Column="2">
-                <Border x:Name="QuickBar" DockPanel.Dock="Top" Background="#F0F0F0" Padding="8">
+                <Border x:Name="QuickBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}" Padding="8">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="Quick Connect:" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBox x:Name="QuickHostBox" Width="220" VerticalContentAlignment="Center"
-                                 Padding="4,2" KeyDown="OnQuickConnectKeyDown"/>
+                                 Padding="4,2" KeyDown="OnQuickConnectKeyDown"
+                                 ToolTip="host or host:port (IPv6: [::1]:3389)"/>
                         <Button Content="Connect" Margin="6,0,0,0" Padding="14,2" Click="OnQuickConnect"/>
                     </StackPanel>
                 </Border>
@@ -224,11 +240,11 @@
                     <TabControl x:Name="SessionTabs" Grid.Column="0"/>
                     <GridSplitter x:Name="RightSplitter" Grid.Column="1" Width="4"
                                   HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                                  Background="#E0E0E0" Visibility="Collapsed"/>
+                                  Background="{DynamicResource SplitterBg}" Visibility="Collapsed"/>
                     <TabControl x:Name="SessionTabsRight" Grid.Column="2"/>
                     <TextBlock x:Name="EmptyHint" Grid.Column="0"
                                Text="Double-click a connection in the tree to open it here.&#x0a;(Right-click &#8594; Open in Right Pane for split view)"
-                               Foreground="#9E9E9E" FontSize="14" TextAlignment="Center"
+                               Foreground="{DynamicResource SubtleFg}" FontSize="14" TextAlignment="Center"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>
             </DockPanel>
