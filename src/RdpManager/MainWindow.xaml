@@ -30,6 +30,8 @@
                 <MenuItem Header="Import .rdp…" Click="OnImportRdp"/>
                 <MenuItem Header="Export CSV…" Click="OnExportCsv"/>
                 <Separator/>
+                <MenuItem Header="Export Remote Notification Script…" Click="OnExportNotifyScript"/>
+                <Separator/>
                 <MenuItem Header="Open Data Folder" Click="OnOpenStoreFolder"/>
                 <Separator/>
                 <MenuItem Header="Exit" Click="OnExit"/>
@@ -68,6 +70,7 @@
                 <MenuItem x:Name="AutoReconnectItem" Header="Auto-reconnect on Disconnect" IsCheckable="True" Click="OnToggleAutoReconnect"/>
                 <MenuItem x:Name="UseMultimonItem" Header="Use All Monitors (external mstsc)" IsCheckable="True" Click="OnToggleUseMultimon"/>
                 <MenuItem x:Name="RestoreSessionsItem" Header="Restore Sessions on Startup" IsCheckable="True" Click="OnToggleRestoreSessions"/>
+                <MenuItem x:Name="RemoteNotificationsItem" Header="Remote Notifications (Toast)" IsCheckable="True" Click="OnToggleRemoteNotifications"/>
                 <MenuItem x:Name="EnableLoggingItem" Header="Enable Diagnostic Logging" IsCheckable="True" Click="OnToggleLogging"/>
             </MenuItem>
             <MenuItem Header="_Help">

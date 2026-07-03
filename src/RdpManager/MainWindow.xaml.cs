@@ -44,6 +44,7 @@ public partial class MainWindow : Window
         AutoReconnectItem.IsChecked = App.Settings.AutoReconnect;
         UseMultimonItem.IsChecked = App.Settings.UseMultimon;
         EnableLoggingItem.IsChecked = App.Settings.EnableLogging;
+        RemoteNotificationsItem.IsChecked = App.Settings.RemoteNotifications;
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
 
@@ -52,6 +53,9 @@ public partial class MainWindow : Window
         SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _sessions.OnPaneActivated(SessionTabs); };
         SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _sessions.OnPaneActivated(SessionTabsRight); };
         _sessions.SessionsChanged += UpdateSessionCount;
+        _sessions.SessionNotification += OnSessionNotification;
+        // トーストクリックは COM 活性化スレッドから届くため UI スレッドへ移す
+        ToastService.Activated += key => Dispatcher.BeginInvoke(new Action(() => FocusSessionFromToast(key)));
 
         RestoreWindowBounds();
     }
@@ -715,6 +719,52 @@ public partial class MainWindow : Window
     {
         App.Settings.UseMultimon = UseMultimonItem.IsChecked;
         App.Settings.Save(); // 次回の外部 mstsc 起動から反映
+    }
+
+    // ── リモート通知（仮想チャネル → トースト） ──
+    private void OnSessionNotification(TabItem tab, string title, RemoteNotification n)
+    {
+        if (!App.Settings.RemoteNotifications) return;
+        // 通知元タブを表示中（ウィンドウがフォアグラウンド）のときは出さない
+        if (IsActive && tab.Parent is TabControl tc && tc.SelectedItem == tab) return;
+        ToastService.Show((tab.Tag as SessionTag)?.SessionKey, title, n);
+    }
+
+    /// <summary>トーストクリック: ウィンドウを前面化して通知元セッションへ移動する。</summary>
+    private void FocusSessionFromToast(string key)
+    {
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        _sessions.ActivateBySessionKey(key);
+    }
+
+    private void OnToggleRemoteNotifications(object sender, RoutedEventArgs e)
+    {
+        App.Settings.RemoteNotifications = RemoteNotificationsItem.IsChecked;
+        App.Settings.Save();
+    }
+
+    private void OnExportNotifyScript(object sender, RoutedEventArgs e)
+    {
+        using var dlg = new System.Windows.Forms.FolderBrowserDialog
+        {
+            Description = "Choose a folder to save the remote notification script."
+        };
+        if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+        try
+        {
+            var files = RemoteNotifyScript.Export(dlg.SelectedPath);
+            MessageBox.Show(this,
+                "Exported:\n" + string.Join("\n", files.Select(System.IO.Path.GetFileName)) +
+                "\n\nCopy both files to the remote machine, then merge the hook sample into" +
+                " ~/.claude/settings.json there (fix the script path in the sample).",
+                "Export Remote Notification Script", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Export failed: " + ex.Message,
+                "Export Remote Notification Script", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void OnToggleLogging(object sender, RoutedEventArgs e)
