@@ -39,7 +39,10 @@ public static class RdpLauncher
     public static Process Launch(LaunchInfo info)
     {
         // 1) 資格情報を登録（パスワードがある場合）。CredWrite で直接書き込み。
+        // 既存の汎用 TERMSRV 資格情報（cmdkey /generic 等でユーザーが恒久登録したもの）があれば
+        // 上書きで失わないよう退避し、クリーンアップ時に書き戻す。
         bool wroteCred = false;
+        var existingCred = CredentialManager.ReadTerminalServerGeneric(info.Host);
         if (!string.IsNullOrEmpty(info.Username) && !string.IsNullOrEmpty(info.Password))
         {
             var user = string.IsNullOrEmpty(info.Domain) ? info.Username : $"{info.Domain}\\{info.Username}";
@@ -56,14 +59,23 @@ public static class RdpLauncher
 
         // 4) 書き込んだ TERMSRV 資格情報をクリーンアップ。
         // CRED_PERSIST_SESSION でもログオフまで残るため、mstsc が読み終えた頃に削除する。
+        // 退避した既存の資格情報があれば、削除せず元の内容へ書き戻す。
         if (wroteCred)
         {
             var host = info.Host;
             _ = Task.Run(async () =>
             {
                 await Task.Delay(TimeSpan.FromSeconds(30));
-                CredentialManager.DeleteTerminalServer(host);
-                Logger.Info($"Cleaned up TERMSRV credential for {host}.");
+                if (existingCred is { } e)
+                {
+                    CredentialManager.WriteTerminalServer(host, e.user, e.password, e.persist);
+                    Logger.Info($"Restored previous TERMSRV credential for {host}.");
+                }
+                else
+                {
+                    CredentialManager.DeleteTerminalServer(host);
+                    Logger.Info($"Cleaned up TERMSRV credential for {host}.");
+                }
             });
         }
 

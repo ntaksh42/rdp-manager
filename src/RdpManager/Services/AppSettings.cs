@@ -51,6 +51,6 @@ public sealed class AppSettings
             Directory.CreateDirectory(ConnectionStore.Directory);
             AtomicWrite.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
         }
-        catch { /* 保存失敗は致命的でない */ }
+        catch (Exception ex) { Logger.Warn($"Failed to save app settings: {ex.Message}"); }
     }
 }
