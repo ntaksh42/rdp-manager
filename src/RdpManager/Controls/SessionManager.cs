@@ -116,6 +116,9 @@ public sealed class SessionManager
             ToolTip = HostAddress.FormatWithPort(info.Host, info.Port)
         };
         session.NotificationReceived += (_, n) => SessionNotification?.Invoke(tab, title, n);
+        // SelectionChanged は選択が「変化」した時しか発火しないため、選択中タブの再クリックや
+        // RDP 画面内クリックでのペイン移動はこちらで補足する
+        session.SessionFocused += (_, _) => { if (tab.Parent is TabControl tc) OnPaneActivated(tc); };
 
         var close = new Button
         {

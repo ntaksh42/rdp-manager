@@ -10,6 +10,8 @@ public partial class CredentialProfilesDialog : Window
 {
     private readonly ObservableCollection<CredentialProfile> _profiles;
     public bool Changed { get; private set; }
+    /// <summary>このダイアログ内で行われたプロファイル改名（旧名, 新名）。参照ノードの追従に使う。</summary>
+    public List<(string OldName, string NewName)> Renames { get; } = new();
 
     public CredentialProfilesDialog(ObservableCollection<CredentialProfile> profiles)
     {
@@ -52,6 +54,11 @@ public partial class CredentialProfilesDialog : Window
         {
             target = new CredentialProfile();
             _profiles.Add(target);
+        }
+        else if (!string.IsNullOrEmpty(target.Name) && target.Name != name)
+        {
+            // 既存プロファイルの改名 → 参照しているノードの追従用に記録
+            Renames.Add((target.Name, name));
         }
         target.Name = name;
         target.Domain = DomainBox.Text.Trim();
