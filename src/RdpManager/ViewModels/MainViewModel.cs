@@ -129,6 +129,9 @@ public class MainViewModel : ObservableObject
     public bool HasConnectionSelected => SelectedNode?.IsConnection == true;
     public bool NoConnectionSelected => !HasConnectionSelected;
 
+    /// <summary>接続ノードが1件も無いときツリーに案内を表示するためのフラグ。</summary>
+    public bool HasNoConnections => CountConnections(RootNodes) == 0;
+
     public string StatusText => SelectedNode?.IsConnection == true
         ? $"{SelectedNode.Name}  |  {SelectedNode.HostDisplay}"
         : $"{CountConnections(RootNodes)} connection(s)  |  Store: {ConnectionStore.FilePath}";
@@ -347,6 +350,7 @@ public class MainViewModel : ObservableObject
         };
         try { ConnectionStore.Save(doc); } catch { /* 保存失敗は致命的でない */ }
         OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(HasNoConnections));
     }
 
     private void Load()

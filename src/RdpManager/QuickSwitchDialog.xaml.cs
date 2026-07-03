@@ -67,7 +67,9 @@ public partial class QuickSwitchDialog : Window
         if (filtered.Count > 0) ResultsList.SelectedIndex = 0;
     }
 
-    private void OnFilterKeyDown(object sender, KeyEventArgs e)
+    /// <summary>フォーカスが FilterBox / ResultsList のどちらにあっても効くよう、
+    /// ウィンドウレベルで上下・Enter・Esc を処理する。</summary>
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Down) { MoveSelection(1); e.Handled = true; }
         else if (e.Key == Key.Up) { MoveSelection(-1); e.Handled = true; }

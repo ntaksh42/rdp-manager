@@ -69,6 +69,9 @@ public partial class CredentialProfilesDialog : Window
     {
         if (Selected is { } p)
         {
+            if (MessageBox.Show(this, $"Delete profile '{p.Name}'?", "Confirm Delete",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                return;
             _profiles.Remove(p);
             Changed = true;
             OnNew(sender, e);

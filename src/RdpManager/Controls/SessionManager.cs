@@ -121,13 +121,19 @@ public sealed class SessionManager
         {
             Content = "✕", FontSize = 10, Padding = new Thickness(3, 0, 3, 0),
             Margin = new Thickness(8, 0, 0, 0), BorderThickness = new Thickness(0),
-            Background = Brushes.Transparent, Cursor = Cursors.Hand
+            Background = Brushes.Transparent, Cursor = Cursors.Hand,
+            ToolTip = "Close tab"
         };
         close.Click += (_, _) => CloseSession(tab, session);
 
         var header = new StackPanel { Orientation = Orientation.Horizontal };
         header.Children.Add(dot);
-        header.Children.Add(new TextBlock { Text = title, VerticalAlignment = VerticalAlignment.Center });
+        header.Children.Add(new TextBlock
+        {
+            Text = title, VerticalAlignment = VerticalAlignment.Center,
+            MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = title
+        });
         header.Children.Add(close);
         tab.Header = header;
 

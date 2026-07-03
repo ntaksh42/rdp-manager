@@ -57,7 +57,8 @@ public partial class App : Application
         win.Show();
     }
 
-    private bool _errorShown;
+    private static readonly TimeSpan ErrorDialogThrottle = TimeSpan.FromSeconds(30);
+    private DateTime? _lastErrorShown;
 
     private void OnUnhandled(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
@@ -69,10 +70,11 @@ public partial class App : Application
             Shutdown(10);
             return;
         }
-        // 同種の例外が連発してもダイアログを大量に出さない（最初の1回だけ通知）
-        if (!_errorShown)
+        // 同種の例外が連発してもダイアログを大量に出さない（前回表示から一定時間は抑制するが、以後のエラーは無言で消さない）
+        var now = DateTime.UtcNow;
+        if (_lastErrorShown is null || now - _lastErrorShown.Value >= ErrorDialogThrottle)
         {
-            _errorShown = true;
+            _lastErrorShown = now;
             MessageBox.Show(
                 "An unexpected error occurred, but the app will continue.\n\n" + e.Exception.Message,
                 "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);

@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Media;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
+using Key = System.Windows.Input.Key;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace RdpManager;
 
@@ -28,6 +30,31 @@ public partial class SessionsDialog : Window
         {
             entry.Activate();
             Close();
+        }
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (List.Items.Count > 0 && List.SelectedItem is null)
+            List.SelectedIndex = 0;
+        List.Focus();
+    }
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            Close();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Enter)
+        {
+            if (List.SelectedItem is SessionEntry entry)
+            {
+                entry.Activate();
+                Close();
+            }
+            e.Handled = true;
         }
     }
 }

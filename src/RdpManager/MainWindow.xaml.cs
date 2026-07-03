@@ -439,6 +439,8 @@ public partial class MainWindow : Window
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+        // 検索ボックス等でのテキスト入力中は F2/Delete をショートカットとして奪わない
+        bool inTextInput = Keyboard.FocusedElement is System.Windows.Controls.TextBox or System.Windows.Controls.PasswordBox;
 
         if (e.Key == Key.Escape && _fullscreen)
         {
@@ -450,23 +452,16 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.F) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         else if (ctrl && e.Key == Key.D) { OnDuplicateNode(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && e.Key == Key.W) { _sessions.CloseActiveTab(); e.Handled = true; }
+        else if (!inTextInput && e.Key == Key.F2 && Vm.SelectedNode != null) { OnEditNode(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (!inTextInput && e.Key == Key.Delete && Vm.SelectedNode != null) { OnDeleteNode(this, new RoutedEventArgs()); e.Handled = true; }
     }
 
     private void OnTreeKeyDown(object sender, KeyEventArgs e)
     {
+        // F2/Delete はウィンドウの PreviewKeyDown 側で処理される（ここには届かない）
         if (e.Key == Key.Enter && Vm.SelectedNode?.IsConnection == true)
         {
             ConnectEmbedded(Vm.SelectedNode);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Delete && Vm.SelectedNode != null)
-        {
-            OnDeleteNode(this, new RoutedEventArgs());
-            e.Handled = true;
-        }
-        else if (e.Key == Key.F2 && Vm.SelectedNode != null)
-        {
-            OnEditNode(this, new RoutedEventArgs());
             e.Handled = true;
         }
     }
@@ -479,6 +474,30 @@ public partial class MainWindow : Window
             Tree.Focus();
             e.Handled = true;
         }
+        else if (e.Key == Key.Enter)
+        {
+            // 選択中の接続、無ければ検索結果の先頭の接続へ（キーボードだけで検索→接続を完結させる）
+            var node = Vm.SelectedNode?.IsConnection == true ? Vm.SelectedNode : FirstVisibleConnection(Vm.RootNodes);
+            if (node != null) ConnectEmbedded(node);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Down)
+        {
+            Tree.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private static TreeNodeViewModel? FirstVisibleConnection(IEnumerable<TreeNodeViewModel> nodes)
+    {
+        foreach (var n in nodes)
+        {
+            if (!n.IsVisible) continue;
+            if (n.IsConnection) return n;
+            var found = FirstVisibleConnection(n.Children);
+            if (found != null) return found;
+        }
+        return null;
     }
 
     private void OnFocusSearch(object sender, RoutedEventArgs e)
@@ -488,7 +507,16 @@ public partial class MainWindow : Window
     }
 
     private void OnCloseCurrentTab(object sender, RoutedEventArgs e) => _sessions.CloseActiveTab();
-    private void OnCloseAllTabs(object sender, RoutedEventArgs e) => _sessions.CloseAll();
+
+    private void OnCloseAllTabs(object sender, RoutedEventArgs e)
+    {
+        int n = _sessions.SessionCount;
+        if (n >= 2 && MessageBox.Show(this,
+                $"Close all {n} tabs?", "Close All Tabs",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        _sessions.CloseAll();
+    }
 
     private void OnSortChildren(object sender, RoutedEventArgs e)
     {

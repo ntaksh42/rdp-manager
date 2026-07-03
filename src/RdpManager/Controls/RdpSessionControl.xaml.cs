@@ -165,6 +165,7 @@ public partial class RdpSessionControl : UserControl
         _reconnect.Stop();
         _reconnectScheduled = false;
         _poll.Stop();
+        _resizeDebounce.Stop();
         _client.DisconnectSession();
     }
 }
