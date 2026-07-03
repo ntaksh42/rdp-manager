@@ -26,6 +26,20 @@ public sealed class RdpClientHost : AxHost
     // ProgID 走査の上限版数（将来版にハードコード無しで追従するため）。
     private const int MaxProbeVersion = 20;
 
+    // ── リモート通知用の静的仮想チャネル ──
+    // リモート側スクリプトが WTSVirtualChannelWrite で書き込んだデータを OnChannelReceivedData で受ける。
+    private const string NotifyChannelName = "CCNOTIF";
+    // IMsTscAxEvents（イベント dispinterface）の DIID と OnChannelReceivedData の DISPID。
+    // 型付きイベントインターフェイス（AxMSTSCLib）を生成しない方針のため、DISPID 直指定でシンクする。
+    private static readonly Guid EventsInterfaceId = new("336D5562-EFA8-482E-8CB3-C5C0FC7A7DB6");
+    private const int DispidOnChannelReceivedData = 7;
+
+    private delegate void ChannelReceivedDataHandler(string chanName, string data);
+    private ChannelReceivedDataHandler? _channelSink; // 接続ポイント登録済みデリゲートの GC 防止も兼ねる
+
+    /// <summary>通知チャネル(CCNOTIF)のデータ受信（コントロールの UI スレッドで発火）。</summary>
+    public event Action<string>? NotificationDataReceived;
+
     private static string? _resolvedClsid;
     private dynamic? _ocx;
 
@@ -147,6 +161,10 @@ public sealed class RdpClientHost : AxHost
             TrySet(() => ocx.SecuredSettings.KeyboardHookMode = 1, "SecuredSettings.KeyboardHookMode");
             TrySet(() => ocx.SecuredSettings3.KeyboardHookMode = 1, "SecuredSettings3.KeyboardHookMode");
 
+            // リモート通知用の仮想チャネル登録（切断状態でのみ有効）と受信イベントのシンク
+            TrySet(() => ocx.CreateVirtualChannels(NotifyChannelName), "CreateVirtualChannels");
+            AttachChannelSink((object)ocx);
+
             // ── 描画パフォーマンス最適化 ──
             // 再描画削減（視覚変化なしの純粋な高速化）: 永続ビットマップキャッシュ
             TrySet(() => adv.BitmapPeristence = 1, "BitmapPeristence");  // ※API名のスペルは "Peristence"
@@ -176,6 +194,29 @@ public sealed class RdpClientHost : AxHost
         {
             LastError = ex.Message;
             Logger.Error($"RDP connect failed: {info.Host}:{info.Port}", ex);
+        }
+    }
+
+    /// <summary>
+    /// OnChannelReceivedData だけを ComEventsHelper で購読する（再接続時の二重登録は不可のためガード）。
+    /// </summary>
+    private void AttachChannelSink(object ocx)
+    {
+        if (_channelSink != null) return;
+        try
+        {
+            var sink = new ChannelReceivedDataHandler((chan, data) =>
+            {
+                if (string.Equals(chan, NotifyChannelName, StringComparison.OrdinalIgnoreCase))
+                    NotificationDataReceived?.Invoke(data);
+            });
+            ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnChannelReceivedData, sink);
+            _channelSink = sink;
+        }
+        catch (Exception ex)
+        {
+            // シンク不可でも接続自体は成立させる（通知機能だけ無効になる）
+            Logger.Warn($"Notification channel sink could not be attached: {ex.Message}");
         }
     }
 

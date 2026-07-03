@@ -20,8 +20,8 @@ using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 
 namespace RdpManager.Controls;
 
-/// <summary>タブ Tag に持たせる、セッション復元・後処理用の付随情報。</summary>
-public sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info);
+/// <summary>タブ Tag に持たせる、セッション復元・後処理用の付随情報。SessionKey はトースト活性化用の一意キー。</summary>
+public sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info, string SessionKey);
 
 /// <summary>
 /// 左右2ペインの RDP セッションタブのライフサイクル（生成/クローズ/巡回/分割表示）を担う。
@@ -40,6 +40,9 @@ public sealed class SessionManager
 
     /// <summary>タブの開閉でセッション数が変わったときに通知（ステータスバー表示用）。</summary>
     public event Action? SessionsChanged;
+
+    /// <summary>セッションからリモート通知を受信したとき（通知元タブ, タブタイトル, 通知内容）。</summary>
+    public event Action<TabItem, string, Services.RemoteNotification>? SessionNotification;
 
     public SessionManager(TabControl left, TabControl right, TextBlock emptyHint,
         ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
@@ -83,6 +86,17 @@ public sealed class SessionManager
         return true;
     }
 
+    /// <summary>セッションキー（トースト活性化用）でタブを特定し、前面に出す。</summary>
+    public bool ActivateBySessionKey(string key)
+    {
+        var tab = AllTabs.FirstOrDefault(t => (t.Tag as SessionTag)?.SessionKey == key);
+        if (tab?.Parent is not TabControl tc) return false;
+        _activePane = tc;
+        tc.SelectedItem = tab;
+        FocusSelected(tc);
+        return true;
+    }
+
     public void OpenSession(LaunchInfo info, string title, string? nodeId = null,
                             string? postCommand = null, TabControl? target = null)
     {
@@ -98,9 +112,10 @@ public sealed class SessionManager
         var tab = new TabItem
         {
             Content = session,
-            Tag = new SessionTag(nodeId, postCommand, info),
+            Tag = new SessionTag(nodeId, postCommand, info, Guid.NewGuid().ToString("N")),
             ToolTip = HostAddress.FormatWithPort(info.Host, info.Port)
         };
+        session.NotificationReceived += (_, n) => SessionNotification?.Invoke(tab, title, n);
 
         var close = new Button
         {

@@ -12,6 +12,8 @@ public sealed class AppSettings
     public bool PerformanceMode { get; set; } = true;
     public bool AutoReconnect { get; set; } = true;
     public bool EnableLogging { get; set; }
+    /// <summary>リモート側から仮想チャネル経由で届く通知をトースト表示する。</summary>
+    public bool RemoteNotifications { get; set; } = true;
     /// <summary>外部 mstsc 起動時に全モニタへ展開する（use multimon）。</summary>
     public bool UseMultimon { get; set; }
     /// <summary>Quick Switch を開くグローバルホットキーの修飾キー（MOD_* のビット和）。既定は Ctrl+Alt。</summary>

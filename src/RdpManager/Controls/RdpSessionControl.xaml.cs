@@ -26,12 +26,15 @@ public partial class RdpSessionControl : UserControl
     private bool _reconnectScheduled;
 
     public event EventHandler? StateChanged;
+    /// <summary>リモート側から仮想チャネル経由の通知を受信したとき。</summary>
+    public event EventHandler<RemoteNotification>? NotificationReceived;
     public SessionVisualState VisualState { get; private set; } = SessionVisualState.Connecting;
 
     public RdpSessionControl()
     {
         InitializeComponent();
         Host.Child = _client;
+        _client.NotificationDataReceived += OnNotificationData;
         _poll.Tick += OnPoll;
         // ウィンドウ/タブのサイズ変更に追従（連続変更はデバウンス）
         _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); ApplyResize(); };
@@ -130,6 +133,13 @@ public partial class RdpSessionControl : UserControl
         ErrorText.Visibility = string.IsNullOrEmpty(error) ? Visibility.Collapsed : Visibility.Visible;
         ErrorText.Text = error ?? "";
         if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>チャネル生データを検証し、正しい通知だけをイベントに変換する。</summary>
+    private void OnNotificationData(string payload)
+    {
+        if (RemoteNotification.TryParse(payload, out var n))
+            NotificationReceived?.Invoke(this, n);
     }
 
     private void OnReconnect(object sender, RoutedEventArgs e) => Reconnect();
