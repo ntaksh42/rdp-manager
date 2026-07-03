@@ -12,9 +12,9 @@
 - 資格情報を **DPAPI**（CurrentUser）で暗号化保存（平文保存なし）
 - 資格情報の継承（直接入力 / プロファイル / 親フォルダから継承）
 - インクリメンタル検索
-- クイック接続（未登録ホストへその場で接続）
+- Quick Switch: グローバルホットキー（既定 Ctrl+Alt+Home、変更可）で全接続をインクリメンタル検索して即切替
 - リモート通知: 接続先からの通知を RDP 仮想チャネル経由で受け取りトースト表示（[詳細](docs/remote-notifications.md)）
-- 接続は Windows 標準 `mstsc.exe` を起動（OS 純正の RDP スタックを使用）。資格情報は Win32 `CredWrite` API で Windows 資格情報マネージャーへ直接登録し、`.rdp` に平文パスワードを書かず、コマンドライン引数にも露出させません（ログオフで自動消去されるセッションスコープ）
+- 通常はウィンドウ内タブに埋め込み表示（mstscax ActiveX）で接続。「Open in External Window」選択時のみ Windows 標準 `mstsc.exe` を外部起動し、資格情報は Win32 `CredWrite` API で Windows 資格情報マネージャーへ直接登録して `.rdp` に平文パスワードを書かず、コマンドライン引数にも露出させません（ログオフで自動消去されるセッションスコープ）
 
 ## 動作環境
 
@@ -39,7 +39,7 @@ dotnet run --project src/RdpManager
 - ツリーの接続を**ダブルクリック**（または Enter / 「▶ Connect」）でウィンドウ内タブに接続を表示
 - 右クリック → 「Open in Right Pane (Split)」で左右分割表示、「Open in External Window」で外部 mstsc 起動
 - 「🖥️ 新規接続」でホスト・ポート・資格情報・ゲートウェイ・各種設定を登録
-- 上部検索ボックスで絞り込み、右上のクイック接続で未登録ホストへ即接続（`host` / `host:port` / `[ipv6]:port`）
+- 上部検索ボックスで絞り込み
 - タブは**中クリック**または右クリックメニューから閉じられます。同じ接続を再度開くと既存タブを前面に表示（切断中なら再接続）
 - ウィンドウの位置・サイズと開いていたセッションは次回起動時に復元されます
 
@@ -56,6 +56,7 @@ dotnet run --project src/RdpManager
 | F11 / Ctrl+Alt+Pause | 全画面切替（RDP フォーカス中も有効。Esc でも解除可） |
 | Ctrl+Alt+PageUp / PageDown | タブ巡回（RDP フォーカス中も有効） |
 | Ctrl+Alt+1〜9 | タブ番号ジャンプ（RDP フォーカス中も有効） |
+| Ctrl+Alt+Home（変更可） | Quick Switch（接続の検索・切替。RDP フォーカス中も有効） |
 
 ## 更新の確認
 

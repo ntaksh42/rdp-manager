@@ -61,6 +61,7 @@ public static partial class PatternExpander
                 if (a > b) (a, b) = (b, a);
                 for (int n = a; n <= b; n++) options.Add(n.ToString().PadLeft(width, '0'));
             }
+            if (options.Count == 0) options.Add(""); // "abc{}" のような空展開でも直前リテラルを失わない
             segments.Add((literal, options));
             total *= Math.Max(options.Count, 1);
             if (total > int.MaxValue) total = int.MaxValue; // オーバーフロー回避（上限超は確定）

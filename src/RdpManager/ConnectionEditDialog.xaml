@@ -43,8 +43,11 @@
 
                 <TextBlock Text="Comment" Margin="0,0,0,2"/>
                 <TextBox x:Name="CommentBox" Padding="4,3" Margin="0,0,0,10"/>
+            </StackPanel>
 
-                <TextBlock Text="Credentials" Margin="0,0,0,2"/>
+            <!-- Credentials (folder = default for items inside, connection = own value) -->
+            <StackPanel x:Name="CredPanel">
+                <TextBlock x:Name="CredLabel" Text="Credentials" Margin="0,0,0,2"/>
                 <ComboBox x:Name="CredModeBox" Margin="0,0,0,8" SelectionChanged="OnCredModeChanged">
                     <ComboBoxItem Content="Enter directly" Tag="direct"/>
                     <ComboBoxItem Content="Use a profile" Tag="profile"/>
@@ -75,7 +78,10 @@
                     <TextBlock Text="Profile" Margin="0,0,0,2"/>
                     <ComboBox x:Name="ProfileBox" Margin="0,0,0,10" DisplayMemberPath="Name"/>
                 </StackPanel>
+            </StackPanel>
 
+            <!-- Connection only -->
+            <StackPanel x:Name="CmdPanel">
                 <TextBlock Text="Pre-connect command (optional, {host} {port} {user})" Margin="0,0,0,2"/>
                 <TextBox x:Name="PreCmdBox" Padding="4,3" Margin="0,0,0,8"/>
                 <TextBlock Text="Post-disconnect command (optional)" Margin="0,0,0,2"/>

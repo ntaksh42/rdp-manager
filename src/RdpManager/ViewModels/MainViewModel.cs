@@ -31,6 +31,25 @@ public class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>フォルダを含む全ノードを走査する。</summary>
+    private IEnumerable<TreeNodeViewModel> AllNodes(IEnumerable<TreeNodeViewModel>? nodes = null)
+    {
+        foreach (var n in nodes ?? RootNodes)
+        {
+            yield return n;
+            foreach (var c in AllNodes(n.Children)) yield return c;
+        }
+    }
+
+    /// <summary>プロファイル改名に合わせて、参照しているノードの CredentialProfile を追従させる。</summary>
+    public void ApplyProfileRenames(IEnumerable<(string OldName, string NewName)> renames)
+    {
+        foreach (var (oldName, newName) in renames)
+            foreach (var n in AllNodes())
+                if (n.CredentialMode == "profile" && n.CredentialProfile == oldName)
+                    n.CredentialProfile = newName;
+    }
+
     /// <summary>お気に入り + 最近使った接続をクイックアクセス一覧に反映。</summary>
     public void RefreshQuickAccess()
     {
@@ -64,9 +83,9 @@ public class MainViewModel : ObservableObject
         try
         {
             using var tcp = new System.Net.Sockets.TcpClient();
-            var connect = tcp.ConnectAsync(node.Host, node.Port);
-            var done = await Task.WhenAny(connect, Task.Delay(1500));
-            node.Status = done == connect && tcp.Connected ? NodeStatus.Up : NodeStatus.Down;
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(1500));
+            await tcp.ConnectAsync(node.Host, node.Port, cts.Token);
+            node.Status = NodeStatus.Up;
         }
         catch
         {
@@ -206,6 +225,7 @@ public class MainViewModel : ObservableObject
                     }
                     Logger.Warn($"Windows credential 'TERMSRV/{node.Host}' not found.");
                     Error?.Invoke($"No saved Windows credential was found for \"{node.Host}\".\n" +
+                                  $"Save one in mstsc.exe or run: cmdkey /generic:TERMSRV/{node.Host} /user:<user> /pass\n" +
                                   "The connection will continue without credentials.");
                     return ("", "", "");
                 case "profile":
@@ -282,7 +302,7 @@ public class MainViewModel : ObservableObject
     /// <summary>ノード（フォルダなら子孫ごと）を複製し、元の直後に挿入する。</summary>
     public void Duplicate(TreeNodeViewModel node)
     {
-        var clone = FromDto(ToDto(node), node.Parent); // ToDto→FromDto で新しい Id を採番しつつ深いコピー
+        var clone = FromDto(ToDto(node), node.Parent, newIds: true); // ToDto→FromDto で新しい Id を採番しつつ深いコピー
         clone.Name = node.Name + " (copy)";
         var siblings = node.Parent?.Children ?? RootNodes;
         int idx = siblings.IndexOf(node);
@@ -348,7 +368,8 @@ public class MainViewModel : ObservableObject
                 PasswordEncrypted = CredentialProtector.Protect(p.Password)
             }).ToList()
         };
-        try { ConnectionStore.Save(doc); } catch { /* 保存失敗は致命的でない */ }
+        try { ConnectionStore.Save(doc); }
+        catch (Exception ex) { Logger.Warn($"Failed to save connections: {ex.Message}"); }
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(HasNoConnections));
     }
@@ -371,6 +392,7 @@ public class MainViewModel : ObservableObject
 
     private static NodeDto ToDto(TreeNodeViewModel n) => new()
     {
+        Id = n.Id.ToString(),
         Kind = n.IsFolder ? "folder" : "connection",
         Protocol = n.Protocol,
         Name = n.Name, Host = n.Host, Port = n.Port, Comment = n.Comment,
@@ -386,7 +408,7 @@ public class MainViewModel : ObservableObject
         Children = n.Children.Select(ToDto).ToList()
     };
 
-    private static TreeNodeViewModel FromDto(NodeDto d, TreeNodeViewModel? parent)
+    private static TreeNodeViewModel FromDto(NodeDto d, TreeNodeViewModel? parent, bool newIds = false)
     {
         var n = new TreeNodeViewModel
         {
@@ -404,9 +426,11 @@ public class MainViewModel : ObservableObject
             PreCommand = d.PreCommand, PostCommand = d.PostCommand,
             Parent = parent
         };
+        // newIds=false かつ保存済み Id が有効な GUID ならそれを復元し、Recent/OpenOnExit との対応を維持する
+        if (!newIds && Guid.TryParse(d.Id, out var g)) n.Id = g;
         // 読み込んだ暗号化値をそのままキャッシュ → 平文未変更なら保存時に再暗号化しない
         n.CachedPasswordEnc = d.PasswordEncrypted;
-        foreach (var c in d.Children) n.Children.Add(FromDto(c, n));
+        foreach (var c in d.Children) n.Children.Add(FromDto(c, n, newIds));
         return n;
     }
 

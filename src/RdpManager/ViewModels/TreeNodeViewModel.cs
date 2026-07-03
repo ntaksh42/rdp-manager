@@ -26,7 +26,7 @@ public class TreeNodeViewModel : ObservableObject
     private bool _isVisible = true;
     private NodeStatus _status = NodeStatus.Unknown;
 
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; set; } = Guid.NewGuid();
     public NodeKind Kind { get; init; }
     public TreeNodeViewModel? Parent { get; set; }
 

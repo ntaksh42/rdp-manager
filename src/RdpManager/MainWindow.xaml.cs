@@ -52,6 +52,9 @@ public partial class MainWindow : Window
             RightCol, RightSplitterCol, RightSplitter);
         SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _sessions.OnPaneActivated(SessionTabs); };
         SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _sessions.OnPaneActivated(SessionTabsRight); };
+        // SelectionChanged は選択が変化した時しか発火しないため、タブヘッダの再クリックも拾う
+        SessionTabs.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabs);
+        SessionTabsRight.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabsRight);
         _sessions.SessionsChanged += UpdateSessionCount;
         _sessions.SessionNotification += OnSessionNotification;
         // トーストクリックは COM 活性化スレッドから届くため UI スレッドへ移す
@@ -240,7 +243,10 @@ public partial class MainWindow : Window
             _savedResize = ResizeMode;
             _savedState = WindowState;
             _savedTreeWidth = TreeColumn.Width;
-            _savedBounds = new Rect(Left, Top, Width, Height);
+            // 最大化中は Left/Top/Width/Height が最大化後の値になるため、その場合は RestoreBounds（通常時の境界）を保存する
+            _savedBounds = WindowState == WindowState.Normal || RestoreBounds.IsEmpty
+                ? new Rect(Left, Top, Width, Height)
+                : RestoreBounds;
 
             MainMenu.Visibility = Visibility.Collapsed;
             MainToolBar.Visibility = Visibility.Collapsed;
@@ -301,8 +307,14 @@ public partial class MainWindow : Window
 
     // ── ドラッグ&ドロップ並べ替え ──
     private Point _dragStart;
+    private TreeNodeViewModel? _dragNode;
 
-    private void OnTreeMouseDown(object sender, MouseButtonEventArgs e) => _dragStart = e.GetPosition(null);
+    private void OnTreeMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _dragStart = e.GetPosition(null);
+        // Vm.SelectedNode ではなく実際に押下したノードを記録する（未選択ノードを掴んだら選択中ノードが動く誤操作を防ぐ）
+        _dragNode = FindNode(e.OriginalSource as DependencyObject);
+    }
 
     private void OnTreeMouseMove(object sender, MouseEventArgs e)
     {
@@ -310,8 +322,11 @@ public partial class MainWindow : Window
         var diff = _dragStart - e.GetPosition(null);
         if (Math.Abs(diff.X) < SystemParameters.MinimumHorizontalDragDistance &&
             Math.Abs(diff.Y) < SystemParameters.MinimumVerticalDragDistance) return;
-        if (Vm.SelectedNode is { } node)
+        if (_dragNode is { } node)
+        {
             DragDrop.DoDragDrop(Tree, node, DragDropEffects.Move);
+            _dragNode = null;
+        }
     }
 
     private void OnTreeDragOver(object sender, DragEventArgs e)
@@ -665,6 +680,7 @@ public partial class MainWindow : Window
     {
         var dlg = new CredentialProfilesDialog(Vm.CredentialProfiles) { Owner = this };
         dlg.ShowDialog();
+        if (dlg.Renames.Count > 0) Vm.ApplyProfileRenames(dlg.Renames);
         if (dlg.Changed) Vm.NotifyEdited();
     }
 

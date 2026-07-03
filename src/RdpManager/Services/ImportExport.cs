@@ -27,14 +27,14 @@ public static class ImportExport
             if (f[0].Equals("Name", StringComparison.OrdinalIgnoreCase) &&
                 f.Count > 1 && f[1].Equals("Host", StringComparison.OrdinalIgnoreCase)) continue;
 
-            string name = f.ElementAtOrDefault(0) ?? "";
-            string host = f.ElementAtOrDefault(1) ?? "";
+            string name = Unescape(f.ElementAtOrDefault(0) ?? "");
+            string host = Unescape(f.ElementAtOrDefault(1) ?? "");
             if (string.IsNullOrWhiteSpace(host) && string.IsNullOrWhiteSpace(name)) continue;
             if (string.IsNullOrWhiteSpace(host)) host = name;
             if (string.IsNullOrWhiteSpace(name)) name = host;
             int port = int.TryParse(f.ElementAtOrDefault(2), out var p) ? p : 3389;
             list.Add(new ImportedConn(name, host, port,
-                f.ElementAtOrDefault(3) ?? "", f.ElementAtOrDefault(4) ?? "", f.ElementAtOrDefault(5) ?? ""));
+                Unescape(f.ElementAtOrDefault(3) ?? ""), Unescape(f.ElementAtOrDefault(4) ?? ""), Unescape(f.ElementAtOrDefault(5) ?? "")));
         }
         return list;
     }
@@ -43,6 +43,7 @@ public static class ImportExport
     {
         string host = "", user = "", domain = "";
         int port = 3389;
+        bool portFromFullAddress = false; // full address 側の明示ポートを優先するため、行順に依存せず優先度を記録する
         foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
         {
             var line = raw.Trim();
@@ -51,7 +52,13 @@ public static class ImportExport
                 var v = line["full address:s:".Length..].Trim();
                 var (h, p) = RdpManager.Common.HostAddress.Parse(v);
                 host = h;
-                if (p is { } pp) port = pp;
+                if (p is { } pp) { port = pp; portFromFullAddress = true; }
+            }
+            else if (line.StartsWith("server port:i:", StringComparison.OrdinalIgnoreCase))
+            {
+                var v = line["server port:i:".Length..].Trim();
+                if (!portFromFullAddress && int.TryParse(v, out var pp) && pp is >= 1 and <= 65535)
+                    port = pp;
             }
             else if (line.StartsWith("username:s:", StringComparison.OrdinalIgnoreCase))
             {
@@ -68,8 +75,19 @@ public static class ImportExport
     private static string Q(string s)
     {
         s ??= "";
+        // CSV 数式インジェクション対策: Excel 等が数式と解釈する先頭文字の前に ' を付与して無害化する
+        if (s.Length > 0 && "=+-@".Contains(s[0]))
+            s = "'" + s;
         if (s.Contains(',') || s.Contains('"') || s.Contains('\n'))
             return "\"" + s.Replace("\"", "\"\"") + "\"";
+        return s;
+    }
+
+    /// <summary>Q() が数式インジェクション対策で付与した先頭の ' を取り除く（インポート時のラウンドトリップ用）。</summary>
+    private static string Unescape(string s)
+    {
+        if (s.Length >= 2 && s[0] == '\'' && "=+-@".Contains(s[1]))
+            return s[1..];
         return s;
     }
 
