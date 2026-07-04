@@ -111,7 +111,10 @@ public sealed class RdpClientHost : AxHost
     /// <summary>ハンドルを確実に生成して OCX(dynamic) を返す。</summary>
     private dynamic GetClient()
     {
+        // CreateControl() は非表示中（Visibility.Hidden の背面タブ等）は何もしないため、
+        // その場合は Handle 参照で強制的にハンドルを生成する
         if (!IsHandleCreated) CreateControl();
+        if (!IsHandleCreated) _ = Handle;
         return _ocx ??= GetOcx()!;
     }
 
@@ -157,7 +160,10 @@ public sealed class RdpClientHost : AxHost
             dynamic adv = ocx.AdvancedSettings9;
             if (info.Port != 3389) TrySet(() => adv.RDPPort = info.Port, "RDPPort");
             if (!string.IsNullOrEmpty(info.Password)) TrySet(() => adv.ClearTextPassword = info.Password, "ClearTextPassword");
-            TrySet(() => adv.SmartSizing = info.SmartSizing, "SmartSizing");
+            // 動的解像度が反映されるまでの中間フレームを引き伸ばし表示にするため常時有効。
+            // 定常状態では解像度がビューと一致するため見た目の差はなく、
+            // 動的解像度非対応サーバーでは従来から ResizeRemote のフォールバックで有効化される
+            TrySet(() => adv.SmartSizing = true, "SmartSizing");
             TrySet(() => adv.RedirectDrives = info.RedirectDrives, "RedirectDrives");
             TrySet(() => adv.RedirectClipboard = info.RedirectClipboard, "RedirectClipboard");
             TrySet(() => adv.EnableCredSspSupport = true, "EnableCredSspSupport");
@@ -211,6 +217,7 @@ public sealed class RdpClientHost : AxHost
                 TrySet(() => ts.GatewayHostname = info.Gateway!, "GatewayHostname");
             }
 
+            _lastRemoteW = _lastRemoteH = 0; // 新しい接続の初期解像度は DesktopWidth/Height で決まるため再送抑止をリセット
             ocx.Connect();
             LastError = null;
             Logger.Info($"RDP connect initiated: {info.Host}:{info.Port}");
@@ -264,6 +271,8 @@ public sealed class RdpClientHost : AxHost
     /// 接続中セッションのリモート解像度を指定サイズに合わせる（動的解像度, RDP 8.1+）。
     /// 非対応サーバーでは例外になるため、その場合は SmartSizing による拡縮にフォールバック。
     /// </summary>
+    private uint _lastRemoteW, _lastRemoteH;
+
     public void ResizeRemote(int width, int height)
     {
         try
@@ -272,8 +281,12 @@ public sealed class RdpClientHost : AxHost
             if (o is null || (int)o.Connected != 1) return;
             uint w = (uint)Math.Clamp(width & ~1, 200, 8192);   // 偶数・範囲内
             uint h = (uint)Math.Clamp(height & ~1, 200, 8192);
+            // 同一サイズの再送はサーバー側の再レイアウトを無駄に起こすためスキップ
+            // （ウィンドウ移動だけの WM_EXITSIZEMOVE や、即時適用後のデバウンス発火で通る）
+            if (w == _lastRemoteW && h == _lastRemoteH) return;
             var (desktopScale, deviceScale) = GetScaleFactors();
             o.UpdateSessionDisplaySettings(w, h, w, h, 0u, desktopScale, deviceScale);
+            _lastRemoteW = w; _lastRemoteH = h;
         }
         catch
         {

@@ -59,6 +59,14 @@ public partial class RdpSessionControl : UserControl
             _client.ResizeRemote(_client.Width, _client.Height);
     }
 
+    /// <summary>サイズが確定したタイミング（ドラッグ終了・全画面切替・スプリッター確定）で
+    /// デバウンスを待たずにリモート解像度を即時反映する。</summary>
+    public void ApplyResizeNow()
+    {
+        _resizeDebounce.Stop();
+        ApplyResize();
+    }
+
     /// <summary>
     /// 接続を開始する。実際に可視（visual tree にロード）された時点で接続することで、
     /// 非表示タブでの不安定なハンドル生成を避け、タブ切替でも接続を維持する。

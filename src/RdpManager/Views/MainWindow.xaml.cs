@@ -48,8 +48,11 @@ public partial class MainWindow : Window
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
 
-        _sessions = new SessionManager(SessionTabs, SessionTabsRight, EmptyHint,
+        _sessions = new SessionManager(SessionTabs, SessionTabsRight, SessionHost, SessionHostRight, EmptyHint,
             RightCol, RightSplitterCol, RightSplitter);
+        // スプリッター確定時はリサイズデバウンス(400ms)を待たずにリモート解像度を即時反映する
+        Splitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
+        RightSplitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
         SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _sessions.OnPaneActivated(SessionTabs); };
         SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _sessions.OnPaneActivated(SessionTabsRight); };
         // SelectionChanged は選択が変化した時しか発火しないため、タブヘッダの再クリックも拾う
@@ -127,7 +130,7 @@ public partial class MainWindow : Window
     private void OnClosingSaveSessions(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         var tabs = _sessions.AllTabs.ToList();
-        int active = tabs.Count(t => t.Content is RdpSessionControl s &&
+        int active = tabs.Count(t => SessionManager.SessionOf(t) is { } s &&
                                      s.VisualState != Controls.SessionVisualState.Disconnected);
         if (active > 0 && MessageBox.Show(this,
                 $"{active} session(s) are still connected.\nExit and disconnect them all?",
@@ -147,7 +150,7 @@ public partial class MainWindow : Window
 
         // 各セッションを正規の手順で閉じる（切断 + PostCommand 実行）
         foreach (var tab in tabs)
-            if (tab.Content is RdpSessionControl s)
+            if (SessionManager.SessionOf(tab) is { } s)
                 _sessions.CloseSession(tab, s);
     }
 
@@ -177,6 +180,7 @@ public partial class MainWindow : Window
     private const int HotkeyFullscreenCustom = 0x9007;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int WmHotkey = 0x0312;
+    private const int WmExitSizeMove = 0x0232;
     private const uint VkF11 = 0x7A;
     private const uint VkPause = 0x13;   // Pause
     private const uint VkCancel = 0x03;  // Ctrl+Pause = Break
@@ -285,6 +289,12 @@ public partial class MainWindow : Window
             else if (id == HotkeyQuickSwitch) { OnQuickSwitch(this, new RoutedEventArgs()); handled = true; }
             else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { _sessions.JumpToTab(id - HotkeyTab1); handled = true; }
         }
+        else if (msg == WmExitSizeMove)
+        {
+            // ウィンドウのドラッグリサイズ終了時はデバウンス(400ms)を待たず即時にリモート解像度を合わせる
+            // （移動のみの場合はサイズ不変のため RdpClientHost 側の同一サイズ再送抑止で無視される）
+            _sessions.ApplyResizeToAll();
+        }
         return IntPtr.Zero;
     }
 
@@ -332,6 +342,9 @@ public partial class MainWindow : Window
             // FullScreen 設定が FullscreenChangeRequested を発火させるため、_fullscreen を先に確定させて再入を防ぐ
             _fullscreen = true;
             _sessions.SetAppFullscreen(true);
+            // レイアウト確定後にデバウンスを待たず即時にリモート解像度を合わせる
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+                new Action(_sessions.ApplyResizeToAll));
         }
         else
         {
@@ -352,6 +365,9 @@ public partial class MainWindow : Window
             RegisterAuxHotkeys();
             _fullscreen = false;
             _sessions.SetAppFullscreen(false);
+            // レイアウト確定後にデバウンスを待たず即時にリモート解像度を合わせる
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+                new Action(_sessions.ApplyResizeToAll));
             // フォーカスが RDP コントロール内に残ると Ctrl+Tab 等のアプリ側ショートカットが
             // リモートへ流れてしまうため、解除直後はアプリ側（ツリー）へキーボードフォーカスを戻す
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() => Tree.Focus()));
@@ -494,7 +510,7 @@ public partial class MainWindow : Window
         var ids = DescendantConnections(folder).Select(c => c.Id.ToString()).ToHashSet();
         foreach (var tab in _sessions.AllTabs.ToList())
             if ((tab.Tag as SessionTag)?.NodeId is { } id && ids.Contains(id) &&
-                tab.Content is RdpSessionControl s)
+                SessionManager.SessionOf(tab) is { } s)
                 _sessions.CloseSession(tab, s);
     }
 
@@ -773,7 +789,7 @@ public partial class MainWindow : Window
         var entries = new List<SessionEntry>();
         foreach (var tab in _sessions.AllTabs)
         {
-            if (tab.Content is not RdpSessionControl s) continue;
+            if (SessionManager.SessionOf(tab) is not { } s) continue;
             var capturedTab = tab;
             Brush color = s.VisualState switch
             {
