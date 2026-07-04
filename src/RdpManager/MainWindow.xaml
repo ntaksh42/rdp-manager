@@ -161,66 +161,74 @@
                     </StackPanel>
                 </Border>
 
-                <TreeView x:Name="Tree" BorderThickness="0" Background="Transparent"
-                          ItemsSource="{Binding RootNodes}"
-                          ItemContainerStyle="{StaticResource TreeItemStyle}"
-                          SelectedItemChanged="OnTreeSelectionChanged"
-                          MouseDoubleClick="OnTreeDoubleClick"
-                          AllowDrop="True"
-                          KeyDown="OnTreeKeyDown"
-                          PreviewMouseLeftButtonDown="OnTreeMouseDown"
-                          PreviewMouseMove="OnTreeMouseMove"
-                          DragOver="OnTreeDragOver"
-                          Drop="OnTreeDrop">
-                    <TreeView.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="Connect (in this window)" Click="OnConnectEmbedded"/>
-                            <MenuItem Header="Open in Right Pane (Split)" Click="OnConnectRight"/>
-                            <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
-                            <MenuItem Header="Toggle Favorite" Click="OnToggleFavorite"/>
-                            <Separator/>
-                            <MenuItem Header="Connect All in Folder" Click="OnConnectAll"/>
-                            <MenuItem Header="Disconnect All in Folder" Click="OnDisconnectAll"/>
-                            <MenuItem Header="Sort Children by Name" Click="OnSortChildren"/>
-                            <Separator/>
-                            <MenuItem Header="New Folder" Click="OnNewFolder"/>
-                            <MenuItem Header="New Connection" Click="OnNewConnection"/>
-                            <MenuItem Header="Duplicate" Click="OnDuplicateNode"/>
-                            <MenuItem Header="Edit…" Click="OnEditNode"/>
-                            <MenuItem Header="Delete" Click="OnDeleteNode"/>
-                        </ContextMenu>
-                    </TreeView.ContextMenu>
-                    <TreeView.ItemTemplate>
-                        <HierarchicalDataTemplate ItemsSource="{Binding Children}">
-                            <StackPanel Orientation="Horizontal">
-                                <Ellipse Width="8" Height="8" Margin="0,0,4,0" VerticalAlignment="Center"
-                                         Visibility="{Binding IsConnection, Converter={StaticResource BoolToVis}}">
-                                    <Ellipse.Style>
-                                        <Style TargetType="Ellipse">
-                                            <Setter Property="Fill" Value="Transparent"/>
-                                            <Setter Property="Stroke" Value="#BBB"/>
-                                            <Setter Property="StrokeThickness" Value="1"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Status}" Value="Up">
-                                                    <Setter Property="Fill" Value="LimeGreen"/>
-                                                    <Setter Property="Stroke" Value="LimeGreen"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="Down">
-                                                    <Setter Property="Fill" Value="OrangeRed"/>
-                                                    <Setter Property="Stroke" Value="OrangeRed"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Ellipse.Style>
-                                </Ellipse>
-                                <TextBlock Text="{Binding Glyph}" Margin="0,0,5,0"/>
-                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding HostDisplay}" Foreground="{DynamicResource SubtleFg}"
-                                           Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
-                            </StackPanel>
-                        </HierarchicalDataTemplate>
-                    </TreeView.ItemTemplate>
-                </TreeView>
+                <Grid>
+                    <TreeView x:Name="Tree" BorderThickness="0" Background="Transparent"
+                              ItemsSource="{Binding RootNodes}"
+                              ItemContainerStyle="{StaticResource TreeItemStyle}"
+                              SelectedItemChanged="OnTreeSelectionChanged"
+                              MouseDoubleClick="OnTreeDoubleClick"
+                              AllowDrop="True"
+                              KeyDown="OnTreeKeyDown"
+                              PreviewMouseLeftButtonDown="OnTreeMouseDown"
+                              PreviewMouseMove="OnTreeMouseMove"
+                              DragOver="OnTreeDragOver"
+                              Drop="OnTreeDrop">
+                        <TreeView.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Connect (in this window)" InputGestureText="Enter" Click="OnConnectEmbedded"/>
+                                <MenuItem Header="Open in Right Pane (Split)" Click="OnConnectRight"/>
+                                <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
+                                <MenuItem Header="Toggle Favorite" Click="OnToggleFavorite"/>
+                                <Separator/>
+                                <MenuItem Header="Connect All in Folder" Click="OnConnectAll"/>
+                                <MenuItem Header="Disconnect All in Folder" Click="OnDisconnectAll"/>
+                                <MenuItem Header="Sort Children by Name" Click="OnSortChildren"/>
+                                <Separator/>
+                                <MenuItem Header="New Folder" InputGestureText="Ctrl+Shift+N" Click="OnNewFolder"/>
+                                <MenuItem Header="New Connection" InputGestureText="Ctrl+N" Click="OnNewConnection"/>
+                                <MenuItem Header="Duplicate" InputGestureText="Ctrl+D" Click="OnDuplicateNode"/>
+                                <MenuItem Header="Edit…" InputGestureText="F2" Click="OnEditNode"/>
+                                <MenuItem Header="Delete" InputGestureText="Del" Click="OnDeleteNode"/>
+                            </ContextMenu>
+                        </TreeView.ContextMenu>
+                        <TreeView.ItemTemplate>
+                            <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,4,0" VerticalAlignment="Center"
+                                             Visibility="{Binding IsConnection, Converter={StaticResource BoolToVis}}"
+                                             ToolTip="{Binding Status, StringFormat='Host status: {0}'}">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="Transparent"/>
+                                                <Setter Property="Stroke" Value="{DynamicResource SubtleFg}"/>
+                                                <Setter Property="StrokeThickness" Value="1"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Up">
+                                                        <Setter Property="Fill" Value="LimeGreen"/>
+                                                        <Setter Property="Stroke" Value="LimeGreen"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Down">
+                                                        <Setter Property="Fill" Value="OrangeRed"/>
+                                                        <Setter Property="Stroke" Value="OrangeRed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <TextBlock Text="{Binding Glyph}" Margin="0,0,5,0"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding HostDisplay}" Foreground="{DynamicResource SubtleFg}"
+                                               Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
+                                </StackPanel>
+                            </HierarchicalDataTemplate>
+                        </TreeView.ItemTemplate>
+                    </TreeView>
+                    <TextBlock Text="No connections yet — press Ctrl+N to add one"
+                               Foreground="{DynamicResource SubtleFg}" TextAlignment="Center" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,0"
+                               IsHitTestVisible="False"
+                               Visibility="{Binding HasNoConnections, Converter={StaticResource BoolToVis}}"/>
+                </Grid>
             </DockPanel>
 
             <GridSplitter x:Name="Splitter" Grid.Column="1" Width="4" VerticalAlignment="Stretch"

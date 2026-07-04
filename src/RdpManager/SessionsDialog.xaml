@@ -4,7 +4,9 @@
         Title="Sessions" Height="360" Width="460"
         WindowStartupLocation="CenterOwner" UseLayoutRounding="True"
         Background="{DynamicResource WindowBg}"
-        TextElement.Foreground="{DynamicResource TextFg}">
+        TextElement.Foreground="{DynamicResource TextFg}"
+        PreviewKeyDown="OnPreviewKeyDown"
+        Loaded="OnLoaded">
     <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

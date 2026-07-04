@@ -7,7 +7,8 @@
         Width="480" Height="380"
         UseLayoutRounding="True"
         Background="{DynamicResource ControlBorder}"
-        TextElement.Foreground="{DynamicResource TextFg}">
+        TextElement.Foreground="{DynamicResource TextFg}"
+        PreviewKeyDown="OnPreviewKeyDown">
     <Border Margin="1" Background="{DynamicResource WindowBg}">
         <Grid Margin="10">
             <Grid.RowDefinitions>
@@ -15,7 +16,7 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <TextBox x:Name="FilterBox" Grid.Row="0" Padding="6,5" Margin="0,0,0,8"
-                     TextChanged="OnFilterChanged" PreviewKeyDown="OnFilterKeyDown"/>
+                     TextChanged="OnFilterChanged"/>
             <ListBox x:Name="ResultsList" Grid.Row="1" MouseDoubleClick="OnListDoubleClick">
                 <ListBox.ItemTemplate>
                     <DataTemplate>

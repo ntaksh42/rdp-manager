@@ -16,7 +16,7 @@
             <TextBox x:Name="PortBox" Text="3389" Width="80" Padding="4,3"/>
         </StackPanel>
 
-        <TextBlock x:Name="PreviewText" Foreground="#1976D2" Margin="0,0,0,10"/>
+        <TextBlock x:Name="PreviewText" Foreground="{DynamicResource SubtleFg}" Margin="0,0,0,10"/>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Add" Width="90" Padding="0,4" Margin="0,0,8,0" IsDefault="True" Click="OnOk"/>
