@@ -1,0 +1,38 @@
+# PR を Claude が自動レビューする(単独開発のためのセカンドレビュアー)。
+# 必要な準備(1 回だけ): ローカルで `claude setup-token` を実行して OAuth トークンを発行し、
+# リポジトリの Settings → Secrets and variables → Actions に CLAUDE_CODE_OAUTH_TOKEN として登録する。
+# 登録するまでこのワークフローは失敗するが、マージはブロックしない補助レビューの位置づけ。
+name: claude-review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            この PR をレビューしてください。観点は AGENTS.md の規約への違反と正当性バグに絞ること:
+            - 0 警告の維持、WPF/WinForms 型の using エイリアス(CS0104)
+            - テーマ規約(色のハードコード禁止、DynamicResource のみ)
+            - RDP ActiveX のライフサイクル制約(Connect 前のみ設定可、Unloaded で切断しない等)
+            - パフォーマンス優先(バックグラウンド処理・重い依存の追加に注意)
+            軽微なスタイル指摘は不要。指摘は inline comment として PR に投稿すること。
+          claude_args: '--allowed-tools "Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh search:*)"'
