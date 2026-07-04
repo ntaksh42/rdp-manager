@@ -1,5 +1,5 @@
 # PR と main への push でビルドを検証する。
-# このプロジェクトは自動テストを持たないため、ビルド(警告 0 の維持)が一次検証。
+# 純ロジックは xUnit で自動テストするが、UI/COM(RDP 埋め込み)部分は対象外のため、ビルド(警告 0 の維持)も引き続き一次検証とする。
 # 警告をエラー扱いにして「0 警告」の規約を CI で強制する。
 name: build
 
@@ -23,3 +23,6 @@ jobs:
 
       - name: Build (warnings as errors)
         run: dotnet build --no-restore -warnaserror
+
+      - name: Test
+        run: dotnet test --no-build --verbosity normal
