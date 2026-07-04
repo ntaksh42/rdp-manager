@@ -57,6 +57,12 @@ public partial class MainWindow : Window
         SessionTabsRight.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabsRight);
         _sessions.SessionsChanged += UpdateSessionCount;
         _sessions.SessionNotification += OnSessionNotification;
+        // セッション内の Ctrl+Alt+Break / カスタムキーによる全画面切替要求（COM イベントから届くため UI スレッドへ移す）。
+        // 自分で FullScreen プロパティを設定した際にも発火するため、状態が変わる時だけトグルする
+        _sessions.FullscreenChangeRequested += on => Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (on != _fullscreen) ToggleFullscreen();
+        }));
         // トーストクリックは COM 活性化スレッドから届くため UI スレッドへ移す
         ToastService.Activated += key => Dispatcher.BeginInvoke(new Action(() => FocusSessionFromToast(key)));
 
@@ -195,14 +201,35 @@ public partial class MainWindow : Window
         var src = HwndSource.FromHwnd(_hwnd);
         src?.AddHook(WndProc);
         // RDP セッションにフォーカスがあっても効くようグローバル登録
-        RegisterHotKey(_hwnd, HotkeyPause, ModControl | ModAlt, VkPause);    // Ctrl+Alt+Pause
-        RegisterHotKey(_hwnd, HotkeyBreak, ModControl | ModAlt, VkCancel);   // Ctrl+Alt+Break
+        TryRegisterHotKey(HotkeyPause, ModControl | ModAlt, VkPause, "Ctrl+Alt+Pause");
+        TryRegisterHotKey(HotkeyBreak, ModControl | ModAlt, VkCancel, "Ctrl+Alt+Break");
         // 全画面中も解除キーとして機能させるため、Pause/Break と同様に RegisterAuxHotkeys には含めない
         if (App.Settings.FullscreenKey != 0)
-            RegisterHotKey(_hwnd, HotkeyFullscreenCustom, App.Settings.FullscreenModifiers, App.Settings.FullscreenKey);
+            TryRegisterHotKey(HotkeyFullscreenCustom, App.Settings.FullscreenModifiers, App.Settings.FullscreenKey,
+                HotkeyCaptureDialog.BuildDisplayText(App.Settings.FullscreenModifiers, App.Settings.FullscreenKey));
         RegisterAuxHotkeys();
         QuickSwitchMenuItem.InputGestureText = HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey);
         UpdateFullscreenMenuGesture();
+    }
+
+    // 他アプリ（旧インスタンス含む）がキーを保持していると RegisterHotKey は失敗する。
+    // 従来は無警告だったため「F11 が黙って効かない」ように見えた — 失敗をステータスバーに表示する
+    private readonly List<string> _failedHotkeys = new();
+
+    private void TryRegisterHotKey(int id, uint fsModifiers, uint vk, string displayName)
+    {
+        if (RegisterHotKey(_hwnd, id, fsModifiers, vk))
+            _failedHotkeys.Remove(displayName);
+        else if (!_failedHotkeys.Contains(displayName))
+            _failedHotkeys.Add(displayName);
+        UpdateHotkeyWarning();
+    }
+
+    private void UpdateHotkeyWarning()
+    {
+        HotkeyWarningItem.Visibility = _failedHotkeys.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        HotkeyWarningText.Text = _failedHotkeys.Count == 0 ? ""
+            : "⚠ Hotkey(s) in use by another app: " + string.Join(", ", _failedHotkeys);
     }
 
     /// <summary>View メニューの Toggle Full Screen 項目に、既定キーに加えて設定済みの追加ホットキーを表示する。</summary>
@@ -216,12 +243,13 @@ public partial class MainWindow : Window
     // Pause/Break（全画面解除）以外の補助ホットキー一式。全画面中は解除し純正 mstsc 同様にキーをリモートへ流す
     private void RegisterAuxHotkeys()
     {
-        RegisterHotKey(_hwnd, HotkeyF11, 0, VkF11);                          // F11
-        RegisterHotKey(_hwnd, HotkeyNextTab, ModControl | ModAlt, VkPageDown); // Ctrl+Alt+PageDown
-        RegisterHotKey(_hwnd, HotkeyPrevTab, ModControl | ModAlt, VkPageUp);   // Ctrl+Alt+PageUp
-        RegisterHotKey(_hwnd, HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey); // 設定可能な Quick Switch ホットキー
+        TryRegisterHotKey(HotkeyF11, 0, VkF11, "F11");
+        TryRegisterHotKey(HotkeyNextTab, ModControl | ModAlt, VkPageDown, "Ctrl+Alt+PageDown");
+        TryRegisterHotKey(HotkeyPrevTab, ModControl | ModAlt, VkPageUp, "Ctrl+Alt+PageUp");
+        TryRegisterHotKey(HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey,
+            HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey)); // 設定可能な Quick Switch ホットキー
         for (uint i = 0; i < 9; i++)
-            RegisterHotKey(_hwnd, HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i); // Ctrl+Alt+1..9
+            TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
     }
 
     private void UnregisterAuxHotkeys()
@@ -300,7 +328,10 @@ public partial class MainWindow : Window
             }
             // 純正 mstsc 同様、全画面中は Pause/Break 以外のキーをリモートへ流すため補助ホットキーを解除する
             UnregisterAuxHotkeys();
+            // KeyboardHookMode=2 と連動: 全画面中のみ Win キー組み合わせがリモートへ送られるようになる。
+            // FullScreen 設定が FullscreenChangeRequested を発火させるため、_fullscreen を先に確定させて再入を防ぐ
             _fullscreen = true;
+            _sessions.SetAppFullscreen(true);
         }
         else
         {
@@ -320,6 +351,10 @@ public partial class MainWindow : Window
             WindowState = _savedState;
             RegisterAuxHotkeys();
             _fullscreen = false;
+            _sessions.SetAppFullscreen(false);
+            // フォーカスが RDP コントロール内に残ると Ctrl+Tab 等のアプリ側ショートカットが
+            // リモートへ流れてしまうため、解除直後はアプリ側（ツリー）へキーボードフォーカスを戻す
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() => Tree.Focus()));
         }
     }
 
@@ -485,7 +520,14 @@ public partial class MainWindow : Window
         // 検索ボックス等でのテキスト入力中は F2/Delete をショートカットとして奪わない
         bool inTextInput = Keyboard.FocusedElement is System.Windows.Controls.TextBox or System.Windows.Controls.PasswordBox;
 
-        if (e.Key == Key.Escape && _fullscreen)
+        // F11 のフォールバック: グローバル登録が生きている間は WM_HOTKEY 側で消費されここには届かない。
+        // 登録失敗時や全画面中（補助ホットキー解除中）にアプリ側へフォーカスがあれば、ここでトグルできるようにする
+        if (e.Key == Key.F11)
+        {
+            ToggleFullscreen();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape && _fullscreen)
         {
             ToggleFullscreen();
             e.Handled = true;

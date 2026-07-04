@@ -47,6 +47,9 @@ public sealed class SessionManager
     /// <summary>セッションからリモート通知を受信したとき（通知元タブ, タブタイトル, 通知内容）。</summary>
     public event Action<TabItem, string, Services.RemoteNotification>? SessionNotification;
 
+    /// <summary>セッション内のキー操作（Ctrl+Alt+Break / カスタムキー）による全画面切替要求（true=全画面化）。</summary>
+    public event Action<bool>? FullscreenChangeRequested;
+
     public SessionManager(TabControl left, TabControl right, TextBlock emptyHint,
         ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
     {
@@ -83,6 +86,18 @@ public sealed class SessionManager
 
     /// <summary>ペイン選択時に呼ぶ（ホットキーの対象ペイン追跡）。</summary>
     public void OnPaneActivated(TabControl pane) => _activePane = pane;
+
+    // アプリウィンドウの全画面状態。全セッションの KeyboardHookMode=2（全画面時のみ Win キーをリモートへ）と連動させる
+    private bool _appFullscreen;
+
+    /// <summary>アプリの全画面トグル時に呼び、全セッションへ状態を反映する。</summary>
+    public void SetAppFullscreen(bool fullscreen)
+    {
+        _appFullscreen = fullscreen;
+        foreach (var tab in AllTabs)
+            if (tab.Content is RdpSessionControl s)
+                s.SyncFullScreenState(fullscreen);
+    }
 
     /// <summary>
     /// 同じノードのタブが既に開いていれば、それを前面に出して true を返す。
@@ -146,6 +161,7 @@ public sealed class SessionManager
             ToolTip = HostAddress.FormatWithPort(info.Host, info.Port)
         };
         session.NotificationReceived += (_, n) => SessionNotification?.Invoke(tab, title, n);
+        session.FullScreenRequested += on => FullscreenChangeRequested?.Invoke(on);
         // SelectionChanged は選択が「変化」した時しか発火しないため、選択中タブの再クリックや
         // RDP 画面内クリックでのペイン移動はこちらで補足する
         session.SessionFocused += (_, _) => { if (tab.Parent is TabControl tc) OnPaneActivated(tc); };
@@ -183,6 +199,12 @@ public sealed class SessionManager
             SessionVisualState.Disconnected => Brushes.Gray,
             SessionVisualState.Reconnecting => Brushes.Gold,
             _ => Brushes.Orange
+        };
+        // 全画面中に接続が成立した（開いた/再接続した）セッションにも全画面状態を反映する
+        session.StateChanged += (_, _) =>
+        {
+            if (_appFullscreen && session.VisualState == SessionVisualState.Connected)
+                session.SyncFullScreenState(true);
         };
 
         target.Items.Add(tab);

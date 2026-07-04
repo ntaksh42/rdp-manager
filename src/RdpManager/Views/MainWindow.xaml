@@ -102,6 +102,7 @@
             <StatusBarItem><TextBlock Text="{Binding StatusText}"/></StatusBarItem>
             <Separator Background="{DynamicResource SplitterBg}"/>
             <StatusBarItem><TextBlock x:Name="SessionCountText" Text="0 session(s)"/></StatusBarItem>
+            <StatusBarItem x:Name="HotkeyWarningItem" Visibility="Collapsed"><TextBlock x:Name="HotkeyWarningText"/></StatusBarItem>
         </StatusBar>
 
         <Grid>

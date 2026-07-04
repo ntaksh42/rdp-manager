@@ -24,6 +24,16 @@
   <ItemGroup>
     <!-- 未パッケージアプリのトースト表示・クリック活性化(Compat)用 -->
     <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
+    <!-- mstscax の RCW インターフェイス参照用（AxHost ラッパーは自前実装のため不要）。
+         IMsRdpClientNonScriptable5 等の NonScriptable 系は dispinterface に載っておらず
+         dynamic (IDispatch) では届かないため、型付きキャストにのみ使用する。
+         COMReference は dotnet build 非対応のため、tlbimp で生成した RCW を Interop/ に置いて参照する。
+         EmbedInteropTypes により使用型のみ埋め込まれ、実行時に DLL の配布は不要 -->
+    <Reference Include="MSTSCLib">
+      <HintPath>Interop\MSTSCLib.dll</HintPath>
+      <EmbedInteropTypes>true</EmbedInteropTypes>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
 </Project>
