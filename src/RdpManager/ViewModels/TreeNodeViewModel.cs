@@ -90,7 +90,6 @@ public class TreeNodeViewModel : ObservableObject
     }
     /// <summary>暗号化済みパスワードのキャッシュ（平文が未変更なら保存時に再暗号化しない）。</summary>
     public string? CachedPasswordEnc { get; set; }
-    public bool IsFavorite { get; set; }
 
     // RDP 設定
     public bool InheritSettings { get; set; } // true なら親フォルダの設定を使用

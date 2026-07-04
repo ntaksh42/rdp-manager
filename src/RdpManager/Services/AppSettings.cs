@@ -24,7 +24,6 @@ public sealed class AppSettings
     public uint FullscreenModifiers { get; set; }
     /// <summary>全画面トグル用の追加グローバルホットキーの仮想キーコード。既定は未設定（0）。</summary>
     public uint FullscreenKey { get; set; }
-    public List<string> RecentIds { get; set; } = new();
     public List<string> OpenOnExit { get; set; } = new();
 
     // 前回終了時のウィンドウ位置・サイズ（未保存なら null で既定のまま）

@@ -12,7 +12,6 @@ public class MainViewModel : ObservableObject
 
     public ObservableCollection<TreeNodeViewModel> RootNodes { get; } = new();
     public ObservableCollection<CredentialProfile> CredentialProfiles { get; } = new();
-    public ObservableCollection<TreeNodeViewModel> QuickAccess { get; } = new();
 
     /// <summary>接続起動などの失敗をビューへ通知する。</summary>
     public event Action<string>? Error;
@@ -20,7 +19,6 @@ public class MainViewModel : ObservableObject
     public MainViewModel()
     {
         Load();
-        RefreshQuickAccess();
     }
 
     private IEnumerable<TreeNodeViewModel> AllConnections(IEnumerable<TreeNodeViewModel>? nodes = null)
@@ -49,22 +47,6 @@ public class MainViewModel : ObservableObject
             foreach (var n in AllNodes())
                 if (n.CredentialMode == "profile" && n.CredentialProfile == oldName)
                     n.CredentialProfile = newName;
-    }
-
-    /// <summary>お気に入り + 最近使った接続をクイックアクセス一覧に反映。</summary>
-    public void RefreshQuickAccess()
-    {
-        QuickAccess.Clear();
-        var all = AllConnections().ToList();
-        foreach (var fav in all.Where(c => c.IsFavorite))
-            QuickAccess.Add(fav);
-        var recentIds = App.Settings.RecentIds;
-        foreach (var id in recentIds)
-        {
-            var node = all.FirstOrDefault(c => c.Id.ToString() == id);
-            if (node != null && !node.IsFavorite && !QuickAccess.Contains(node))
-                QuickAccess.Add(node);
-        }
     }
 
     public TreeNodeViewModel? FindConnectionById(string id)
@@ -103,27 +85,6 @@ public class MainViewModel : ObservableObject
         }
         if (parent != null) parent.IsExpanded = true;
         Save();
-        RefreshQuickAccess();
-    }
-
-    public void ToggleFavorite(TreeNodeViewModel? node)
-    {
-        if (node is null || !node.IsConnection) return;
-        node.IsFavorite = !node.IsFavorite;
-        Save();
-        RefreshQuickAccess();
-    }
-
-    public void RecordRecent(TreeNodeViewModel node)
-    {
-        if (!node.IsConnection) return;
-        var id = node.Id.ToString();
-        App.Settings.RecentIds.Remove(id);
-        App.Settings.RecentIds.Insert(0, id);
-        if (App.Settings.RecentIds.Count > 10)
-            App.Settings.RecentIds.RemoveRange(10, App.Settings.RecentIds.Count - 10);
-        App.Settings.Save();
-        RefreshQuickAccess();
     }
 
     public string SearchText
@@ -257,16 +218,14 @@ public class MainViewModel : ObservableObject
         if (node.Parent is { } p) p.Children.Remove(node);
         else RootNodes.Remove(node);
 
-        // 削除したノード（子孫含む）の ID が Recent/OpenOnExit に孤児として残らないよう除去
+        // 削除したノード（子孫含む）の ID が OpenOnExit に孤児として残らないよう除去
         var removedIds = SelfAndDescendants(node).Select(n => n.Id.ToString()).ToHashSet();
-        int before = App.Settings.RecentIds.Count + App.Settings.OpenOnExit.Count;
-        App.Settings.RecentIds.RemoveAll(removedIds.Contains);
+        int before = App.Settings.OpenOnExit.Count;
         App.Settings.OpenOnExit.RemoveAll(removedIds.Contains);
-        if (before != App.Settings.RecentIds.Count + App.Settings.OpenOnExit.Count)
+        if (before != App.Settings.OpenOnExit.Count)
             App.Settings.Save();
 
         Save();
-        RefreshQuickAccess();
     }
 
     private static IEnumerable<TreeNodeViewModel> SelfAndDescendants(TreeNodeViewModel node)
@@ -309,7 +268,6 @@ public class MainViewModel : ObservableObject
         int idx = siblings.IndexOf(node);
         siblings.Insert(idx < 0 ? siblings.Count : idx + 1, clone);
         Save();
-        RefreshQuickAccess();
     }
 
     /// <summary>フォルダ直下の子をフォルダ→接続、名前順に並べ替える。</summary>
@@ -404,7 +362,7 @@ public class MainViewModel : ObservableObject
         SmartSizing = n.SmartSizing, RedirectClipboard = n.RedirectClipboard,
         RedirectDrives = n.RedirectDrives, Fullscreen = n.Fullscreen,
         AuthenticationLevel = n.AuthenticationLevel,
-        Gateway = n.Gateway, IsFavorite = n.IsFavorite,
+        Gateway = n.Gateway,
         PreCommand = n.PreCommand, PostCommand = n.PostCommand,
         Children = n.Children.Select(ToDto).ToList()
     };
@@ -423,11 +381,11 @@ public class MainViewModel : ObservableObject
             SmartSizing = d.SmartSizing, RedirectClipboard = d.RedirectClipboard,
             RedirectDrives = d.RedirectDrives, Fullscreen = d.Fullscreen,
             AuthenticationLevel = d.AuthenticationLevel,
-            Gateway = d.Gateway, IsFavorite = d.IsFavorite,
+            Gateway = d.Gateway,
             PreCommand = d.PreCommand, PostCommand = d.PostCommand,
             Parent = parent
         };
-        // newIds=false かつ保存済み Id が有効な GUID ならそれを復元し、Recent/OpenOnExit との対応を維持する
+        // newIds=false かつ保存済み Id が有効な GUID ならそれを復元し、OpenOnExit との対応を維持する
         if (!newIds && Guid.TryParse(d.Id, out var g)) n.Id = g;
         // 読み込んだ暗号化値をそのままキャッシュ → 平文未変更なら保存時に再暗号化しない
         n.CachedPasswordEnc = d.PasswordEncrypted;
