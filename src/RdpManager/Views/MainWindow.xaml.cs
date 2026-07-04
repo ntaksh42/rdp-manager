@@ -53,6 +53,11 @@ public partial class MainWindow : Window
         // スプリッター確定時はリサイズデバウンス(400ms)を待たずにリモート解像度を即時反映する
         Splitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
         RightSplitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
+        // 最大化/復元（最大化ボタン・Win+↑↓・タイトルバーダブルクリック）はモーダルサイズループを
+        // 通らず WM_EXITSIZEMOVE が発生しないため、StateChanged をサイズ確定点として
+        // レイアウト確定後にデバウンスを待たず即時反映する
+        StateChanged += (_, _) => Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+            new Action(_sessions.ApplyResizeToAll));
         SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _sessions.OnPaneActivated(SessionTabs); };
         SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _sessions.OnPaneActivated(SessionTabsRight); };
         // SelectionChanged は選択が変化した時しか発火しないため、タブヘッダの再クリックも拾う

@@ -39,14 +39,17 @@ public sealed class RdpClientHost : AxHost
     // コンテナ処理全画面（ContainerHandledFullScreen）の切替要求イベント
     private const int DispidOnRequestGoFullScreen = 8;
     private const int DispidOnRequestLeaveFullScreen = 9;
+    private const int DispidOnRemoteDesktopSizeChange = 12;
 
     private delegate void ChannelReceivedDataHandler(string chanName, string data);
     private delegate void DisconnectedHandler(int discReason);
+    private delegate void RemoteDesktopSizeChangeHandler(int width, int height);
     private ChannelReceivedDataHandler? _channelSink; // 接続ポイント登録済みデリゲートの GC 防止も兼ねる
     private Action? _goFullScreenSink;
     private Action? _leaveFullScreenSink;
     private Action? _connectedSink;
     private DisconnectedHandler? _disconnectedSink;
+    private RemoteDesktopSizeChangeHandler? _sizeChangeSink;
 
     /// <summary>通知チャネル(CCNOTIF)のデータ受信（コントロールの UI スレッドで発火）。</summary>
     public event Action<string>? NotificationDataReceived;
@@ -205,6 +208,7 @@ public sealed class RdpClientHost : AxHost
             AttachChannelSink((object)ocx);
             AttachFullScreenSinks((object)ocx);
             AttachStateSinks((object)ocx);
+            AttachSizeChangeSink((object)ocx);
 
             // ── 描画パフォーマンス最適化 ──
             // mstsc.exe と同等のハードウェア描画パイプライン（DX レンダリング + H.264 ハードウェアデコード）を
@@ -298,6 +302,7 @@ public sealed class RdpClientHost : AxHost
     /// 非対応サーバーでは例外になるため、その場合は SmartSizing による拡縮にフォールバック。
     /// </summary>
     private uint _lastRemoteW, _lastRemoteH;
+    private long _resizeRequestedAt; // Stopwatch タイムスタンプ（要求→反映の所要時間計測用）
 
     public void ResizeRemote(int width, int height)
     {
@@ -311,6 +316,7 @@ public sealed class RdpClientHost : AxHost
             // （ウィンドウ移動だけの WM_EXITSIZEMOVE や、即時適用後のデバウンス発火で通る）
             if (w == _lastRemoteW && h == _lastRemoteH) return;
             var (desktopScale, deviceScale) = GetScaleFactors();
+            _resizeRequestedAt = System.Diagnostics.Stopwatch.GetTimestamp();
             o.UpdateSessionDisplaySettings(w, h, w, h, 0u, desktopScale, deviceScale);
             _lastRemoteW = w; _lastRemoteH = h;
         }
@@ -340,6 +346,32 @@ public sealed class RdpClientHost : AxHost
             _connectedSink = null;
             _disconnectedSink = null;
             Logger.Warn($"Connection state sink could not be attached: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// リモート解像度反映イベント（DISPID 12: OnRemoteDesktopSizeChange）をシンクし、
+    /// リサイズ要求から反映までの所要時間をログへ出す（再描画性能の実測用）。
+    /// </summary>
+    private void AttachSizeChangeSink(object ocx)
+    {
+        if (_sizeChangeSink != null) return;
+        try
+        {
+            _sizeChangeSink = (w, h) =>
+            {
+                var at = _resizeRequestedAt;
+                if (at == 0) return;
+                _resizeRequestedAt = 0;
+                var ms = System.Diagnostics.Stopwatch.GetElapsedTime(at).TotalMilliseconds;
+                Logger.Info($"Remote resolution applied: {w}x{h} in {ms:F0} ms");
+            };
+            ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnRemoteDesktopSizeChange, _sizeChangeSink);
+        }
+        catch (Exception ex)
+        {
+            _sizeChangeSink = null;
+            Logger.Warn($"Size change sink could not be attached: {ex.Message}");
         }
     }
 
