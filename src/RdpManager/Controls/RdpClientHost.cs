@@ -33,21 +33,30 @@ public sealed class RdpClientHost : AxHost
     // IMsTscAxEvents（イベント dispinterface）の DIID と OnChannelReceivedData の DISPID。
     // 型付きイベントインターフェイス（AxMSTSCLib）を生成しない方針のため、DISPID 直指定でシンクする。
     private static readonly Guid EventsInterfaceId = new("336D5562-EFA8-482E-8CB3-C5C0FC7A7DB6");
+    private const int DispidOnConnected = 2;
+    private const int DispidOnDisconnected = 4;
     private const int DispidOnChannelReceivedData = 7;
     // コンテナ処理全画面（ContainerHandledFullScreen）の切替要求イベント
     private const int DispidOnRequestGoFullScreen = 8;
     private const int DispidOnRequestLeaveFullScreen = 9;
 
     private delegate void ChannelReceivedDataHandler(string chanName, string data);
+    private delegate void DisconnectedHandler(int discReason);
     private ChannelReceivedDataHandler? _channelSink; // 接続ポイント登録済みデリゲートの GC 防止も兼ねる
     private Action? _goFullScreenSink;
     private Action? _leaveFullScreenSink;
+    private Action? _connectedSink;
+    private DisconnectedHandler? _disconnectedSink;
 
     /// <summary>通知チャネル(CCNOTIF)のデータ受信（コントロールの UI スレッドで発火）。</summary>
     public event Action<string>? NotificationDataReceived;
 
     /// <summary>セッション内のキー操作（Ctrl+Alt+Break / HotKeyFullScreen）による全画面切替要求。true=全画面化。</summary>
     public event Action<bool>? FullScreenRequested;
+
+    /// <summary>接続確立/切断の即時通知（OnConnected/OnDisconnected）。
+    /// ポーリング間隔を待たずにオーバーレイと解像度を更新するためのヒント。</summary>
+    public event Action? ConnectionStateChanged;
 
     private static string? _resolvedClsid;
     private dynamic? _ocx;
@@ -195,6 +204,7 @@ public sealed class RdpClientHost : AxHost
             TrySet(() => ocx.CreateVirtualChannels(NotifyChannelName), "CreateVirtualChannels");
             AttachChannelSink((object)ocx);
             AttachFullScreenSinks((object)ocx);
+            AttachStateSinks((object)ocx);
 
             // ── 描画パフォーマンス最適化 ──
             // mstsc.exe と同等のハードウェア描画パイプライン（DX レンダリング + H.264 ハードウェアデコード）を
@@ -204,6 +214,12 @@ public sealed class RdpClientHost : AxHost
             {
                 object hw = true;
                 TrySet(() => ext.set_Property("EnableHardwareMode", ref hw), "EnableHardwareMode");
+                // 初期スケールを DPI に合わせて渡す。渡さないと 100% で接続 → 直後の ApplyResize で
+                // スケール送信 → サーバー側の再レイアウトが一度必ず走ってしまう
+                var (desktopScale, deviceScale) = GetScaleFactors();
+                object ds = desktopScale, dv = deviceScale;
+                TrySet(() => ext.set_Property("DesktopScaleFactor", ref ds), "DesktopScaleFactor");
+                TrySet(() => ext.set_Property("DeviceScaleFactor", ref dv), "DeviceScaleFactor");
             }
             // 再描画削減（視覚変化なしの純粋な高速化）: 永続ビットマップキャッシュ
             TrySet(() => adv.BitmapPeristence = 1, "BitmapPeristence");  // ※API名のスペルは "Peristence"
@@ -302,6 +318,28 @@ public sealed class RdpClientHost : AxHost
         {
             // 動的解像度に非対応 → スマートサイジングで追従（拡縮表示）
             TrySet(() => { if (_ocx is { } o) o.AdvancedSettings9.SmartSizing = true; }, "SmartSizing(fallback)");
+        }
+    }
+
+    /// <summary>
+    /// 接続確立/切断イベント（DISPID 2/4）をシンクする。状態遷移をポーリング間隔（700ms）を
+    /// 待たずに反映するためのもので、状態自体は従来どおり ConnectionState で読む。
+    /// </summary>
+    private void AttachStateSinks(object ocx)
+    {
+        if (_connectedSink != null) return;
+        try
+        {
+            _connectedSink = () => ConnectionStateChanged?.Invoke();
+            _disconnectedSink = _ => ConnectionStateChanged?.Invoke();
+            ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnConnected, _connectedSink);
+            ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnDisconnected, _disconnectedSink);
+        }
+        catch (Exception ex)
+        {
+            _connectedSink = null;
+            _disconnectedSink = null;
+            Logger.Warn($"Connection state sink could not be attached: {ex.Message}");
         }
     }
 
