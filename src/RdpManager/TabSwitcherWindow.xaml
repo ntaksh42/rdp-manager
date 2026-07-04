@@ -1,0 +1,38 @@
+<Window x:Class="RdpManager.TabSwitcherWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Switch Tab"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        WindowStartupLocation="CenterOwner"
+        Width="420" Height="320"
+        UseLayoutRounding="True"
+        Background="{DynamicResource ControlBorder}"
+        TextElement.Foreground="{DynamicResource TextFg}"
+        PreviewKeyDown="OnPreviewKeyDown"
+        PreviewKeyUp="OnPreviewKeyUp"
+        Deactivated="OnDeactivated">
+    <Border Margin="1" Background="{DynamicResource WindowBg}">
+        <Grid Margin="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Ctrl+Tab: next, Ctrl+Shift+Tab: previous, release Ctrl to switch"
+                       Foreground="{DynamicResource SubtleFg}" FontSize="11" Margin="0,0,0,8"/>
+            <ListBox x:Name="ResultsList" Grid.Row="1"
+                     Background="{DynamicResource WindowBg}" BorderThickness="0"
+                     PreviewMouseLeftButtonUp="OnListMouseUp">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="4,3">
+                            <Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center" Fill="{Binding StateColor}"/>
+                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding Host}" Foreground="{DynamicResource SubtleFg}"
+                                       Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </Border>
+</Window>

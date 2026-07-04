@@ -37,6 +37,8 @@ public sealed class SessionManager
     private readonly ColumnDefinition _rightSplitterCol;
     private readonly GridSplitter _rightSplitter;
     private TabControl _activePane;
+    // Ctrl+Tab タブスイッチャー用の MRU（最近アクティブ化順）リスト。先頭が最新。
+    private readonly List<TabItem> _mru = new();
 
     /// <summary>タブの開閉でセッション数が変わったときに通知（ステータスバー表示用）。</summary>
     public event Action? SessionsChanged;
@@ -54,6 +56,20 @@ public sealed class SessionManager
         _rightSplitterCol = rightSplitterCol;
         _rightSplitter = rightSplitter;
         _activePane = left;
+
+        // SelectionChanged はネストしたコントロールからバブリングすることもあるため、
+        // ペイン自身が発火元のときだけ MRU を更新する
+        _left.SelectionChanged += (_, e) => { if (e.Source == _left) TrackMruSelection(_left); };
+        _right.SelectionChanged += (_, e) => { if (e.Source == _right) TrackMruSelection(_right); };
+    }
+
+    private void TrackMruSelection(TabControl pane)
+    {
+        if (pane.SelectedItem is TabItem tab)
+        {
+            _mru.Remove(tab);
+            _mru.Insert(0, tab);
+        }
     }
 
     public TabControl DefaultPane => _left;
@@ -96,6 +112,19 @@ public sealed class SessionManager
         FocusSelected(tc);
         return true;
     }
+
+    /// <summary>指定タブを前面に出す（Ctrl+Tab タブスイッチャーからの確定用）。</summary>
+    public void ActivateTab(TabItem tab)
+    {
+        if (tab.Parent is not TabControl tc) return;
+        _activePane = tc;
+        tc.SelectedItem = tab;
+        FocusSelected(tc);
+    }
+
+    /// <summary>開いている全タブを MRU（最近アクティブ化）順で返す。MRU に無いタブは末尾に補完する。</summary>
+    public IReadOnlyList<TabItem> GetMruTabs()
+        => _mru.Concat(AllTabs.Where(t => !_mru.Contains(t))).ToList();
 
     public void OpenSession(LaunchInfo info, string title, string? nodeId = null,
                             string? postCommand = null, TabControl? target = null)
@@ -156,6 +185,7 @@ public sealed class SessionManager
         };
 
         target.Items.Add(tab);
+        _mru.Insert(0, tab);
         target.SelectedItem = tab;
         UpdateEmptyHint();
         UpdateRightPane();
@@ -192,6 +222,7 @@ public sealed class SessionManager
         if (tab.Tag is SessionTag { PostCommand: { Length: > 0 } cmd, Info: { } info })
             ExternalTools.Run(cmd, info);
         (tab.Parent as TabControl)?.Items.Remove(tab);
+        _mru.Remove(tab);
         UpdateEmptyHint();
         UpdateRightPane();
         SessionsChanged?.Invoke();

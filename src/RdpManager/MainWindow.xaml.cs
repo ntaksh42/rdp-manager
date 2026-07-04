@@ -467,8 +467,22 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.F) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         else if (ctrl && e.Key == Key.D) { OnDuplicateNode(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && e.Key == Key.W) { _sessions.CloseActiveTab(); e.Handled = true; }
+        else if (ctrl && e.Key == Key.Tab) { ShowTabSwitcher(shift); e.Handled = true; }
         else if (!inTextInput && e.Key == Key.F2 && Vm.SelectedNode != null) { OnEditNode(this, new RoutedEventArgs()); e.Handled = true; }
         else if (!inTextInput && e.Key == Key.Delete && Vm.SelectedNode != null) { OnDeleteNode(this, new RoutedEventArgs()); e.Handled = true; }
+    }
+
+    /// <summary>Ctrl+Tab / Ctrl+Shift+Tab: MRU 順のタブスイッチャーを表示する（VS Code / Visual Studio 風）。</summary>
+    private void ShowTabSwitcher(bool selectLast)
+    {
+        var mru = _sessions.GetMruTabs();
+        if (mru.Count == 0) return;
+        if (mru.Count == 1) { _sessions.ActivateTab(mru[0]); return; }
+
+        int initialIndex = selectLast ? mru.Count - 1 : 1;
+        var dlg = new TabSwitcherWindow(mru, initialIndex) { Owner = this };
+        dlg.ShowDialog();
+        if (dlg.SelectedTab is { } tab) _sessions.ActivateTab(tab);
     }
 
     private void OnTreeKeyDown(object sender, KeyEventArgs e)
