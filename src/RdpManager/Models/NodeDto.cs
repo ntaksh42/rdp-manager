@@ -24,7 +24,6 @@ public sealed class NodeDto
     public string Gateway { get; set; } = "";
     /// <summary>サーバー証明書の検証レベル。0=なし / 1=警告 / 2=必須(既定)。</summary>
     public int AuthenticationLevel { get; set; } = 2;
-    public bool IsFavorite { get; set; }
     public string PreCommand { get; set; } = "";
     public string PostCommand { get; set; } = "";
 

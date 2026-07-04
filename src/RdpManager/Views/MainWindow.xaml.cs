@@ -466,7 +466,6 @@ public partial class MainWindow : Window
             string.Equals(node.Protocol, "RDP", StringComparison.OrdinalIgnoreCase) &&
             _sessions.TryActivateExisting(node.Id.ToString()))
         {
-            Vm.RecordRecent(node);
             return;
         }
 
@@ -480,12 +479,10 @@ public partial class MainWindow : Window
             if (!Services.ProtocolLauncher.Launch(node.Protocol, info.Host, info.Port, info.Username, out var msg)
                 && msg != null)
                 MessageBox.Show(this, msg, "rdpmanager", MessageBoxButton.OK, MessageBoxImage.Warning);
-            Vm.RecordRecent(node);
             return;
         }
 
         _sessions.OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, target ?? SessionTabs);
-        Vm.RecordRecent(node);
     }
 
     private static IEnumerable<TreeNodeViewModel> DescendantConnections(TreeNodeViewModel folder)
@@ -518,14 +515,6 @@ public partial class MainWindow : Window
                 SessionManager.SessionOf(tab) is { } s)
                 _sessions.CloseSession(tab, s);
     }
-
-    private void OnQuickAccessDouble(object sender, MouseButtonEventArgs e)
-    {
-        if (QuickList.SelectedItem is TreeNodeViewModel node)
-            ConnectEmbedded(node);
-    }
-
-    private void OnToggleFavorite(object sender, RoutedEventArgs e) => Vm.ToggleFavorite(Vm.SelectedNode);
 
     private void OnSendCtrlAltDel(object sender, RoutedEventArgs e)
         => MessageBox.Show(this,
