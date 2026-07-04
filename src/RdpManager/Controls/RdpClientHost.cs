@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using RdpManager.Models;
 using RdpManager.Services;
 
 namespace RdpManager.Controls;

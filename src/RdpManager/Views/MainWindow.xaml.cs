@@ -25,7 +25,7 @@ using TabItem = System.Windows.Controls.TabItem;
 using Keyboard = System.Windows.Input.Keyboard;
 using ModifierKeys = System.Windows.Input.ModifierKeys;
 
-namespace RdpManager;
+namespace RdpManager.Views;
 
 public partial class MainWindow : Window
 {

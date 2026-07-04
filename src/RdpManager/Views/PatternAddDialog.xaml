@@ -1,4 +1,4 @@
-<Window x:Class="RdpManager.PatternAddDialog"
+<Window x:Class="RdpManager.Views.PatternAddDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Add Connections by Pattern" SizeToContent="Height" Width="460"

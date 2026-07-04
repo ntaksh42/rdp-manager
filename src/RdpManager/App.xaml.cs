@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using RdpManager.Services;
+using RdpManager.Views;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 

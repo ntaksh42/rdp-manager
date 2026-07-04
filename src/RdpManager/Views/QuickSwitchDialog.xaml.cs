@@ -6,7 +6,7 @@ using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using Keyboard = System.Windows.Input.Keyboard;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 
-namespace RdpManager;
+namespace RdpManager.Views;
 
 /// <summary>グローバルホットキーで呼び出すコマンドパレット型の接続クイック切替ダイアログ。</summary>
 public partial class QuickSwitchDialog : Window
