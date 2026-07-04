@@ -12,7 +12,7 @@
     <Product>rdpmanager</Product>
     <AssemblyTitle>rdpmanager</AssemblyTitle>
     <Company>ntaksh42</Company>
-    <Version>0.3.0</Version>
+    <Version>0.4.0</Version>
     <Description>接続先を整理し Windows 標準 mstsc で接続する軽量 RDP マネージャ</Description>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <!-- パフォーマンス: 起動高速化(事前ネイティブコンパイル)・定常性能(PGO) -->
