@@ -20,6 +20,10 @@ public sealed class AppSettings
     public uint QuickSwitchModifiers { get; set; } = 0x1 | 0x2;
     /// <summary>Quick Switch を開くグローバルホットキーの仮想キーコード。既定は VK_HOME。</summary>
     public uint QuickSwitchKey { get; set; } = 0x24;
+    /// <summary>全画面トグル用の追加グローバルホットキーの修飾キー（MOD_* のビット和）。既定は未設定（0）。</summary>
+    public uint FullscreenModifiers { get; set; }
+    /// <summary>全画面トグル用の追加グローバルホットキーの仮想キーコード。既定は未設定（0）。</summary>
+    public uint FullscreenKey { get; set; }
     public List<string> RecentIds { get; set; } = new();
     public List<string> OpenOnExit { get; set; } = new();
 
