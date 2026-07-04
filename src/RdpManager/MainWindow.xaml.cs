@@ -168,6 +168,7 @@ public partial class MainWindow : Window
     private const int HotkeyNextTab = 0x9004;
     private const int HotkeyPrevTab = 0x9005;
     private const int HotkeyQuickSwitch = 0x9006;
+    private const int HotkeyFullscreenCustom = 0x9007;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int WmHotkey = 0x0312;
     private const uint VkF11 = 0x7A;
@@ -194,27 +195,51 @@ public partial class MainWindow : Window
         var src = HwndSource.FromHwnd(_hwnd);
         src?.AddHook(WndProc);
         // RDP セッションにフォーカスがあっても効くようグローバル登録
-        RegisterHotKey(_hwnd, HotkeyF11, 0, VkF11);                          // F11
         RegisterHotKey(_hwnd, HotkeyPause, ModControl | ModAlt, VkPause);    // Ctrl+Alt+Pause
         RegisterHotKey(_hwnd, HotkeyBreak, ModControl | ModAlt, VkCancel);   // Ctrl+Alt+Break
+        // 全画面中も解除キーとして機能させるため、Pause/Break と同様に RegisterAuxHotkeys には含めない
+        if (App.Settings.FullscreenKey != 0)
+            RegisterHotKey(_hwnd, HotkeyFullscreenCustom, App.Settings.FullscreenModifiers, App.Settings.FullscreenKey);
+        RegisterAuxHotkeys();
+        QuickSwitchMenuItem.InputGestureText = HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey);
+        UpdateFullscreenMenuGesture();
+    }
+
+    /// <summary>View メニューの Toggle Full Screen 項目に、既定キーに加えて設定済みの追加ホットキーを表示する。</summary>
+    private void UpdateFullscreenMenuGesture()
+    {
+        FullscreenMenuItem.InputGestureText = App.Settings.FullscreenKey == 0
+            ? "F11 / Ctrl+Alt+Pause"
+            : $"F11 / Ctrl+Alt+Pause / {HotkeyCaptureDialog.BuildDisplayText(App.Settings.FullscreenModifiers, App.Settings.FullscreenKey)}";
+    }
+
+    // Pause/Break（全画面解除）以外の補助ホットキー一式。全画面中は解除し純正 mstsc 同様にキーをリモートへ流す
+    private void RegisterAuxHotkeys()
+    {
+        RegisterHotKey(_hwnd, HotkeyF11, 0, VkF11);                          // F11
         RegisterHotKey(_hwnd, HotkeyNextTab, ModControl | ModAlt, VkPageDown); // Ctrl+Alt+PageDown
         RegisterHotKey(_hwnd, HotkeyPrevTab, ModControl | ModAlt, VkPageUp);   // Ctrl+Alt+PageUp
         RegisterHotKey(_hwnd, HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey); // 設定可能な Quick Switch ホットキー
-        QuickSwitchMenuItem.InputGestureText = HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey);
         for (uint i = 0; i < 9; i++)
             RegisterHotKey(_hwnd, HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i); // Ctrl+Alt+1..9
+    }
+
+    private void UnregisterAuxHotkeys()
+    {
+        UnregisterHotKey(_hwnd, HotkeyF11);
+        UnregisterHotKey(_hwnd, HotkeyNextTab);
+        UnregisterHotKey(_hwnd, HotkeyPrevTab);
+        UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
+        for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
     private void UnregisterHotkey()
     {
         if (_hwnd == IntPtr.Zero) return;
-        UnregisterHotKey(_hwnd, HotkeyF11);
         UnregisterHotKey(_hwnd, HotkeyPause);
         UnregisterHotKey(_hwnd, HotkeyBreak);
-        UnregisterHotKey(_hwnd, HotkeyNextTab);
-        UnregisterHotKey(_hwnd, HotkeyPrevTab);
-        UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
-        for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
+        UnregisterHotKey(_hwnd, HotkeyFullscreenCustom);
+        UnregisterAuxHotkeys();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -222,7 +247,7 @@ public partial class MainWindow : Window
         if (msg == WmHotkey)
         {
             var id = wParam.ToInt32();
-            if (id == HotkeyF11 || id == HotkeyPause || id == HotkeyBreak)
+            if (id == HotkeyF11 || id == HotkeyPause || id == HotkeyBreak || id == HotkeyFullscreenCustom)
             {
                 ToggleFullscreen();
                 handled = true;
@@ -273,6 +298,8 @@ public partial class MainWindow : Window
                 WindowState = WindowState.Normal; // 一旦戻してから最大化しないと境界が残ることがある
                 WindowState = WindowState.Maximized;
             }
+            // 純正 mstsc 同様、全画面中は Pause/Break 以外のキーをリモートへ流すため補助ホットキーを解除する
+            UnregisterAuxHotkeys();
             _fullscreen = true;
         }
         else
@@ -291,6 +318,7 @@ public partial class MainWindow : Window
             Left = _savedBounds.Left; Top = _savedBounds.Top;
             Width = _savedBounds.Width; Height = _savedBounds.Height;
             WindowState = _savedState;
+            RegisterAuxHotkeys();
             _fullscreen = false;
         }
     }
@@ -773,6 +801,29 @@ public partial class MainWindow : Window
         App.Settings.QuickSwitchKey = dlg.Key;
         App.Settings.Save();
         QuickSwitchMenuItem.InputGestureText = dlg.DisplayText;
+    }
+
+    private void OnSetFullscreenHotkey(object sender, RoutedEventArgs e)
+    {
+        var dlg = new HotkeyCaptureDialog { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+
+        var oldModifiers = App.Settings.FullscreenModifiers;
+        var oldKey = App.Settings.FullscreenKey;
+        if (oldKey != 0) UnregisterHotKey(_hwnd, HotkeyFullscreenCustom);
+        if (!RegisterHotKey(_hwnd, HotkeyFullscreenCustom, dlg.Modifiers, dlg.Key))
+        {
+            // 他アプリと衝突している場合は旧設定に戻す
+            if (oldKey != 0) RegisterHotKey(_hwnd, HotkeyFullscreenCustom, oldModifiers, oldKey);
+            MessageBox.Show(this, "This hotkey is already in use by another application.",
+                "Set Fullscreen Hotkey", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        App.Settings.FullscreenModifiers = dlg.Modifiers;
+        App.Settings.FullscreenKey = dlg.Key;
+        App.Settings.Save();
+        UpdateFullscreenMenuGesture();
     }
 
     private async void OnRefreshStatus(object sender, RoutedEventArgs e) => await Vm.RefreshStatusesAsync();

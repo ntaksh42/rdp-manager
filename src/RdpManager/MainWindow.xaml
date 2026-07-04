@@ -69,7 +69,8 @@
                 <MenuItem Header="Sessions (Dashboard)…" Click="OnSessionDashboard"/>
                 <MenuItem Header="Refresh Host Status" Click="OnRefreshStatus"/>
                 <Separator/>
-                <MenuItem Header="Toggle Full Screen" InputGestureText="F11 / Ctrl+Alt+Pause" Click="OnToggleFullscreenMenu"/>
+                <MenuItem x:Name="FullscreenMenuItem" Header="Toggle Full Screen" InputGestureText="F11 / Ctrl+Alt+Pause" Click="OnToggleFullscreenMenu"/>
+                <MenuItem Header="Set Fullscreen Hotkey…" Click="OnSetFullscreenHotkey"/>
                 <MenuItem x:Name="FullscreenSpanItem" Header="Span All Monitors in Full Screen" IsCheckable="True" Click="OnToggleFullscreenSpan"/>
                 <MenuItem x:Name="PerformanceModeItem" Header="Optimize for Performance" IsCheckable="True" Click="OnTogglePerformanceMode"/>
                 <MenuItem x:Name="DarkModeItem" Header="Dark Mode" IsCheckable="True" Click="OnToggleDarkMode"/>
