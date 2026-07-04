@@ -197,10 +197,20 @@ public sealed class RdpClientHost : AxHost
             AttachFullScreenSinks((object)ocx);
 
             // ── 描画パフォーマンス最適化 ──
+            // mstsc.exe と同等のハードウェア描画パイプライン（DX レンダリング + H.264 ハードウェアデコード）を
+            // 有効化する。ActiveX 埋め込みの既定はソフトウェア GDI 描画で、リサイズ/タブ切替/セッション内描画の
+            // 全てが遅くなる。IMsRdpExtendedSettings のプロパティのため RCW キャストで設定する
+            if ((object)ocx is MSTSCLib.IMsRdpExtendedSettings ext)
+            {
+                object hw = true;
+                TrySet(() => ext.set_Property("EnableHardwareMode", ref hw), "EnableHardwareMode");
+            }
             // 再描画削減（視覚変化なしの純粋な高速化）: 永続ビットマップキャッシュ
             TrySet(() => adv.BitmapPeristence = 1, "BitmapPeristence");  // ※API名のスペルは "Peristence"
             TrySet(() => adv.CachePersistenceActive = 1, "CachePersistenceActive");
-            // 帯域/コーデック自動最適化のヒント（LAN=6）
+            // 帯域変化の自動検出（mstsc の既定）。有効時はサーバー側がコーデック/フレームレートを回線に合わせる。
+            // NetworkConnectionType は自動検出が使えないサーバー向けの初期ヒントとして残す（LAN=6）
+            TrySet(() => adv.BandwidthDetection = true, "BandwidthDetection");
             TrySet(() => adv.NetworkConnectionType = 6u, "NetworkConnectionType");
             if (info.PerformanceMode)
             {
