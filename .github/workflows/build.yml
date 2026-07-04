@@ -1,0 +1,25 @@
+# PR と main への push でビルドを検証する。
+# このプロジェクトは自動テストを持たないため、ビルド(警告 0 の維持)が一次検証。
+# 警告をエラー扱いにして「0 警告」の規約を CI で強制する。
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (warnings as errors)
+        run: dotnet build --no-restore -warnaserror
