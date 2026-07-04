@@ -923,7 +923,11 @@ public partial class MainWindow : Window
         if (!App.Settings.RemoteNotifications) return;
         // 通知元タブを表示中（ウィンドウがフォアグラウンド）のときは出さない
         if (IsActive && tab.Parent is TabControl tc && tc.SelectedItem == tab) return;
-        ToastService.Show((tab.Tag as SessionTag)?.SessionKey, title, n);
+        // 通知元が分かるよう、タブ名にホストを併記する（例: "DevPC1 (192.168.3.4)"）
+        var tag = tab.Tag as SessionTag;
+        var host = tag?.Info?.Host;
+        if (!string.IsNullOrEmpty(host) && host != title) title = $"{title} ({host})";
+        ToastService.Show(tag?.SessionKey, title, n);
     }
 
     /// <summary>トーストクリック: ウィンドウを前面化して通知元セッションへ移動する。</summary>
