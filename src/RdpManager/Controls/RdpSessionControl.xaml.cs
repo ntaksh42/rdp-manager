@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using RdpManager.Models;
 using RdpManager.Services;
 using UserControl = System.Windows.Controls.UserControl;
 

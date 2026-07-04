@@ -1,4 +1,4 @@
-<Window x:Class="RdpManager.ConnectionEditDialog"
+<Window x:Class="RdpManager.Views.ConnectionEditDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Edit Connection" SizeToContent="Height" Width="440"

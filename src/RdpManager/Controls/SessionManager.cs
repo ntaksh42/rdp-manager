@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Shapes;
 using RdpManager.Common;
+using RdpManager.Models;
 using RdpManager.Services;
 using Button = System.Windows.Controls.Button;
 using Cursors = System.Windows.Input.Cursors;

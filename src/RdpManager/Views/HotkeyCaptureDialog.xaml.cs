@@ -4,7 +4,7 @@ using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using WpfKey = System.Windows.Input.Key;
 using ModifierKeys = System.Windows.Input.ModifierKeys;
 
-namespace RdpManager;
+namespace RdpManager.Views;
 
 /// <summary>グローバルホットキーの組み合わせをユーザーに押させてキャプチャする小さなモーダルダイアログ。</summary>
 public partial class HotkeyCaptureDialog : Window

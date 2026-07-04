@@ -1,4 +1,4 @@
-<Window x:Class="RdpManager.TabSwitcherWindow"
+<Window x:Class="RdpManager.Views.TabSwitcherWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Switch Tab"

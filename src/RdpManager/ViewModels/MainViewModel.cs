@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using RdpManager.Common;
+using RdpManager.Models;
 using RdpManager.Services;
 
 namespace RdpManager.ViewModels;

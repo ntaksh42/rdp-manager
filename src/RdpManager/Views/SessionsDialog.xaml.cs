@@ -5,7 +5,7 @@ using Brushes = System.Windows.Media.Brushes;
 using Key = System.Windows.Input.Key;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
-namespace RdpManager;
+namespace RdpManager.Views;
 
 public sealed class SessionEntry
 {

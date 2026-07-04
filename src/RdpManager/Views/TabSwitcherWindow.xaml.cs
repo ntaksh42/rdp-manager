@@ -13,7 +13,7 @@ using ModifierKeys = System.Windows.Input.ModifierKeys;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using TabItem = System.Windows.Controls.TabItem;
 
-namespace RdpManager;
+namespace RdpManager.Views;
 
 /// <summary>Ctrl+Tab タブスイッチャーの一覧表示用エントリ。</summary>
 public sealed class TabSwitchEntry

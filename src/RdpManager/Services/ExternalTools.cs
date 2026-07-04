@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using RdpManager.Common;
+using RdpManager.Models;
 
 namespace RdpManager.Services;
 

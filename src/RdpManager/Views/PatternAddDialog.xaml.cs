@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using RdpManager.Common;
 using MessageBox = System.Windows.MessageBox;
 
-namespace RdpManager;
+namespace RdpManager.Views;
 
 public partial class PatternAddDialog : Window
 {

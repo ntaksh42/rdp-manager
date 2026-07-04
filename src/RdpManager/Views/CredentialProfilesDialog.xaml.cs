@@ -4,7 +4,7 @@ using System.Windows.Controls;
 using RdpManager.ViewModels;
 using MessageBox = System.Windows.MessageBox;
 
-namespace RdpManager;
+namespace RdpManager.Views;
 
 public partial class CredentialProfilesDialog : Window
 {

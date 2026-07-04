@@ -1,4 +1,4 @@
-<Window x:Class="RdpManager.SessionsDialog"
+<Window x:Class="RdpManager.Views.SessionsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Sessions" Height="360" Width="460"
