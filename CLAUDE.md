@@ -21,6 +21,9 @@ Every change should be weighed against these three values (in this order):
 # Build (also the primary verification step — there are no automated tests)
 dotnet build
 
+# Run unit tests (pure-logic classes under tests/RdpManager.Tests)
+dotnet test
+
 # Run
 dotnet run --project src/RdpManager
 
@@ -38,7 +41,7 @@ wix build installer/RdpManager.wxs -bindpath publish-sc -o dist/RdpManager-x.y.z
 ```
 
 - **Always kill any running `RdpManager` process before rebuilding** — the running exe locks the output file and the build fails with MSB3026 (file copy errors), which look like build errors but are not.
-- There is no test framework. Verify changes by: build (0 warnings expected), launch + smoke test, and `--selftest` for the RDP control.
+- Pure-logic classes (`Common/`, `Services/`, `ViewModels/TreeNodeViewModel`) have xUnit tests under `tests/RdpManager.Tests`, run with `dotnet test`. UI/COM code (WPF, the RDP ActiveX embedding, Windows Credential Manager) has no test coverage — verify those by: build (0 warnings expected), launch + smoke test, and `--selftest` for the RDP control.
 - Releasing a version means bumping `<Version>` in `RdpManager.csproj` AND `Version=` in `installer/RdpManager.wxs`, rebuilding the MSI, then `gh release create vX.Y.Z dist/...msi`. Commits use `Closes #N` to auto-close issues.
 
 ## Architecture — the non-obvious parts
