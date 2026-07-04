@@ -34,7 +34,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        Vm.Error += msg => MessageBox.Show(this, msg, "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
+        Vm.Error += msg => MessageBox.Show(this, msg, "rdpmanager", MessageBoxButton.OK, MessageBoxImage.Warning);
         SourceInitialized += OnSourceInitialized;
         Closed += (_, _) => UnregisterHotkey();
         DarkModeItem.IsChecked = App.Settings.DarkMode;
@@ -67,7 +67,7 @@ public partial class MainWindow : Window
     {
         int n = _sessions.SessionCount;
         SessionCountText.Text = $"{n} session(s)";
-        Title = n == 0 ? "RdpManager" : $"RdpManager ({n})";
+        Title = n == 0 ? "rdpmanager" : $"rdpmanager ({n})";
     }
 
     /// <summary>前回終了時のウィンドウ位置・サイズを復元（画面外に出る場合は既定のまま）。</summary>
@@ -125,7 +125,7 @@ public partial class MainWindow : Window
                                      s.VisualState != Controls.SessionVisualState.Disconnected);
         if (active > 0 && MessageBox.Show(this,
                 $"{active} session(s) are still connected.\nExit and disconnect them all?",
-                "Exit RdpManager", MessageBoxButton.OKCancel, MessageBoxImage.Question)
+                "Exit rdpmanager", MessageBoxButton.OKCancel, MessageBoxImage.Question)
             != MessageBoxResult.OK)
         {
             e.Cancel = true;
@@ -423,7 +423,7 @@ public partial class MainWindow : Window
         {
             if (!Services.ProtocolLauncher.Launch(node.Protocol, info.Host, info.Port, info.Username, out var msg)
                 && msg != null)
-                MessageBox.Show(this, msg, "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, msg, "rdpmanager", MessageBoxButton.OK, MessageBoxImage.Warning);
             Vm.RecordRecent(node);
             return;
         }
@@ -715,7 +715,7 @@ public partial class MainWindow : Window
 
     private void OnAbout(object sender, RoutedEventArgs e)
         => MessageBox.Show(this,
-            "RdpManager\nOrganize connections in a tree and display RDP sessions embedded in tabs within this window.\nCredentials are stored encrypted with DPAPI.",
+            "rdpmanager\nOrganize connections in a tree and display RDP sessions embedded in tabs within this window.\nCredentials are stored encrypted with DPAPI.",
             "About", MessageBoxButton.OK, MessageBoxImage.Information);
 
     private void OnManageProfiles(object sender, RoutedEventArgs e)

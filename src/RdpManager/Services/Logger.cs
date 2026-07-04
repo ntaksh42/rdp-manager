@@ -4,7 +4,7 @@ namespace RdpManager.Services;
 
 /// <summary>
 /// 任意 ON のファイルログ。接続失敗や握り潰した例外の原因追跡用。
-/// 既定は無効。AppSettings.EnableLogging で切替。ログは %APPDATA%\RdpManager\logs に追記する。
+/// 既定は無効。AppSettings.EnableLogging で切替。ログは %APPDATA%\rdpmanager\logs に追記する。
 /// </summary>
 public static class Logger
 {

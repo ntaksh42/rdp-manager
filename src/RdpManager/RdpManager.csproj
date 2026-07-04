@@ -8,8 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <Product>RdpManager</Product>
-    <AssemblyTitle>RdpManager</AssemblyTitle>
+    <AssemblyName>rdpmanager</AssemblyName>
+    <Product>rdpmanager</Product>
+    <AssemblyTitle>rdpmanager</AssemblyTitle>
     <Company>ntaksh42</Company>
     <Version>0.3.0</Version>
     <Description>接続先を整理し Windows 標準 mstsc で接続する軽量 RDP マネージャ</Description>

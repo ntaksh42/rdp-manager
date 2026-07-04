@@ -20,7 +20,7 @@ public static class UpdateChecker
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("RdpManager-UpdateCheck");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("rdpmanager-UpdateCheck");
             var json = await http.GetStringAsync(LatestApi);
             using var doc = JsonDocument.Parse(json);
             var tag = doc.RootElement.GetProperty("tag_name").GetString() ?? "";

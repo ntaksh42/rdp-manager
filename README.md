@@ -1,4 +1,4 @@
-# RdpManager
+# rdpmanager
 
 接続先をツリーで整理し、RDP セッションを**ウィンドウ内のタブに埋め込み表示**する軽量な RDP 接続マネージャ（WPF / .NET）。外部 `mstsc.exe` 起動や SSH / Telnet / VNC の外部クライアント起動にも対応。
 
@@ -8,7 +8,7 @@
 
 - 接続ツリー（フォルダ自由ネスト）で接続先を整理
 - 接続・フォルダの追加 / 編集 / 削除（CRUD）
-- 接続定義を JSON で永続化（`%APPDATA%\RdpManager\connections.json`）
+- 接続定義を JSON で永続化（`%APPDATA%\rdpmanager\connections.json`）
 - 資格情報を **DPAPI**（CurrentUser）で暗号化保存（平文保存なし）
 - 資格情報の継承（直接入力 / プロファイル / 親フォルダから継承）
 - インクリメンタル検索
@@ -23,7 +23,7 @@
 
 ## インストール
 
-[Releases](../../releases) から `RdpManager-x.y.z.msi` をダウンロードして実行してください。スタートメニューに「RdpManager」が登録されます。
+[Releases](../../releases) から `rdpmanager-x.y.z.msi` をダウンロードして実行してください。スタートメニューに「rdpmanager」が登録されます。
 
 ## ソースからのビルド
 
@@ -67,7 +67,7 @@ dotnet run --project src/RdpManager
 MSI は既定では未署名のため SmartScreen 警告が出ます。コードサイニング証明書（.pfx）をお持ちの場合は以下で署名できます（証明書が必要、自己署名では警告は消えません）。
 
 ```powershell
-installer\sign.ps1 -Msi dist\RdpManager-x.y.z.msi -Pfx <cert.pfx> -Password <pfxパスワード>
+installer\sign.ps1 -Msi dist\rdpmanager-x.y.z.msi -Pfx <cert.pfx> -Password <pfxパスワード>
 ```
 
 ## セキュリティ上の注記
