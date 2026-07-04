@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository (read by Claude Code vi
 
 ## What this is
 
-RdpManager is a Windows WPF desktop app (.NET 10) that organizes RDP connections in a tree and displays each remote session **embedded as a tab inside the app window** (RDCMan-style). It also launches SSH/Telnet/VNC via external clients. Single developer project, distributed as an MSI via GitHub Releases.
+rdpmanager is a Windows WPF desktop app (.NET 10) that organizes RDP connections in a tree and displays each remote session **embedded as a tab inside the app window** (RDCMan-style). It also launches SSH/Telnet/VNC via external clients. Single developer project, distributed as an MSI via GitHub Releases.
 
 UI text is **English**. Code comments are **Japanese** — keep both conventions when editing.
 
@@ -29,7 +29,7 @@ dotnet run --project src/RdpManager
 
 # Headless self-test of the RDP ActiveX embedding (no GUI interaction needed).
 # Writes result to %TEMP%\rdpmanager_selftest.txt and exits.
-src/RdpManager/bin/Debug/net10.0-windows/RdpManager.exe --selftest
+src/RdpManager/bin/Debug/net10.0-windows/rdpmanager.exe --selftest
 
 # Publish self-contained single-file exe (MSI payload)
 dotnet publish src/RdpManager/RdpManager.csproj -c Release -r win-x64 `
@@ -37,10 +37,10 @@ dotnet publish src/RdpManager/RdpManager.csproj -c Release -r win-x64 `
 
 # Build the MSI (requires WiX 5 — NOT 7, which needs a paid OSMF EULA)
 dotnet tool install --global wix --version 5.0.2   # one-time
-wix build installer/RdpManager.wxs -bindpath publish-sc -o dist/RdpManager-x.y.z.msi
+wix build installer/RdpManager.wxs -bindpath publish-sc -o dist/rdpmanager-x.y.z.msi
 ```
 
-- **Always kill any running `RdpManager` process before rebuilding** — the running exe locks the output file and the build fails with MSB3026 (file copy errors), which look like build errors but are not.
+- **Always kill any running `rdpmanager` process before rebuilding** — the running exe locks the output file and the build fails with MSB3026 (file copy errors), which look like build errors but are not.
 - Pure-logic classes (`Common/`, `Services/`, `ViewModels/TreeNodeViewModel`) have xUnit tests under `tests/RdpManager.Tests`, run with `dotnet test`. UI/COM code (WPF, the RDP ActiveX embedding, Windows Credential Manager) has no test coverage — verify those by: build (0 warnings expected), launch + smoke test, and `--selftest` for the RDP control.
 - Releasing a version means bumping `<Version>` in `RdpManager.csproj` AND `Version=` in `installer/RdpManager.wxs`, rebuilding the MSI, then `gh release create vX.Y.Z dist/...msi`. Commits use `Closes #N` to auto-close issues.
 
@@ -75,7 +75,7 @@ Light/dark is implemented by swapping frozen brushes in `Application.Current.Res
 - `Protocol == "RDP"` → embedded tab. Otherwise → `ProtocolLauncher` (external SSH/Telnet/VNC). `RdpLauncher` is the external-mstsc fallback; it injects credentials via Win32 `CredWrite` (NOT cmdkey command line) so passwords never hit a command line.
 
 ### Persistence (Services/)
-- `connections.json` (`%APPDATA%\RdpManager`): tree + credential profiles. `MainViewModel` maps between the UI `TreeNodeViewModel` and the serializable `NodeDto`. On parse failure the file is backed up to `.bak` before reseeding (avoids silent data loss).
+- `connections.json` (`%APPDATA%\rdpmanager`): tree + credential profiles. `MainViewModel` maps between the UI `TreeNodeViewModel` and the serializable `NodeDto`. On parse failure the file is backed up to `.bak` before reseeding (avoids silent data loss).
 - `appsettings.json`: theme, restore-on-startup, recent IDs, fullscreen-span, last window placement (restored with an on-screen check for changed monitor setups).
 - Passwords are **DPAPI-encrypted (CurrentUser)** in JSON via `CredentialProtector`; plaintext lives only in memory. DPAPI ciphertext is non-portable across user/machine by design.
 

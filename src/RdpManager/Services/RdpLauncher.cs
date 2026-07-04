@@ -85,7 +85,7 @@ public static class RdpLauncher
             sb.AppendLine("gatewayprofileusagemethod:i:1");
         }
 
-        var dir = Path.Combine(Path.GetTempPath(), "RdpManager");
+        var dir = Path.Combine(Path.GetTempPath(), "rdpmanager");
         System.IO.Directory.CreateDirectory(dir);
         var safe = string.Concat(info.Host.Split(Path.GetInvalidFileNameChars()));
         var path = Path.Combine(dir, $"{safe}.rdp");

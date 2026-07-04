@@ -29,9 +29,9 @@ public static class RemoteNotifyScript
     private const string Script =
 """
 <#
-RdpManager remote notification sender.
+rdpmanager remote notification sender.
 
-Sends a notification to the RdpManager client over the RDP static virtual
+Sends a notification to the rdpmanager client over the RDP static virtual
 channel "CCNOTIF". Does nothing (exit 0) outside an RDP session or when the
 RDP client did not register the channel, so it is always safe to call.
 
@@ -74,7 +74,7 @@ if ($payload.Length -gt 1500) {
 }
 
 $handle = [RdpNotify.Wts]::WTSVirtualChannelOpen([IntPtr]::Zero, -1, "CCNOTIF")
-if ($handle -eq [IntPtr]::Zero) { exit 0 }  # channel not registered by the client (not RdpManager)
+if ($handle -eq [IntPtr]::Zero) { exit 0 }  # channel not registered by the client (not rdpmanager)
 try {
     $bytes = [System.Text.Encoding]::ASCII.GetBytes($payload)
     $written = 0

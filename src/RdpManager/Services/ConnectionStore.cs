@@ -14,7 +14,7 @@ public sealed class StoreDocument
     public List<CredentialProfileDto> CredentialProfiles { get; set; } = new();
 }
 
-/// <summary>connections.json の読み書き（%APPDATA%\RdpManager）。</summary>
+/// <summary>connections.json の読み書き（%APPDATA%\rdpmanager）。</summary>
 public static class ConnectionStore
 {
     private static readonly JsonSerializerOptions Options = new()
@@ -25,7 +25,7 @@ public static class ConnectionStore
     };
 
     public static string Directory =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RdpManager");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "rdpmanager");
 
     public static string FilePath => Path.Combine(Directory, "connections.json");
 

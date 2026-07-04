@@ -31,7 +31,7 @@ public partial class App : Application
 
         Settings = AppSettings.Load();
         Logger.Enabled = Settings.EnableLogging;
-        Logger.Info("RdpManager started.");
+        Logger.Info("rdpmanager started.");
         ThemeManager.Apply(Settings.DarkMode);
 
         new MainWindow().Show();
@@ -78,7 +78,7 @@ public partial class App : Application
             _lastErrorShown = now;
             MessageBox.Show(
                 "An unexpected error occurred, but the app will continue.\n\n" + e.Exception.Message,
-                "RdpManager", MessageBoxButton.OK, MessageBoxImage.Warning);
+                "rdpmanager", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         e.Handled = true;
     }

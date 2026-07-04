@@ -4,7 +4,7 @@
 # またはエンタープライズ CA から発行してください。自己署名証明書では SmartScreen 警告は消えません。
 #
 # 使い方:
-#   .\sign.ps1 -Msi ..\dist\RdpManager-x.y.z.msi -Pfx C:\path\to\cert.pfx -Password <pfxパスワード>
+#   .\sign.ps1 -Msi ..\dist\rdpmanager-x.y.z.msi -Pfx C:\path\to\cert.pfx -Password <pfxパスワード>
 #
 param(
     [Parameter(Mandatory = $true)][string]$Msi,
