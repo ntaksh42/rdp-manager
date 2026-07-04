@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 using RdpManager.Services;
@@ -10,6 +12,30 @@ namespace RdpManager;
 public partial class App : Application
 {
     public static AppSettings Settings { get; private set; } = new();
+
+    // ── 単一インスタンス化 ──
+    // 2つ目のインスタンスは RegisterHotKey が全て失敗して F11 等が無言で効かなくなるため、
+    // 既存インスタンスのウィンドウをアクティブ化して自分は終了する
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
+    private const int SwRestore = 9;
+
+    private static System.Threading.Mutex? _singleInstanceMutex;
+
+    private static void ActivateExistingInstance()
+    {
+        using var current = Process.GetCurrentProcess();
+        foreach (var p in Process.GetProcessesByName(current.ProcessName))
+        {
+            if (p.Id != current.Id && p.MainWindowHandle != IntPtr.Zero)
+            {
+                if (IsIconic(p.MainWindowHandle)) ShowWindowAsync(p.MainWindowHandle, SwRestore);
+                SetForegroundWindow(p.MainWindowHandle);
+                break;
+            }
+        }
+    }
 
     private static readonly string SelfTestLog =
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rdpmanager_selftest.txt");
@@ -26,6 +52,14 @@ public partial class App : Application
         {
             _selfTest = true;
             RunSelfTest();
+            return;
+        }
+
+        _singleInstanceMutex = new System.Threading.Mutex(true, @"Local\rdpmanager-single-instance", out var isFirstInstance);
+        if (!isFirstInstance)
+        {
+            ActivateExistingInstance();
+            Shutdown();
             return;
         }
 

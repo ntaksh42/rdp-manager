@@ -32,6 +32,8 @@ public partial class RdpSessionControl : UserControl
     /// <summary>このセッションがキーボードフォーカスを得たとき（アクティブペイン追跡用。SelectionChanged だけでは
     /// 選択中タブの再クリックや RDP 画面内クリックでのペイン移動を検知できないため補完する）。</summary>
     public event EventHandler? SessionFocused;
+    /// <summary>セッション内のキー操作（Ctrl+Alt+Break 等）による全画面切替要求（true=全画面化）。</summary>
+    public event Action<bool>? FullScreenRequested;
     public SessionVisualState VisualState { get; private set; } = SessionVisualState.Connecting;
 
     public RdpSessionControl()
@@ -39,6 +41,7 @@ public partial class RdpSessionControl : UserControl
         InitializeComponent();
         Host.Child = _client;
         _client.NotificationDataReceived += OnNotificationData;
+        _client.FullScreenRequested += on => FullScreenRequested?.Invoke(on);
         _client.Enter += (_, _) => SessionFocused?.Invoke(this, EventArgs.Empty);
         _poll.Tick += OnPoll;
         // ウィンドウ/タブのサイズ変更に追従（連続変更はデバウンス）
@@ -158,6 +161,9 @@ public partial class RdpSessionControl : UserControl
         _autoRetries = 0;
         Start(_info);
     }
+
+    /// <summary>アプリの全画面状態をコントロールへ反映する（全画面時のみ Win キー組み合わせをリモートへ送るため）。</summary>
+    public void SyncFullScreenState(bool fullscreen) => _client.SetContainerFullScreen(fullscreen);
 
     /// <summary>埋め込み RDP コントロールへキーボードフォーカスを移す。</summary>
     public void FocusSession()

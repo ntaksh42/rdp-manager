@@ -34,12 +34,20 @@ public sealed class RdpClientHost : AxHost
     // 型付きイベントインターフェイス（AxMSTSCLib）を生成しない方針のため、DISPID 直指定でシンクする。
     private static readonly Guid EventsInterfaceId = new("336D5562-EFA8-482E-8CB3-C5C0FC7A7DB6");
     private const int DispidOnChannelReceivedData = 7;
+    // コンテナ処理全画面（ContainerHandledFullScreen）の切替要求イベント
+    private const int DispidOnRequestGoFullScreen = 8;
+    private const int DispidOnRequestLeaveFullScreen = 9;
 
     private delegate void ChannelReceivedDataHandler(string chanName, string data);
     private ChannelReceivedDataHandler? _channelSink; // 接続ポイント登録済みデリゲートの GC 防止も兼ねる
+    private Action? _goFullScreenSink;
+    private Action? _leaveFullScreenSink;
 
     /// <summary>通知チャネル(CCNOTIF)のデータ受信（コントロールの UI スレッドで発火）。</summary>
     public event Action<string>? NotificationDataReceived;
+
+    /// <summary>セッション内のキー操作（Ctrl+Alt+Break / HotKeyFullScreen）による全画面切替要求。true=全画面化。</summary>
+    public event Action<bool>? FullScreenRequested;
 
     private static string? _resolvedClsid;
     private dynamic? _ocx;
@@ -156,15 +164,31 @@ public sealed class RdpClientHost : AxHost
             // サーバー証明書の検証レベル（既定 2 = 不一致で接続不可）。
             TrySet(() => adv.AuthenticationLevel = (uint)info.AuthenticationLevel, "AuthenticationLevel");
             TrySet(() => adv.DisplayConnectionBar = false, "DisplayConnectionBar");
-            if (info.UseMultimon) TrySet(() => adv.UseMultimon = true, "UseMultimon");
-            // Windows キー組み合わせ(Alt+Tab, Win, Ctrl+Alt+End 等)を常にリモートへ送る。
-            // KeyboardHookMode は SecuredSettings 側のプロパティ（既定は「コントロール全画面時のみ」）。
-            TrySet(() => ocx.SecuredSettings.KeyboardHookMode = 1, "SecuredSettings.KeyboardHookMode");
-            TrySet(() => ocx.SecuredSettings3.KeyboardHookMode = 1, "SecuredSettings3.KeyboardHookMode");
+            // DisableConnectionBar / UseMultimon は IMsRdpClientNonScriptable5 のプロパティで
+            // dispinterface に載っておらず dynamic では届かないため、RCW キャストで設定する。
+            // 新しい mstscax の全画面接続バーは DisplayConnectionBar=false だけでは消えない
+            if ((object)ocx is MSTSCLib.IMsRdpClientNonScriptable5 ns)
+            {
+                TrySet(() => ns.DisableConnectionBar = true, "DisableConnectionBar");
+                if (info.UseMultimon) TrySet(() => ns.UseMultimon = true, "UseMultimon");
+            }
+            // Windows キー組み合わせ(Alt+Tab, Win 等)は純正 mstsc の既定と同じく「全画面時のみ」リモートへ送る (mode 2)。
+            // 本アプリの全画面はアプリウィンドウ全画面のため、ContainerHandledFullScreen を有効にした上で
+            // SetContainerFullScreen() により FullScreen プロパティをアプリの全画面トグルと同期させて成立させる。
+            // KeyboardHookMode は SecuredSettings 側のプロパティで切断状態でのみ設定可。
+            TrySet(() => adv.ContainerHandledFullScreen = 1, "ContainerHandledFullScreen");
+            TrySet(() => ocx.SecuredSettings.KeyboardHookMode = 2, "SecuredSettings.KeyboardHookMode");
+            TrySet(() => ocx.SecuredSettings3.KeyboardHookMode = 2, "SecuredSettings3.KeyboardHookMode");
+            // 全画面中はコントロールの低レベルキーフックが RegisterHotKey より先に全キーを奪うため、
+            // 解除はコントロール内蔵トグルキー Ctrl+Alt+<HotKeyFullScreen>（既定 Break）→ FullScreenRequested 経由でしか効かない。
+            // カスタム全画面キーが Ctrl+Alt+<key> ならコントロールにも同じキーを教える
+            if (App.Settings.FullscreenKey != 0 && App.Settings.FullscreenModifiers == 3)
+                TrySet(() => adv.HotKeyFullScreen = (int)App.Settings.FullscreenKey, "HotKeyFullScreen");
 
             // リモート通知用の仮想チャネル登録（切断状態でのみ有効）と受信イベントのシンク
             TrySet(() => ocx.CreateVirtualChannels(NotifyChannelName), "CreateVirtualChannels");
             AttachChannelSink((object)ocx);
+            AttachFullScreenSinks((object)ocx);
 
             // ── 描画パフォーマンス最適化 ──
             // 再描画削減（視覚変化なしの純粋な高速化）: 永続ビットマップキャッシュ
@@ -255,6 +279,47 @@ public sealed class RdpClientHost : AxHost
         {
             // 動的解像度に非対応 → スマートサイジングで追従（拡縮表示）
             TrySet(() => { if (_ocx is { } o) o.AdvancedSettings9.SmartSizing = true; }, "SmartSizing(fallback)");
+        }
+    }
+
+    /// <summary>
+    /// 全画面切替要求イベント（DISPID 8/9）をシンクする。ContainerHandledFullScreen 有効時、
+    /// セッション内でトグルキーが押されるとコントロールは自前処理せずこのイベントで要求してくる。
+    /// </summary>
+    private void AttachFullScreenSinks(object ocx)
+    {
+        if (_goFullScreenSink != null) return;
+        try
+        {
+            _goFullScreenSink = () => FullScreenRequested?.Invoke(true);
+            _leaveFullScreenSink = () => FullScreenRequested?.Invoke(false);
+            ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnRequestGoFullScreen, _goFullScreenSink);
+            ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnRequestLeaveFullScreen, _leaveFullScreenSink);
+        }
+        catch (Exception ex)
+        {
+            _goFullScreenSink = null;
+            _leaveFullScreenSink = null;
+            Logger.Warn($"FullScreen request sink could not be attached: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// アプリウィンドウの全画面状態をコントロールへ通知する。
+    /// ContainerHandledFullScreen 有効時は FullScreen を設定しても画面遷移はコンテナ（本アプリ）任せのまま、
+    /// コントロール内部の全画面フラグだけが切り替わり、KeyboardHookMode=2 のキーフックが全画面時のみ有効になる。
+    /// FullScreen は接続中のみ設定可のランタイムプロパティ。
+    /// </summary>
+    public void SetContainerFullScreen(bool fullscreen)
+    {
+        try
+        {
+            if (_ocx is { } o && (int)o.Connected == 1 && (bool)o.FullScreen != fullscreen)
+                o.FullScreen = fullscreen;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"FullScreen state sync failed: {ex.Message}");
         }
     }
 
