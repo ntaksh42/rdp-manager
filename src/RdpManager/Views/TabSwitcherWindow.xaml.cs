@@ -47,7 +47,7 @@ public partial class TabSwitcherWindow : Window
 
     private static TabSwitchEntry BuildEntry(TabItem tab)
     {
-        Brush color = tab.Content is RdpSessionControl s
+        Brush color = SessionManager.SessionOf(tab) is { } s
             ? s.VisualState switch
             {
                 SessionVisualState.Connected => Brushes.LimeGreen,

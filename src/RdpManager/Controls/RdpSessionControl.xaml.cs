@@ -10,7 +10,8 @@ public enum SessionVisualState { Connecting, Connected, Disconnected, Reconnecti
 
 /// <summary>
 /// 1 セッション分のタブ内容。WindowsFormsHost に RDP コントロールを載せ、
-/// 接続状態をポーリングしてオーバーレイ表示を切り替える。
+/// 接続状態の変化（OnConnected/OnDisconnected イベント＋安全網のポーリング）で
+/// オーバーレイ表示を切り替える。
 /// </summary>
 public partial class RdpSessionControl : UserControl
 {
@@ -18,7 +19,7 @@ public partial class RdpSessionControl : UserControl
 
     private readonly RdpClientHost _client = new();
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromMilliseconds(700) };
-    private readonly DispatcherTimer _resizeDebounce = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    private readonly DispatcherTimer _resizeThrottle = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private readonly DispatcherTimer _reconnect = new() { Interval = TimeSpan.FromSeconds(5) };
     private LaunchInfo? _info;
     private RdpConnectionState? _prevState;
@@ -44,9 +45,13 @@ public partial class RdpSessionControl : UserControl
         _client.FullScreenRequested += on => FullScreenRequested?.Invoke(on);
         _client.Enter += (_, _) => SessionFocused?.Invoke(this, EventArgs.Empty);
         _poll.Tick += OnPoll;
-        // ウィンドウ/タブのサイズ変更に追従（連続変更はデバウンス）
-        _resizeDebounce.Tick += (_, _) => { _resizeDebounce.Stop(); ApplyResize(); };
-        SizeChanged += (_, _) => { _resizeDebounce.Stop(); _resizeDebounce.Start(); };
+        // 接続確立/切断は COM イベントで即時反映する（ポーリングは検知漏れ時の安全網）。
+        // イベント処理中の OCX への再入を避けるため BeginInvoke で一拍置く
+        _client.ConnectionStateChanged += () => Dispatcher.BeginInvoke(new Action(() => OnPoll(null, EventArgs.Empty)));
+        // ウィンドウ/タブのサイズ変更に追従。mstsc.exe と同様、ドラッグ中も一定間隔（400ms）で
+        // リモート解像度を随時更新するスロットル方式（最終サイズは WM_EXITSIZEMOVE 等の即時適用が拾う）
+        _resizeThrottle.Tick += (_, _) => { _resizeThrottle.Stop(); ApplyResize(); };
+        SizeChanged += (_, _) => { if (!_resizeThrottle.IsEnabled) _resizeThrottle.Start(); };
         // 自動再接続（一度きりの遅延実行）
         _reconnect.Tick += (_, _) => { _reconnect.Stop(); _reconnectScheduled = false; _autoRetries++; BeginConnect(); };
         // タブ切替で Unloaded しても切断しない（明示的に閉じた時のみ Cleanup）
@@ -57,6 +62,14 @@ public partial class RdpSessionControl : UserControl
     {
         if (_client.ConnectionState == RdpConnectionState.Connected && _client.Width > 0 && _client.Height > 0)
             _client.ResizeRemote(_client.Width, _client.Height);
+    }
+
+    /// <summary>サイズが確定したタイミング（ドラッグ終了・全画面切替・スプリッター確定）で
+    /// デバウンスを待たずにリモート解像度を即時反映する。</summary>
+    public void ApplyResizeNow()
+    {
+        _resizeThrottle.Stop();
+        ApplyResize();
     }
 
     /// <summary>
@@ -176,7 +189,7 @@ public partial class RdpSessionControl : UserControl
         _reconnect.Stop();
         _reconnectScheduled = false;
         _poll.Stop();
-        _resizeDebounce.Stop();
+        _resizeThrottle.Stop();
         _client.DisconnectSession();
     }
 }

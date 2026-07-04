@@ -244,11 +244,27 @@
                         <ColumnDefinition x:Name="RightSplitterCol" Width="0"/>
                         <ColumnDefinition x:Name="RightCol" Width="0"/>
                     </Grid.ColumnDefinitions>
-                    <TabControl x:Name="SessionTabs" Grid.Column="0"/>
+                    <!-- TabControl はタブストリップ専用（Content は使わない）。セッション本体は下の
+                         ホスト Grid に常駐させ Visibility で切り替える（切替時の HWND 再作成を避ける） -->
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TabControl x:Name="SessionTabs"/>
+                        <Grid x:Name="SessionHost" Grid.Row="1"/>
+                    </Grid>
                     <GridSplitter x:Name="RightSplitter" Grid.Column="1" Width="4"
                                   HorizontalAlignment="Center" VerticalAlignment="Stretch"
                                   Background="{DynamicResource SplitterBg}" Visibility="Collapsed"/>
-                    <TabControl x:Name="SessionTabsRight" Grid.Column="2"/>
+                    <Grid Grid.Column="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TabControl x:Name="SessionTabsRight"/>
+                        <Grid x:Name="SessionHostRight" Grid.Row="1"/>
+                    </Grid>
                     <TextBlock x:Name="EmptyHint" Grid.Column="0"
                                Text="Double-click a connection in the tree to open it here.&#x0a;(Right-click &#8594; Open in Right Pane for split view)"
                                Foreground="{DynamicResource SubtleFg}" FontSize="14" TextAlignment="Center"

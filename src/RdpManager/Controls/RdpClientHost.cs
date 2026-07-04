@@ -33,21 +33,30 @@ public sealed class RdpClientHost : AxHost
     // IMsTscAxEvents（イベント dispinterface）の DIID と OnChannelReceivedData の DISPID。
     // 型付きイベントインターフェイス（AxMSTSCLib）を生成しない方針のため、DISPID 直指定でシンクする。
     private static readonly Guid EventsInterfaceId = new("336D5562-EFA8-482E-8CB3-C5C0FC7A7DB6");
+    private const int DispidOnConnected = 2;
+    private const int DispidOnDisconnected = 4;
     private const int DispidOnChannelReceivedData = 7;
     // コンテナ処理全画面（ContainerHandledFullScreen）の切替要求イベント
     private const int DispidOnRequestGoFullScreen = 8;
     private const int DispidOnRequestLeaveFullScreen = 9;
 
     private delegate void ChannelReceivedDataHandler(string chanName, string data);
+    private delegate void DisconnectedHandler(int discReason);
     private ChannelReceivedDataHandler? _channelSink; // 接続ポイント登録済みデリゲートの GC 防止も兼ねる
     private Action? _goFullScreenSink;
     private Action? _leaveFullScreenSink;
+    private Action? _connectedSink;
+    private DisconnectedHandler? _disconnectedSink;
 
     /// <summary>通知チャネル(CCNOTIF)のデータ受信（コントロールの UI スレッドで発火）。</summary>
     public event Action<string>? NotificationDataReceived;
 
     /// <summary>セッション内のキー操作（Ctrl+Alt+Break / HotKeyFullScreen）による全画面切替要求。true=全画面化。</summary>
     public event Action<bool>? FullScreenRequested;
+
+    /// <summary>接続確立/切断の即時通知（OnConnected/OnDisconnected）。
+    /// ポーリング間隔を待たずにオーバーレイと解像度を更新するためのヒント。</summary>
+    public event Action? ConnectionStateChanged;
 
     private static string? _resolvedClsid;
     private dynamic? _ocx;
@@ -111,7 +120,10 @@ public sealed class RdpClientHost : AxHost
     /// <summary>ハンドルを確実に生成して OCX(dynamic) を返す。</summary>
     private dynamic GetClient()
     {
+        // CreateControl() は非表示中（Visibility.Hidden の背面タブ等）は何もしないため、
+        // その場合は Handle 参照で強制的にハンドルを生成する
         if (!IsHandleCreated) CreateControl();
+        if (!IsHandleCreated) _ = Handle;
         return _ocx ??= GetOcx()!;
     }
 
@@ -157,7 +169,10 @@ public sealed class RdpClientHost : AxHost
             dynamic adv = ocx.AdvancedSettings9;
             if (info.Port != 3389) TrySet(() => adv.RDPPort = info.Port, "RDPPort");
             if (!string.IsNullOrEmpty(info.Password)) TrySet(() => adv.ClearTextPassword = info.Password, "ClearTextPassword");
-            TrySet(() => adv.SmartSizing = info.SmartSizing, "SmartSizing");
+            // 動的解像度が反映されるまでの中間フレームを引き伸ばし表示にするため常時有効。
+            // 定常状態では解像度がビューと一致するため見た目の差はなく、
+            // 動的解像度非対応サーバーでは従来から ResizeRemote のフォールバックで有効化される
+            TrySet(() => adv.SmartSizing = true, "SmartSizing");
             TrySet(() => adv.RedirectDrives = info.RedirectDrives, "RedirectDrives");
             TrySet(() => adv.RedirectClipboard = info.RedirectClipboard, "RedirectClipboard");
             TrySet(() => adv.EnableCredSspSupport = true, "EnableCredSspSupport");
@@ -189,12 +204,29 @@ public sealed class RdpClientHost : AxHost
             TrySet(() => ocx.CreateVirtualChannels(NotifyChannelName), "CreateVirtualChannels");
             AttachChannelSink((object)ocx);
             AttachFullScreenSinks((object)ocx);
+            AttachStateSinks((object)ocx);
 
             // ── 描画パフォーマンス最適化 ──
+            // mstsc.exe と同等のハードウェア描画パイプライン（DX レンダリング + H.264 ハードウェアデコード）を
+            // 有効化する。ActiveX 埋め込みの既定はソフトウェア GDI 描画で、リサイズ/タブ切替/セッション内描画の
+            // 全てが遅くなる。IMsRdpExtendedSettings のプロパティのため RCW キャストで設定する
+            if ((object)ocx is MSTSCLib.IMsRdpExtendedSettings ext)
+            {
+                object hw = true;
+                TrySet(() => ext.set_Property("EnableHardwareMode", ref hw), "EnableHardwareMode");
+                // 初期スケールを DPI に合わせて渡す。渡さないと 100% で接続 → 直後の ApplyResize で
+                // スケール送信 → サーバー側の再レイアウトが一度必ず走ってしまう
+                var (desktopScale, deviceScale) = GetScaleFactors();
+                object ds = desktopScale, dv = deviceScale;
+                TrySet(() => ext.set_Property("DesktopScaleFactor", ref ds), "DesktopScaleFactor");
+                TrySet(() => ext.set_Property("DeviceScaleFactor", ref dv), "DeviceScaleFactor");
+            }
             // 再描画削減（視覚変化なしの純粋な高速化）: 永続ビットマップキャッシュ
             TrySet(() => adv.BitmapPeristence = 1, "BitmapPeristence");  // ※API名のスペルは "Peristence"
             TrySet(() => adv.CachePersistenceActive = 1, "CachePersistenceActive");
-            // 帯域/コーデック自動最適化のヒント（LAN=6）
+            // 帯域変化の自動検出（mstsc の既定）。有効時はサーバー側がコーデック/フレームレートを回線に合わせる。
+            // NetworkConnectionType は自動検出が使えないサーバー向けの初期ヒントとして残す（LAN=6）
+            TrySet(() => adv.BandwidthDetection = true, "BandwidthDetection");
             TrySet(() => adv.NetworkConnectionType = 6u, "NetworkConnectionType");
             if (info.PerformanceMode)
             {
@@ -211,6 +243,7 @@ public sealed class RdpClientHost : AxHost
                 TrySet(() => ts.GatewayHostname = info.Gateway!, "GatewayHostname");
             }
 
+            _lastRemoteW = _lastRemoteH = 0; // 新しい接続の初期解像度は DesktopWidth/Height で決まるため再送抑止をリセット
             ocx.Connect();
             LastError = null;
             Logger.Info($"RDP connect initiated: {info.Host}:{info.Port}");
@@ -264,6 +297,8 @@ public sealed class RdpClientHost : AxHost
     /// 接続中セッションのリモート解像度を指定サイズに合わせる（動的解像度, RDP 8.1+）。
     /// 非対応サーバーでは例外になるため、その場合は SmartSizing による拡縮にフォールバック。
     /// </summary>
+    private uint _lastRemoteW, _lastRemoteH;
+
     public void ResizeRemote(int width, int height)
     {
         try
@@ -272,13 +307,39 @@ public sealed class RdpClientHost : AxHost
             if (o is null || (int)o.Connected != 1) return;
             uint w = (uint)Math.Clamp(width & ~1, 200, 8192);   // 偶数・範囲内
             uint h = (uint)Math.Clamp(height & ~1, 200, 8192);
+            // 同一サイズの再送はサーバー側の再レイアウトを無駄に起こすためスキップ
+            // （ウィンドウ移動だけの WM_EXITSIZEMOVE や、即時適用後のデバウンス発火で通る）
+            if (w == _lastRemoteW && h == _lastRemoteH) return;
             var (desktopScale, deviceScale) = GetScaleFactors();
             o.UpdateSessionDisplaySettings(w, h, w, h, 0u, desktopScale, deviceScale);
+            _lastRemoteW = w; _lastRemoteH = h;
         }
         catch
         {
             // 動的解像度に非対応 → スマートサイジングで追従（拡縮表示）
             TrySet(() => { if (_ocx is { } o) o.AdvancedSettings9.SmartSizing = true; }, "SmartSizing(fallback)");
+        }
+    }
+
+    /// <summary>
+    /// 接続確立/切断イベント（DISPID 2/4）をシンクする。状態遷移をポーリング間隔（700ms）を
+    /// 待たずに反映するためのもので、状態自体は従来どおり ConnectionState で読む。
+    /// </summary>
+    private void AttachStateSinks(object ocx)
+    {
+        if (_connectedSink != null) return;
+        try
+        {
+            _connectedSink = () => ConnectionStateChanged?.Invoke();
+            _disconnectedSink = _ => ConnectionStateChanged?.Invoke();
+            ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnConnected, _connectedSink);
+            ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnDisconnected, _disconnectedSink);
+        }
+        catch (Exception ex)
+        {
+            _connectedSink = null;
+            _disconnectedSink = null;
+            Logger.Warn($"Connection state sink could not be attached: {ex.Message}");
         }
     }
 

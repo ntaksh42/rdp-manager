@@ -16,23 +16,30 @@ using TabItem = System.Windows.Controls.TabItem;
 using TextBlock = System.Windows.Controls.TextBlock;
 using StackPanel = System.Windows.Controls.StackPanel;
 using ColumnDefinition = System.Windows.Controls.ColumnDefinition;
+using Grid = System.Windows.Controls.Grid;
 using GridSplitter = System.Windows.Controls.GridSplitter;
 using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 
 namespace RdpManager.Controls;
 
-/// <summary>タブ Tag に持たせる、セッション復元・後処理用の付随情報。SessionKey はトースト活性化用の一意キー。</summary>
-public sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info, string SessionKey);
+/// <summary>タブ Tag に持たせる、セッション復元・後処理用の付随情報。SessionKey はトースト活性化用の一意キー。
+/// Session は常駐ホスト方式のため TabItem.Content ではなくここで持つ。</summary>
+public sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info, string SessionKey, RdpSessionControl Session);
 
 /// <summary>
 /// 左右2ペインの RDP セッションタブのライフサイクル（生成/クローズ/巡回/分割表示）を担う。
 /// MVVM 非適用は意図的（埋め込み ActiveX をデータテンプレート化すると接続が切れるため）。
+/// セッション本体は TabItem.Content ではなく各ペインのホスト Grid に常駐させ、タブ切替は
+/// Visibility の切替だけで行う（Content 方式は切替ごとに Unloaded/Loaded でホスト HWND の
+/// 破棄・再作成と全面再描画が走り遅いため）。
 /// MainWindow から責務を分離するためのコードビハインド側ヘルパー。
 /// </summary>
 public sealed class SessionManager
 {
     private readonly TabControl _left;
     private readonly TabControl _right;
+    private readonly Grid _leftHost;
+    private readonly Grid _rightHost;
     private readonly TextBlock _emptyHint;
     private readonly ColumnDefinition _rightCol;
     private readonly ColumnDefinition _rightSplitterCol;
@@ -50,11 +57,13 @@ public sealed class SessionManager
     /// <summary>セッション内のキー操作（Ctrl+Alt+Break / カスタムキー）による全画面切替要求（true=全画面化）。</summary>
     public event Action<bool>? FullscreenChangeRequested;
 
-    public SessionManager(TabControl left, TabControl right, TextBlock emptyHint,
+    public SessionManager(TabControl left, TabControl right, Grid leftHost, Grid rightHost, TextBlock emptyHint,
         ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
     {
         _left = left;
         _right = right;
+        _leftHost = leftHost;
+        _rightHost = rightHost;
         _emptyHint = emptyHint;
         _rightCol = rightCol;
         _rightSplitterCol = rightSplitterCol;
@@ -62,9 +71,23 @@ public sealed class SessionManager
         _activePane = left;
 
         // SelectionChanged はネストしたコントロールからバブリングすることもあるため、
-        // ペイン自身が発火元のときだけ MRU を更新する
-        _left.SelectionChanged += (_, e) => { if (e.Source == _left) TrackMruSelection(_left); };
-        _right.SelectionChanged += (_, e) => { if (e.Source == _right) TrackMruSelection(_right); };
+        // ペイン自身が発火元のときだけ MRU・表示セッションを更新する
+        _left.SelectionChanged += (_, e) => { if (e.Source == _left) { TrackMruSelection(_left); SyncSessionVisibility(_left); } };
+        _right.SelectionChanged += (_, e) => { if (e.Source == _right) { TrackMruSelection(_right); SyncSessionVisibility(_right); } };
+    }
+
+    /// <summary>タブに対応するセッション本体（常駐ホスト方式のため Content ではなく Tag から引く）。</summary>
+    public static RdpSessionControl? SessionOf(TabItem tab) => (tab.Tag as SessionTag)?.Session;
+
+    private Grid HostOf(TabControl pane) => pane == _right ? _rightHost : _leftHost;
+
+    /// <summary>選択中タブのセッションだけを表示する。Hidden（Collapsed でなく）はレイアウトサイズを
+    /// 保つため、背面のセッションもウィンドウサイズに追従し続け、タブ切替時のリサイズが発生しない。</summary>
+    private void SyncSessionVisibility(TabControl pane)
+    {
+        var selected = pane.SelectedItem is TabItem tab ? SessionOf(tab) : null;
+        foreach (UIElement child in HostOf(pane).Children)
+            child.Visibility = child == selected ? Visibility.Visible : Visibility.Hidden;
     }
 
     private void TrackMruSelection(TabControl pane)
@@ -95,8 +118,7 @@ public sealed class SessionManager
     {
         _appFullscreen = fullscreen;
         foreach (var tab in AllTabs)
-            if (tab.Content is RdpSessionControl s)
-                s.SyncFullScreenState(fullscreen);
+            SessionOf(tab)?.SyncFullScreenState(fullscreen);
     }
 
     /// <summary>
@@ -113,7 +135,7 @@ public sealed class SessionManager
             tc.SelectedItem = tab;
             FocusSelected(tc);
         }
-        if (tab.Content is RdpSessionControl s && s.VisualState == SessionVisualState.Disconnected)
+        if (SessionOf(tab) is { VisualState: SessionVisualState.Disconnected } s)
             s.Reconnect();
         return true;
     }
@@ -156,8 +178,7 @@ public sealed class SessionManager
 
         var tab = new TabItem
         {
-            Content = session,
-            Tag = new SessionTag(nodeId, postCommand, info, Guid.NewGuid().ToString("N")),
+            Tag = new SessionTag(nodeId, postCommand, info, Guid.NewGuid().ToString("N"), session),
             ToolTip = HostAddress.FormatWithPort(info.Host, info.Port)
         };
         session.NotificationReceived += (_, n) => SessionNotification?.Invoke(tab, title, n);
@@ -207,9 +228,13 @@ public sealed class SessionManager
                 session.SyncFullScreenState(true);
         };
 
+        // セッション本体はホスト Grid に常駐させる（SelectedItem 設定 → SyncSessionVisibility で表示される）
+        session.Visibility = Visibility.Hidden;
+        HostOf(target).Children.Add(session);
         target.Items.Add(tab);
         _mru.Insert(0, tab);
         target.SelectedItem = tab;
+        SyncSessionVisibility(target); // 最初のタブは Items.Add 時点で自動選択され SelectionChanged が来ないため明示同期
         UpdateEmptyHint();
         UpdateRightPane();
         SessionsChanged?.Invoke();
@@ -244,7 +269,11 @@ public sealed class SessionManager
         session.Cleanup();
         if (tab.Tag is SessionTag { PostCommand: { Length: > 0 } cmd, Info: { } info })
             ExternalTools.Run(cmd, info);
-        (tab.Parent as TabControl)?.Items.Remove(tab);
+        if (tab.Parent is TabControl pane)
+        {
+            pane.Items.Remove(tab);
+            HostOf(pane).Children.Remove(session);
+        }
         _mru.Remove(tab);
         UpdateEmptyHint();
         UpdateRightPane();
@@ -255,21 +284,21 @@ public sealed class SessionManager
     public void CloseActiveTab()
     {
         var pane = ResolveActivePane();
-        if (pane.SelectedItem is TabItem tab && tab.Content is RdpSessionControl s)
+        if (pane.SelectedItem is TabItem tab && SessionOf(tab) is { } s)
             CloseSession(tab, s);
     }
 
     public void CloseOthers(TabItem keep)
     {
         foreach (var tab in AllTabs.Where(t => t != keep).ToList())
-            if (tab.Content is RdpSessionControl s)
+            if (SessionOf(tab) is { } s)
                 CloseSession(tab, s);
     }
 
     public void CloseAll()
     {
         foreach (var tab in AllTabs.ToList())
-            if (tab.Content is RdpSessionControl s)
+            if (SessionOf(tab) is { } s)
                 CloseSession(tab, s);
     }
 
@@ -300,8 +329,16 @@ public sealed class SessionManager
 
     private static void FocusSelected(TabControl pane)
     {
-        if (pane.SelectedItem is TabItem ti && ti.Content is RdpSessionControl s)
+        if (pane.SelectedItem is TabItem ti && SessionOf(ti) is { } s)
             pane.Dispatcher.BeginInvoke(new Action(s.FocusSession), DispatcherPriority.Input);
+    }
+
+    /// <summary>全セッションのリモート解像度を現在サイズへ即時反映する
+    /// （ウィンドウドラッグ終了・全画面切替・スプリッター確定などサイズ確定時用）。</summary>
+    public void ApplyResizeToAll()
+    {
+        foreach (var tab in AllTabs)
+            SessionOf(tab)?.ApplyResizeNow();
     }
 
     /// <summary>右ペインにセッションがあるときだけ右カラム/スプリッターを表示する。</summary>
