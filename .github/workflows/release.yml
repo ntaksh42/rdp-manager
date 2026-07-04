@@ -1,0 +1,59 @@
+# MSI をビルドして GitHub Release を作成する。
+# ローカルのリリース手順(publish → wix build → gh release)を Windows ランナー上で再現する。
+# 手動実行(workflow_dispatch)専用。バージョンは csproj/wxs と一致していることを検証してから実行する。
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'リリースバージョン (例: 0.4.0)。csproj/wxs の Version と一致している必要がある'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # csproj と wxs のバージョン同期漏れ(リリース手順の典型ミス)をここで止める
+      - name: Verify version consistency
+        shell: pwsh
+        run: |
+          $v = '${{ inputs.version }}'
+          $csproj = Select-String -Path src/RdpManager/RdpManager.csproj -Pattern "<Version>$([regex]::Escape($v))</Version>"
+          $wxs = Select-String -Path installer/RdpManager.wxs -Pattern "Version=`"$([regex]::Escape($v))`""
+          if (-not $csproj) { throw "csproj の <Version> が $v と一致しません" }
+          if (-not $wxs) { throw "wxs の Version= が $v と一致しません" }
+
+      - name: Publish self-contained
+        run: >
+          dotnet publish src/RdpManager/RdpManager.csproj -c Release -r win-x64
+          --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish-sc
+
+      # WiX 7 は有償 OSMF EULA のため 5 に固定する
+      - name: Install WiX 5
+        run: dotnet tool install --global wix --version 5.0.2
+
+      - name: Build MSI
+        run: wix build installer/RdpManager.wxs -bindpath publish-sc -o dist/rdpmanager-${{ inputs.version }}.msi
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "v${{ inputs.version }}"
+          "dist/rdpmanager-${{ inputs.version }}.msi"
+          --title "v${{ inputs.version }}"
+          --target ${{ github.sha }}
+          --generate-notes
