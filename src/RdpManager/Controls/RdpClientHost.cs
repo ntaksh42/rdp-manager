@@ -425,6 +425,40 @@ public sealed class RdpClientHost : AxHost
         catch { /* ignore */ }
     }
 
+    /// <summary>
+    /// ComEventsHelper のシンクは COM 接続ポイント側から強参照されるため、解除せずに
+    /// タブを閉じるとコントロール一式（mstscax インスタンス・スレッド・HWND）が GC されず
+    /// 蓄積する。破棄時にシンクを外して OCX 参照を手放す（OCX 自体の解放は base が行う）。
+    /// </summary>
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && _ocx is not null)
+        {
+            object ocx = (object)_ocx;
+            RemoveSink(ocx, DispidOnChannelReceivedData, _channelSink);
+            RemoveSink(ocx, DispidOnRequestGoFullScreen, _goFullScreenSink);
+            RemoveSink(ocx, DispidOnRequestLeaveFullScreen, _leaveFullScreenSink);
+            RemoveSink(ocx, DispidOnConnected, _connectedSink);
+            RemoveSink(ocx, DispidOnDisconnected, _disconnectedSink);
+            RemoveSink(ocx, DispidOnRemoteDesktopSizeChange, _sizeChangeSink);
+            _channelSink = null;
+            _goFullScreenSink = null;
+            _leaveFullScreenSink = null;
+            _connectedSink = null;
+            _disconnectedSink = null;
+            _sizeChangeSink = null;
+            _ocx = null;
+        }
+        base.Dispose(disposing);
+    }
+
+    private static void RemoveSink(object ocx, int dispid, Delegate? sink)
+    {
+        if (sink is null) return;
+        try { ComEventsHelper.Remove(ocx, EventsInterfaceId, dispid, sink); }
+        catch { /* 破棄経路のため失敗は無視 */ }
+    }
+
     private static void TrySet(Action set, string name)
     {
         try { set(); }

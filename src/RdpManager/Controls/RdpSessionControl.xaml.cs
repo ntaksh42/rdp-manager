@@ -21,11 +21,16 @@ public partial class RdpSessionControl : UserControl
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromMilliseconds(700) };
     private readonly DispatcherTimer _resizeThrottle = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private readonly DispatcherTimer _reconnect = new() { Interval = TimeSpan.FromSeconds(5) };
+    // 接続がこの時間維持できたときだけ自動再接続の回数をリセットする
+    // （「接続直後に切断される」相手への無限再接続ループを防ぐ）
+    private static readonly TimeSpan StableConnectionTime = TimeSpan.FromSeconds(30);
+
     private LaunchInfo? _info;
     private RdpConnectionState? _prevState;
     private bool _wasConnected;       // 一度でも接続できたか（再接続判定用・リセットしない）
     private int _autoRetries;
     private bool _reconnectScheduled;
+    private long _connectedAt;        // 直近の接続成立時刻（Stopwatch タイムスタンプ）
 
     public event EventHandler? StateChanged;
     /// <summary>リモート側から仮想チャネル経由の通知を受信したとき。</summary>
@@ -112,7 +117,16 @@ public partial class RdpSessionControl : UserControl
         switch (st)
         {
             case RdpConnectionState.Connected:
-                if (_prevState != RdpConnectionState.Connected) { ApplyResize(); _autoRetries = 0; } // 接続/再接続成立時にサイズ合わせ
+                if (_prevState != RdpConnectionState.Connected)
+                {
+                    ApplyResize(); // 接続/再接続成立時にサイズ合わせ
+                    _connectedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                }
+                else if (_autoRetries > 0 &&
+                         System.Diagnostics.Stopwatch.GetElapsedTime(_connectedAt) >= StableConnectionTime)
+                {
+                    _autoRetries = 0; // 安定して維持できた接続のみリトライ回数をリセット
+                }
                 _wasConnected = true;
                 SetOverlay(SessionVisualState.Connected, "");
                 break;
@@ -191,5 +205,10 @@ public partial class RdpSessionControl : UserControl
         _poll.Stop();
         _resizeThrottle.Stop();
         _client.DisconnectSession();
+        // Disconnect だけでは OCX が解放されず、タブを閉じるたびに mstscax インスタンスが
+        // 蓄積して不安定化する。AxHost.Dispose の OLE 正規手順（deactivate → Close）で解放する
+        Host.Child = null;
+        _client.Dispose();
+        Host.Dispose();
     }
 }
