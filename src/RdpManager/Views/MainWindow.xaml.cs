@@ -910,8 +910,6 @@ public partial class MainWindow : Window
     private void OnSessionNotification(TabItem tab, string title, RemoteNotification n)
     {
         if (!App.Settings.RemoteNotifications) return;
-        // 通知元タブを表示中（ウィンドウがフォアグラウンド）のときは出さない
-        if (IsActive && tab.Parent is TabControl tc && tc.SelectedItem == tab) return;
         ToastService.Show((tab.Tag as SessionTag)?.SessionKey, title, n);
     }
 
