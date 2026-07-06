@@ -11,13 +11,6 @@ rdpmanager をコーディングエージェント(Claude Code / Codex / Copilot
 | `.claude/hooks/kill-rdpmanager-before-build.ps1` | `dotnet build`/`run`/`publish` の前に実行中の rdpmanager を自動 kill(MSB3026 ビルドロック防止の機械的強制) |
 | `.claude/skills/verify` | 変更後のフル検証(0 警告ビルド → `dotnet test` → `--selftest`)を `/verify` で実行 |
 | `.claude/skills/release` | MSI リリース手順(バージョン 2 箇所同期 → publish → WiX → `gh release`)を `/release` で実行 |
-| `.github/workflows/claude-review.yml` | PR への Claude 自動レビュー |
-
-## 初回セットアップ(手動・1 回だけ)
-
-1. ローカルで `claude setup-token` を実行し、OAuth トークンを発行する。
-2. GitHub リポジトリの Settings → Secrets and variables → Actions を開き、`CLAUDE_CODE_OAUTH_TOKEN` という名前でそのトークンを Secret として登録する。
-3. 登録するまで `claude-review` ワークフローは失敗し続けるが、マージをブロックするものではないので放置してもよい。
 
 ## 運用の流れ
 
@@ -25,8 +18,7 @@ rdpmanager をコーディングエージェント(Claude Code / Codex / Copilot
 - エージェントに実装を依頼する(`AGENTS.md` がプロジェクト規約として読み込まれる)
 - `/verify` でビルド・テスト・selftest を通す
 - PR を作成する
-- `claude-review` ワークフローが自動でセカンドレビューを行う
-- レビュー内容を確認しつつマージする
+- レビューしてマージする
 
 ## 設計方針
 
@@ -35,4 +27,4 @@ rdpmanager をコーディングエージェント(Claude Code / Codex / Copilot
 ## 今後の候補(未導入)
 
 - **spec-driven development**: `docs/specs/` 配下に要求 → 設計 → タスクの成果物を段階的に置く開発方式(GitHub Spec Kit など)。大きめの機能追加で要件のブレを防ぐのに向くが、単独開発者の小粒な変更が多い現状ではオーバーヘッドが勝る可能性があり保留。
-- **`@claude` メンション対応ワークフロー**: Issue や PR コメントで `@claude` とメンションすると対話的に作業させる GitHub Actions ワークフロー。レビュー専用の `claude-review.yml` とは別に、実装依頼をトリガーできるようにする拡張として検討中。
+- **`@claude` メンション対応ワークフロー**: Issue や PR コメントで `@claude` とメンションすると対話的に作業させる GitHub Actions ワークフロー。実装依頼をトリガーできるようにする拡張として検討中。
