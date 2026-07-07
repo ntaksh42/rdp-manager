@@ -41,6 +41,7 @@ public sealed class SessionManager
     private readonly Grid _leftHost;
     private readonly Grid _rightHost;
     private readonly TextBlock _emptyHint;
+    private readonly ColumnDefinition _leftCol;
     private readonly ColumnDefinition _rightCol;
     private readonly ColumnDefinition _rightSplitterCol;
     private readonly GridSplitter _rightSplitter;
@@ -58,13 +59,14 @@ public sealed class SessionManager
     public event Action<bool>? FullscreenChangeRequested;
 
     public SessionManager(TabControl left, TabControl right, Grid leftHost, Grid rightHost, TextBlock emptyHint,
-        ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
+        ColumnDefinition leftCol, ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
     {
         _left = left;
         _right = right;
         _leftHost = leftHost;
         _rightHost = rightHost;
         _emptyHint = emptyHint;
+        _leftCol = leftCol;
         _rightCol = rightCol;
         _rightSplitterCol = rightSplitterCol;
         _rightSplitter = rightSplitter;
@@ -246,6 +248,8 @@ public sealed class SessionManager
     {
         var reconnect = new MenuItem { Header = "Reconnect" };
         reconnect.Click += (_, _) => { if (session.VisualState == SessionVisualState.Disconnected) session.Reconnect(); };
+        var move = new MenuItem { Header = "Move to Other Pane (Split)", InputGestureText = "Ctrl+Shift+M" };
+        move.Click += (_, _) => MoveToOtherPane(tab);
         var close = new MenuItem { Header = "Close", InputGestureText = "Ctrl+W" };
         close.Click += (_, _) => CloseSession(tab, session);
         var closeOthers = new MenuItem { Header = "Close Other Tabs" };
@@ -257,6 +261,7 @@ public sealed class SessionManager
         // 接続中の Reconnect は ActiveX が例外を投げるため、切断時のみ有効化
         menu.Opened += (_, _) => reconnect.IsEnabled = session.VisualState == SessionVisualState.Disconnected;
         menu.Items.Add(reconnect);
+        menu.Items.Add(move);
         menu.Items.Add(new Separator());
         menu.Items.Add(close);
         menu.Items.Add(closeOthers);
@@ -323,6 +328,44 @@ public sealed class SessionManager
         FocusSelected(pane);
     }
 
+    /// <summary>タブをもう一方のペインへ移動する（分割表示の開始/解除）。セッション本体も
+    /// 移動先ペインのホスト Grid へ付け替える。一度だけ WindowsFormsHost の HWND 再作成が
+    /// 走るが接続は維持される（タブ切替の常時コストとは異なり明示操作の一回きりのため許容）。</summary>
+    public void MoveToOtherPane(TabItem tab)
+    {
+        if (tab.Parent is not TabControl source || SessionOf(tab) is not { } session) return;
+        var target = source == _left ? _right : _left;
+        source.Items.Remove(tab);
+        HostOf(source).Children.Remove(session);
+        HostOf(target).Children.Add(session);
+        target.Items.Add(tab);
+        _activePane = target;
+        target.SelectedItem = tab;
+        SyncSessionVisibility(source);
+        SyncSessionVisibility(target);
+        UpdateEmptyHint();
+        UpdateRightPane();
+        FocusSelected(target);
+        // ペイン構成の変化で両ペインの幅が変わるため、レイアウト確定後に全セッションの解像度を即時反映
+        _left.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(ApplyResizeToAll));
+    }
+
+    /// <summary>アクティブペインの選択中タブをもう一方のペインへ移動する（Ctrl+Shift+M）。</summary>
+    public void MoveActiveTabToOtherPane()
+    {
+        if (ResolveActivePane().SelectedItem is TabItem tab) MoveToOtherPane(tab);
+    }
+
+    /// <summary>もう一方のペインへフォーカスを移す（F6 / Ctrl+Alt+F6）。相手ペインが空なら何もしない。</summary>
+    public void FocusOtherPane()
+    {
+        var other = ResolveActivePane() == _left ? _right : _left;
+        if (other.Items.Count == 0) return;
+        _activePane = other;
+        if (other.SelectedItem is null) other.SelectedIndex = 0;
+        FocusSelected(other);
+    }
+
     private TabControl ResolveActivePane()
         => _activePane is { Items.Count: > 0 } p ? p
             : (_left.Items.Count > 0 ? _left : _right);
@@ -341,13 +384,17 @@ public sealed class SessionManager
             SessionOf(tab)?.ApplyResizeNow();
     }
 
-    /// <summary>右ペインにセッションがあるときだけ右カラム/スプリッターを表示する。</summary>
+    /// <summary>セッションがあるペインのカラムだけを表示する（両方空のときは左＝ヒント表示側を残す）。
+    /// スプリッターは両ペイン表示時のみ。</summary>
     public void UpdateRightPane()
     {
-        bool show = _right.Items.Count > 0;
-        _rightCol.Width = show ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        _rightSplitterCol.Width = show ? GridLength.Auto : new GridLength(0);
-        _rightSplitter.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        bool right = _right.Items.Count > 0;
+        bool left = _left.Items.Count > 0 || !right;
+        _leftCol.Width = left ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        _rightCol.Width = right ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        bool both = left && right;
+        _rightSplitterCol.Width = both ? GridLength.Auto : new GridLength(0);
+        _rightSplitter.Visibility = both ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>両ペインともセッションが無いときだけ "no sessions" ヒントを表示する。</summary>
