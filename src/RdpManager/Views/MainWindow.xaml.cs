@@ -49,7 +49,7 @@ public partial class MainWindow : Window
         Closing += OnClosingSaveSessions;
 
         _sessions = new SessionManager(SessionTabs, SessionTabsRight, SessionHost, SessionHostRight, EmptyHint,
-            RightCol, RightSplitterCol, RightSplitter);
+            LeftCol, RightCol, RightSplitterCol, RightSplitter);
         // スプリッター確定時はリサイズデバウンス(400ms)を待たずにリモート解像度を即時反映する
         Splitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
         RightSplitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
@@ -183,6 +183,7 @@ public partial class MainWindow : Window
     private const int HotkeyPrevTab = 0x9005;
     private const int HotkeyQuickSwitch = 0x9006;
     private const int HotkeyFullscreenCustom = 0x9007;
+    private const int HotkeyFocusPane = 0x9008;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int WmHotkey = 0x0312;
     private const int WmExitSizeMove = 0x0232;
@@ -191,6 +192,7 @@ public partial class MainWindow : Window
     private const uint VkCancel = 0x03;  // Ctrl+Pause = Break
     private const uint VkPageUp = 0x21;
     private const uint VkPageDown = 0x22;
+    private const uint VkF6 = 0x75;
     private const uint ModAlt = 0x1;
     private const uint ModControl = 0x2;
 
@@ -257,6 +259,7 @@ public partial class MainWindow : Window
         TryRegisterHotKey(HotkeyPrevTab, ModControl | ModAlt, VkPageUp, "Ctrl+Alt+PageUp");
         TryRegisterHotKey(HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey,
             HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey)); // 設定可能な Quick Switch ホットキー
+        TryRegisterHotKey(HotkeyFocusPane, ModControl | ModAlt, VkF6, "Ctrl+Alt+F6"); // 分割ペイン間のフォーカス切替
         for (uint i = 0; i < 9; i++)
             TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
     }
@@ -267,6 +270,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyNextTab);
         UnregisterHotKey(_hwnd, HotkeyPrevTab);
         UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
+        UnregisterHotKey(_hwnd, HotkeyFocusPane);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
@@ -292,6 +296,7 @@ public partial class MainWindow : Window
             else if (id == HotkeyNextTab) { _sessions.CycleTab(+1); handled = true; }
             else if (id == HotkeyPrevTab) { _sessions.CycleTab(-1); handled = true; }
             else if (id == HotkeyQuickSwitch) { OnQuickSwitch(this, new RoutedEventArgs()); handled = true; }
+            else if (id == HotkeyFocusPane) { _sessions.FocusOtherPane(); handled = true; }
             else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { _sessions.JumpToTab(id - HotkeyTab1); handled = true; }
         }
         else if (msg == WmExitSizeMove)
@@ -546,8 +551,10 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.N) { OnNewConnection(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && e.Key == Key.F) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         else if (ctrl && e.Key == Key.D) { OnDuplicateNode(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (ctrl && shift && e.Key == Key.M) { _sessions.MoveActiveTabToOtherPane(); e.Handled = true; }
         else if (ctrl && e.Key == Key.W) { _sessions.CloseActiveTab(); e.Handled = true; }
         else if (ctrl && e.Key == Key.Tab) { ShowTabSwitcher(shift); e.Handled = true; }
+        else if (e.Key == Key.F6) { _sessions.FocusOtherPane(); e.Handled = true; }
         else if (!inTextInput && e.Key == Key.F2 && Vm.SelectedNode != null) { OnEditNode(this, new RoutedEventArgs()); e.Handled = true; }
         else if (!inTextInput && e.Key == Key.Delete && Vm.SelectedNode != null) { OnDeleteNode(this, new RoutedEventArgs()); e.Handled = true; }
     }
@@ -570,7 +577,9 @@ public partial class MainWindow : Window
         // F2/Delete はウィンドウの PreviewKeyDown 側で処理される（ここには届かない）
         if (e.Key == Key.Enter && Vm.SelectedNode?.IsConnection == true)
         {
-            ConnectEmbedded(Vm.SelectedNode);
+            // Shift+Enter は右ペインに開く（分割表示をキーボードだけで開始できるように）
+            bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            ConnectEmbedded(Vm.SelectedNode, shift ? SessionTabsRight : null);
             e.Handled = true;
         }
     }
@@ -616,6 +625,10 @@ public partial class MainWindow : Window
     }
 
     private void OnCloseCurrentTab(object sender, RoutedEventArgs e) => _sessions.CloseActiveTab();
+
+    private void OnMoveTabOtherPane(object sender, RoutedEventArgs e) => _sessions.MoveActiveTabToOtherPane();
+
+    private void OnFocusOtherPane(object sender, RoutedEventArgs e) => _sessions.FocusOtherPane();
 
     private void OnCloseAllTabs(object sender, RoutedEventArgs e)
     {

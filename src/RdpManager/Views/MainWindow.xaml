@@ -73,9 +73,13 @@
             </MenuItem>
             <MenuItem Header="_Session">
                 <MenuItem Header="Connect (in this window)" InputGestureText="Enter" Click="OnConnectEmbedded"/>
+                <MenuItem Header="Open in Right Pane (Split)" InputGestureText="Shift+Enter" Click="OnConnectRight"/>
                 <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
                 <MenuItem x:Name="QuickSwitchMenuItem" Header="Quick Switch…" InputGestureText="Ctrl+Alt+Home" Click="OnQuickSwitch"/>
                 <MenuItem Header="Set Quick Switch Hotkey…" Click="OnSetQuickSwitchHotkey"/>
+                <Separator/>
+                <MenuItem Header="Move Tab to Other Pane" InputGestureText="Ctrl+Shift+M" Click="OnMoveTabOtherPane"/>
+                <MenuItem Header="Focus Other Pane" InputGestureText="F6 / Ctrl+Alt+F6" Click="OnFocusOtherPane"/>
                 <Separator/>
                 <MenuItem Header="Close Current Tab" InputGestureText="Ctrl+W" Click="OnCloseCurrentTab"/>
                 <MenuItem Header="Close All Tabs" Click="OnCloseAllTabs"/>
@@ -168,7 +172,7 @@
                         <TreeView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Connect (in this window)" InputGestureText="Enter" Click="OnConnectEmbedded"/>
-                                <MenuItem Header="Open in Right Pane (Split)" Click="OnConnectRight"/>
+                                <MenuItem Header="Open in Right Pane (Split)" InputGestureText="Shift+Enter" Click="OnConnectRight"/>
                                 <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
                                 <Separator/>
                                 <MenuItem Header="Connect All in Folder" Click="OnConnectAll"/>
@@ -229,7 +233,7 @@
             <DockPanel Grid.Column="2">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition x:Name="LeftCol" Width="*"/>
                         <ColumnDefinition x:Name="RightSplitterCol" Width="0"/>
                         <ColumnDefinition x:Name="RightCol" Width="0"/>
                     </Grid.ColumnDefinitions>
@@ -255,7 +259,7 @@
                         <Grid x:Name="SessionHostRight" Grid.Row="1"/>
                     </Grid>
                     <TextBlock x:Name="EmptyHint" Grid.Column="0"
-                               Text="Double-click a connection in the tree to open it here.&#x0a;(Right-click &#8594; Open in Right Pane for split view)"
+                               Text="Double-click a connection in the tree to open it here.&#x0a;(Right-click &#8594; Open in Right Pane or Shift+Enter for split view)"
                                Foreground="{DynamicResource SubtleFg}" FontSize="14" TextAlignment="Center"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Grid>
