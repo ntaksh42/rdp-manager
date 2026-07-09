@@ -136,7 +136,16 @@ public partial class RdpSessionControl : UserControl
             default: // Disconnected
                 if (_wasConnected)
                 {
-                    if (RdpManager.App.Settings.AutoReconnect && _autoRetries < MaxAutoRetries && !_reconnectScheduled)
+                    var deliberate = DeliberateDisconnectReason(_client.LastExtendedDisconnectReason);
+                    if (deliberate is not null)
+                    {
+                        // 意図的な切断は自動再接続しない。特に「他端末からの接続による置き換え」(reason 5) で
+                        // 再接続すると相手のセッションを奪い返してしまう。手動の Reconnect ボタンは残る
+                        _reconnect.Stop();
+                        _reconnectScheduled = false;
+                        SetOverlay(SessionVisualState.Disconnected, "Disconnected", deliberate);
+                    }
+                    else if (RdpManager.App.Settings.AutoReconnect && _autoRetries < MaxAutoRetries && !_reconnectScheduled)
                     {
                         _reconnectScheduled = true;
                         SetOverlay(SessionVisualState.Reconnecting,
@@ -157,6 +166,20 @@ public partial class RdpSessionControl : UserControl
         }
         _prevState = st;
     }
+
+    /// <summary>
+    /// ExtendedDisconnectReasonCode のうち「サーバー/ユーザーの意図による切断」なら説明文を返す
+    /// （ネットワーク断と違い自動再接続すべきでないもの）。それ以外は null。
+    /// </summary>
+    private static string? DeliberateDisconnectReason(int reason) => reason switch
+    {
+        1 or 2 => "The session was disconnected by the server.",             // APIInitiatedDisconnect/Logoff
+        3 => "The session was disconnected due to server idle timeout.",     // ServerIdleTimeout
+        4 => "The session was disconnected due to server logon timeout.",    // ServerLogonTimeout
+        5 => "Another device connected to this session.",                    // ReplacedByOtherConnection
+        11 or 12 => "The session was disconnected or signed out remotely.",  // RpcInitiatedDisconnectByUser/LogoffByUser
+        _ => null,
+    };
 
     private void SetOverlay(SessionVisualState state, string status, string? error = null)
     {
