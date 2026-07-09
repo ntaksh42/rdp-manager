@@ -120,6 +120,10 @@ public sealed class RdpClientHost : AxHost
 
     public string? LastError { get; private set; }
 
+    /// <summary>直近の切断の拡張理由（ExtendedDisconnectReasonCode）。0 = 情報なし。
+    /// OnDisconnected イベント時に取得し、Connect() でリセットする。</summary>
+    public int LastExtendedDisconnectReason { get; private set; }
+
     /// <summary>ハンドルを確実に生成して OCX(dynamic) を返す。</summary>
     private dynamic GetClient()
     {
@@ -248,6 +252,7 @@ public sealed class RdpClientHost : AxHost
             }
 
             _lastRemoteW = _lastRemoteH = 0; // 新しい接続の初期解像度は DesktopWidth/Height で決まるため再送抑止をリセット
+            LastExtendedDisconnectReason = 0; // 前回の切断理由を持ち越さない
             ocx.Connect();
             LastError = null;
             Logger.Info($"RDP connect initiated: {info.Host}:{info.Port}");
@@ -337,7 +342,13 @@ public sealed class RdpClientHost : AxHost
         try
         {
             _connectedSink = () => ConnectionStateChanged?.Invoke();
-            _disconnectedSink = _ => ConnectionStateChanged?.Invoke();
+            _disconnectedSink = _ =>
+            {
+                // 切断理由は OnDisconnected 時点の ExtendedDisconnectReason で判別する
+                // （引数の discReason はトランスポート寄りの粗いコードのため使わない）
+                LastExtendedDisconnectReason = ReadExtendedDisconnectReason();
+                ConnectionStateChanged?.Invoke();
+            };
             ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnConnected, _connectedSink);
             ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnDisconnected, _disconnectedSink);
         }
@@ -347,6 +358,16 @@ public sealed class RdpClientHost : AxHost
             _disconnectedSink = null;
             Logger.Warn($"Connection state sink could not be attached: {ex.Message}");
         }
+    }
+
+    /// <summary>OCX の ExtendedDisconnectReason を読む（切断直後のみ意味のある値が入る）。</summary>
+    private int ReadExtendedDisconnectReason()
+    {
+        try
+        {
+            return _ocx is { } o ? (int)o.ExtendedDisconnectReason : 0;
+        }
+        catch { return 0; }
     }
 
     /// <summary>
