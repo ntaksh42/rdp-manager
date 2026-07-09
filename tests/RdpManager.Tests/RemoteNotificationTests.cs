@@ -114,6 +114,22 @@ public class RemoteNotificationTests
     }
 
     [Fact]
+    public void TryParse_ByteFoldedBstrPayload_Succeeds()
+    {
+        // mstscax の OnChannelReceivedData は生バイト列を「2 バイト = 1 文字」で BSTR に詰めて渡す。
+        // 実機で観測されたその形式（Base64 の ASCII バイト列を UTF-16 として再解釈した文字列）を再現する。
+        var json = "{\"title\":\"連続送信 44/60\",\"message\":\"連続テスト #44 (20:39:09)\",\"level\":\"info\"}";
+        var base64Bytes = Encoding.ASCII.GetBytes(Convert.ToBase64String(Encoding.UTF8.GetBytes(json)));
+        var folded = Encoding.Unicode.GetString(base64Bytes);
+
+        var ok = RemoteNotification.TryParse(folded, out var notification);
+
+        Assert.True(ok);
+        Assert.Equal("連続送信 44/60", notification.Title);
+        Assert.Equal("連続テスト #44 (20:39:09)", notification.Message);
+    }
+
+    [Fact]
     public void TryParse_NonJsonString_Fails()
     {
         Assert.False(RemoteNotification.TryParse("not json at all", out _));
