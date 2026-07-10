@@ -81,6 +81,9 @@
                 <MenuItem Header="Move Tab to Other Pane" InputGestureText="Ctrl+Shift+M" Click="OnMoveTabOtherPane"/>
                 <MenuItem Header="Focus Other Pane" InputGestureText="F6 / Ctrl+Alt+F6" Click="OnFocusOtherPane"/>
                 <Separator/>
+                <MenuItem Header="Send Local Clipboard to Session" InputGestureText="Ctrl+Alt+Shift+V" Click="OnClipboardToRemote"/>
+                <MenuItem Header="Get Clipboard from Session" InputGestureText="Ctrl+Alt+Shift+C" Click="OnClipboardFromRemote"/>
+                <Separator/>
                 <MenuItem Header="Close Current Tab" InputGestureText="Ctrl+W" Click="OnCloseCurrentTab"/>
                 <MenuItem Header="Close All Tabs" Click="OnCloseAllTabs"/>
                 <Separator/>

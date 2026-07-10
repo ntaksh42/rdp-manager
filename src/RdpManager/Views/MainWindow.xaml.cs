@@ -65,6 +65,7 @@ public partial class MainWindow : Window
         SessionTabsRight.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabsRight);
         _sessions.SessionsChanged += UpdateSessionCount;
         _sessions.SessionNotification += OnSessionNotification;
+        _sessions.ClipboardSyncCompleted += OnClipboardSyncCompleted;
         // セッション内の Ctrl+Alt+Break / カスタムキーによる全画面切替要求（COM イベントから届くため UI スレッドへ移す）。
         // 自分で FullScreen プロパティを設定した際にも発火するため、状態が変わる時だけトグルする
         _sessions.FullscreenChangeRequested += on => Dispatcher.BeginInvoke(new Action(() =>
@@ -184,6 +185,8 @@ public partial class MainWindow : Window
     private const int HotkeyQuickSwitch = 0x9006;
     private const int HotkeyFullscreenCustom = 0x9007;
     private const int HotkeyFocusPane = 0x9008;
+    private const int HotkeyClipboardToRemote = 0x9009;
+    private const int HotkeyClipboardFromRemote = 0x900A;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int WmHotkey = 0x0312;
     private const int WmExitSizeMove = 0x0232;
@@ -193,8 +196,11 @@ public partial class MainWindow : Window
     private const uint VkPageUp = 0x21;
     private const uint VkPageDown = 0x22;
     private const uint VkF6 = 0x75;
+    private const uint VkC = 0x43;
+    private const uint VkV = 0x56;
     private const uint ModAlt = 0x1;
     private const uint ModControl = 0x2;
+    private const uint ModShift = 0x4;
 
     private IntPtr _hwnd;
     private bool _fullscreen;
@@ -214,6 +220,9 @@ public partial class MainWindow : Window
         // RDP セッションにフォーカスがあっても効くようグローバル登録
         TryRegisterHotKey(HotkeyPause, ModControl | ModAlt, VkPause, "Ctrl+Alt+Pause");
         TryRegisterHotKey(HotkeyBreak, ModControl | ModAlt, VkCancel, "Ctrl+Alt+Break");
+        // クリップボード同期は全画面の RDP にフォーカスがあっても使える必要があるため常時登録する
+        TryRegisterHotKey(HotkeyClipboardToRemote, ModControl | ModAlt | ModShift, VkV, "Ctrl+Alt+Shift+V");
+        TryRegisterHotKey(HotkeyClipboardFromRemote, ModControl | ModAlt | ModShift, VkC, "Ctrl+Alt+Shift+C");
         // 全画面中も解除キーとして機能させるため、Pause/Break と同様に RegisterAuxHotkeys には含めない
         if (App.Settings.FullscreenKey != 0)
             TryRegisterHotKey(HotkeyFullscreenCustom, App.Settings.FullscreenModifiers, App.Settings.FullscreenKey,
@@ -280,6 +289,8 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyPause);
         UnregisterHotKey(_hwnd, HotkeyBreak);
         UnregisterHotKey(_hwnd, HotkeyFullscreenCustom);
+        UnregisterHotKey(_hwnd, HotkeyClipboardToRemote);
+        UnregisterHotKey(_hwnd, HotkeyClipboardFromRemote);
         UnregisterAuxHotkeys();
     }
 
@@ -297,6 +308,8 @@ public partial class MainWindow : Window
             else if (id == HotkeyPrevTab) { _sessions.CycleTab(-1); handled = true; }
             else if (id == HotkeyQuickSwitch) { OnQuickSwitch(this, new RoutedEventArgs()); handled = true; }
             else if (id == HotkeyFocusPane) { _sessions.FocusOtherPane(); handled = true; }
+            else if (id == HotkeyClipboardToRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote); handled = true; }
+            else if (id == HotkeyClipboardFromRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.RemoteToLocal); handled = true; }
             else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { _sessions.JumpToTab(id - HotkeyTab1); handled = true; }
         }
         else if (msg == WmExitSizeMove)
@@ -629,6 +642,18 @@ public partial class MainWindow : Window
     private void OnMoveTabOtherPane(object sender, RoutedEventArgs e) => _sessions.MoveActiveTabToOtherPane();
 
     private void OnFocusOtherPane(object sender, RoutedEventArgs e) => _sessions.FocusOtherPane();
+
+    private void OnClipboardToRemote(object sender, RoutedEventArgs e)
+        => _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote);
+
+    private void OnClipboardFromRemote(object sender, RoutedEventArgs e)
+        => _sessions.SyncActiveClipboard(ClipboardSyncDirection.RemoteToLocal);
+
+    private void OnClipboardSyncCompleted(bool success, string message)
+    {
+        if (!success)
+            MessageBox.Show(this, message, "Clipboard Sharing", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
 
     private void OnCloseAllTabs(object sender, RoutedEventArgs e)
     {

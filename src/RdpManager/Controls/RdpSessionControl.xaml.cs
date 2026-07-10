@@ -41,6 +41,7 @@ public partial class RdpSessionControl : UserControl
     /// <summary>セッション内のキー操作（Ctrl+Alt+Break 等）による全画面切替要求（true=全画面化）。</summary>
     public event Action<bool>? FullScreenRequested;
     public SessionVisualState VisualState { get; private set; } = SessionVisualState.Connecting;
+    public bool ClipboardSharingEnabled => _info?.RedirectClipboard == true;
 
     public RdpSessionControl()
     {
@@ -214,6 +215,17 @@ public partial class RdpSessionControl : UserControl
 
     /// <summary>アプリの全画面状態をコントロールへ反映する（全画面時のみ Win キー組み合わせをリモートへ送るため）。</summary>
     public void SyncFullScreenState(bool fullscreen) => _client.SetContainerFullScreen(fullscreen);
+
+    /// <summary>この接続で共有が許可されていれば、ローカルとリモートのクリップボードを明示同期する。</summary>
+    public bool TrySyncClipboard(ClipboardSyncDirection direction, out string error)
+    {
+        if (!ClipboardSharingEnabled)
+        {
+            error = "Clipboard sharing is disabled for this connection.";
+            return false;
+        }
+        return _client.TrySyncClipboard(direction, out error);
+    }
 
     /// <summary>埋め込み RDP コントロールへキーボードフォーカスを移す。</summary>
     public void FocusSession()
