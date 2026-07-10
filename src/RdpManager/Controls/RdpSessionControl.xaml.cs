@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using RdpManager.Common;
 using RdpManager.Models;
 using RdpManager.Services;
 using UserControl = System.Windows.Controls.UserControl;
@@ -15,12 +16,10 @@ public enum SessionVisualState { Connecting, Connected, Disconnected, Reconnecti
 /// </summary>
 public partial class RdpSessionControl : UserControl
 {
-    private const int MaxAutoRetries = 5;
-
     private readonly RdpClientHost _client = new();
     private readonly DispatcherTimer _poll = new() { Interval = TimeSpan.FromMilliseconds(700) };
     private readonly DispatcherTimer _resizeThrottle = new() { Interval = TimeSpan.FromMilliseconds(400) };
-    private readonly DispatcherTimer _reconnect = new() { Interval = TimeSpan.FromSeconds(5) };
+    private readonly DispatcherTimer _reconnect = new() { Interval = TimeSpan.FromMilliseconds(250) };
     // 接続がこの時間維持できたときだけ自動再接続の回数をリセットする
     // （「接続直後に切断される」相手への無限再接続ループを防ぐ）
     private static readonly TimeSpan StableConnectionTime = TimeSpan.FromSeconds(30);
@@ -30,6 +29,9 @@ public partial class RdpSessionControl : UserControl
     private bool _wasConnected;       // 一度でも接続できたか（再接続判定用・リセットしない）
     private int _autoRetries;
     private bool _reconnectScheduled;
+    private bool _autoReconnectStopped;
+    private DateTimeOffset _reconnectAt;
+    private string _lastDisconnectMessage = "The connection was lost.";
     private long _connectedAt;        // 直近の接続成立時刻（Stopwatch タイムスタンプ）
 
     public event EventHandler? StateChanged;
@@ -40,6 +42,8 @@ public partial class RdpSessionControl : UserControl
     public event EventHandler? SessionFocused;
     /// <summary>セッション内のキー操作（Ctrl+Alt+Break 等）による全画面切替要求（true=全画面化）。</summary>
     public event Action<bool>? FullScreenRequested;
+    /// <summary>切断オーバーレイの Close Tab からタブを閉じる要求。</summary>
+    public event EventHandler? CloseRequested;
     public SessionVisualState VisualState { get; private set; } = SessionVisualState.Connecting;
     public bool ClipboardSharingEnabled => _info?.RedirectClipboard == true;
 
@@ -58,8 +62,8 @@ public partial class RdpSessionControl : UserControl
         // リモート解像度を随時更新するスロットル方式（最終サイズは WM_EXITSIZEMOVE 等の即時適用が拾う）
         _resizeThrottle.Tick += (_, _) => { _resizeThrottle.Stop(); ApplyResize(); };
         SizeChanged += (_, _) => { if (!_resizeThrottle.IsEnabled) _resizeThrottle.Start(); };
-        // 自動再接続（一度きりの遅延実行）
-        _reconnect.Tick += (_, _) => { _reconnect.Stop(); _reconnectScheduled = false; _autoRetries++; BeginConnect(); };
+        // 再接続待機中だけカウントダウンを更新する。通常時のバックグラウンド処理は増やさない。
+        _reconnect.Tick += OnReconnectTick;
         // タブ切替で Unloaded しても切断しない（明示的に閉じた時のみ Cleanup）
     }
 
@@ -146,16 +150,19 @@ public partial class RdpSessionControl : UserControl
                         _reconnectScheduled = false;
                         SetOverlay(SessionVisualState.Disconnected, "Disconnected", deliberate);
                     }
-                    else if (RdpManager.App.Settings.AutoReconnect && _autoRetries < MaxAutoRetries && !_reconnectScheduled)
+                    else if (RdpManager.App.Settings.AutoReconnect &&
+                             !_autoReconnectStopped &&
+                             ReconnectPolicy.IsTransientDisconnect(
+                                 _client.LastDisconnectReason, _client.LastExtendedDisconnectReason) &&
+                             !_reconnectScheduled && ReconnectPolicy.NextDelay(_autoRetries) is { } delay)
                     {
-                        _reconnectScheduled = true;
-                        SetOverlay(SessionVisualState.Reconnecting,
-                            $"Disconnected — reconnecting ({_autoRetries + 1}/{MaxAutoRetries})…");
-                        _reconnect.Start();
+                        _lastDisconnectMessage = ReconnectPolicy.DescribeDisconnect(_client.LastDisconnectReason);
+                        ScheduleReconnect(delay);
                     }
                     else if (!_reconnectScheduled)
                     {
-                        SetOverlay(SessionVisualState.Disconnected, "Disconnected");
+                        _lastDisconnectMessage = ReconnectPolicy.DescribeDisconnect(_client.LastDisconnectReason);
+                        SetOverlay(SessionVisualState.Disconnected, "Connection lost", _lastDisconnectMessage);
                     }
                 }
                 else if (VisualState != SessionVisualState.Disconnected)
@@ -182,13 +189,51 @@ public partial class RdpSessionControl : UserControl
         _ => null,
     };
 
+    private void ScheduleReconnect(TimeSpan delay)
+    {
+        _reconnectScheduled = true;
+        _reconnectAt = DateTimeOffset.UtcNow + delay;
+        UpdateReconnectCountdown();
+        _reconnect.Start();
+    }
+
+    private void OnReconnectTick(object? sender, EventArgs e)
+    {
+        if (!_reconnectScheduled) { _reconnect.Stop(); return; }
+        if (!RdpManager.App.Settings.AutoReconnect)
+        {
+            _reconnect.Stop();
+            _reconnectScheduled = false;
+            SetOverlay(SessionVisualState.Disconnected, "Connection lost", _lastDisconnectMessage);
+            return;
+        }
+        if (DateTimeOffset.UtcNow < _reconnectAt) { UpdateReconnectCountdown(); return; }
+
+        _reconnect.Stop();
+        _reconnectScheduled = false;
+        _autoRetries++;
+        BeginConnect();
+    }
+
+    private void UpdateReconnectCountdown()
+    {
+        int seconds = Math.Max(1, (int)Math.Ceiling((_reconnectAt - DateTimeOffset.UtcNow).TotalSeconds));
+        SetOverlay(SessionVisualState.Reconnecting,
+            $"Connection lost — retrying in {seconds}s ({_autoRetries + 1}/{ReconnectPolicy.MaxRetries})",
+            _lastDisconnectMessage);
+    }
+
     private void SetOverlay(SessionVisualState state, string status, string? error = null)
     {
         bool changed = state != VisualState;
         VisualState = state;
         StatusText.Text = status;
         Overlay.Visibility = state == SessionVisualState.Connected ? Visibility.Collapsed : Visibility.Visible;
-        ReconnectButton.Visibility = state == SessionVisualState.Disconnected ? Visibility.Visible : Visibility.Collapsed;
+        bool recoverable = state is SessionVisualState.Disconnected or SessionVisualState.Reconnecting;
+        RecoveryButtons.Visibility = recoverable ? Visibility.Visible : Visibility.Collapsed;
+        ReconnectButton.Visibility = recoverable ? Visibility.Visible : Visibility.Collapsed;
+        StopRetryingButton.Visibility = state == SessionVisualState.Reconnecting ? Visibility.Visible : Visibility.Collapsed;
+        CloseButton.Visibility = recoverable ? Visibility.Visible : Visibility.Collapsed;
         ErrorText.Visibility = string.IsNullOrEmpty(error) ? Visibility.Collapsed : Visibility.Visible;
         ErrorText.Text = error ?? "";
         if (changed) StateChanged?.Invoke(this, EventArgs.Empty);
@@ -203,12 +248,23 @@ public partial class RdpSessionControl : UserControl
 
     private void OnReconnect(object sender, RoutedEventArgs e) => Reconnect();
 
+    private void OnStopRetrying(object sender, RoutedEventArgs e)
+    {
+        _reconnect.Stop();
+        _reconnectScheduled = false;
+        _autoReconnectStopped = true;
+        SetOverlay(SessionVisualState.Disconnected, "Connection lost", _lastDisconnectMessage);
+    }
+
+    private void OnClose(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, EventArgs.Empty);
+
     /// <summary>手動再接続。切断状態からリトライ回数をリセットして接続し直す。</summary>
     public void Reconnect()
     {
         if (_info is null) return;
         _reconnect.Stop();
         _reconnectScheduled = false;
+        _autoReconnectStopped = false;
         _autoRetries = 0;
         Start(_info);
     }

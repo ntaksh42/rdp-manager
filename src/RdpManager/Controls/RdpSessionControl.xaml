@@ -13,9 +13,15 @@
                 <TextBlock x:Name="ErrorText" Foreground="#E5484D" FontSize="12"
                            Margin="0,8,0,0" HorizontalAlignment="Center" TextWrapping="Wrap"
                            MaxWidth="420" TextAlignment="Center" Visibility="Collapsed"/>
-                <Button x:Name="ReconnectButton" Content="Reconnect" Margin="0,16,0,0"
-                        Padding="20,6" HorizontalAlignment="Center"
-                        Visibility="Collapsed" Click="OnReconnect"/>
+                <StackPanel x:Name="RecoveryButtons" Orientation="Horizontal" Margin="0,16,0,0"
+                            HorizontalAlignment="Center" Visibility="Collapsed">
+                    <Button x:Name="ReconnectButton" Content="Reconnect Now" Padding="16,6"
+                            Visibility="Collapsed" Click="OnReconnect"/>
+                    <Button x:Name="StopRetryingButton" Content="Stop Retrying" Margin="8,0,0,0" Padding="16,6"
+                            Visibility="Collapsed" Click="OnStopRetrying"/>
+                    <Button x:Name="CloseButton" Content="Close Tab" Margin="8,0,0,0" Padding="16,6"
+                            Visibility="Collapsed" Click="OnClose"/>
+                </StackPanel>
             </StackPanel>
         </Border>
     </Grid>

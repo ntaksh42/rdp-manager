@@ -187,6 +187,11 @@ public partial class MainWindow : Window
     private const int HotkeyFocusPane = 0x9008;
     private const int HotkeyClipboardToRemote = 0x9009;
     private const int HotkeyClipboardFromRemote = 0x900A;
+    private const int HotkeyCloseTab = 0x900B;
+    private const int HotkeyMoveTabOtherPane = 0x900C;
+    private const int HotkeyMoveTabLeft = 0x900D;
+    private const int HotkeyMoveTabRight = 0x900E;
+    private const int HotkeySessionDashboard = 0x900F;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int WmHotkey = 0x0312;
     private const int WmExitSizeMove = 0x0232;
@@ -198,9 +203,12 @@ public partial class MainWindow : Window
     private const uint VkF6 = 0x75;
     private const uint VkC = 0x43;
     private const uint VkV = 0x56;
+    private const uint VkW = 0x57;
+    private const uint Vk0 = 0x30;
     private const uint ModAlt = 0x1;
     private const uint ModControl = 0x2;
     private const uint ModShift = 0x4;
+    private const uint ModNoRepeat = 0x4000;
 
     private IntPtr _hwnd;
     private bool _fullscreen;
@@ -223,6 +231,13 @@ public partial class MainWindow : Window
         // クリップボード同期は全画面の RDP にフォーカスがあっても使える必要があるため常時登録する
         TryRegisterHotKey(HotkeyClipboardToRemote, ModControl | ModAlt | ModShift, VkV, "Ctrl+Alt+Shift+V");
         TryRegisterHotKey(HotkeyClipboardFromRemote, ModControl | ModAlt | ModShift, VkC, "Ctrl+Alt+Shift+C");
+        // セッション操作は RDP にフォーカスがある間も使うため、全画面切替時にも登録を維持する。
+        // MOD_NOREPEAT で長押しによる連続クローズ・連続移動を防ぐ。
+        TryRegisterHotKey(HotkeyCloseTab, ModControl | ModAlt | ModNoRepeat, VkW, "Ctrl+Alt+W");
+        TryRegisterHotKey(HotkeyMoveTabOtherPane, ModControl | ModAlt | ModShift | ModNoRepeat, VkF6, "Ctrl+Alt+Shift+F6");
+        TryRegisterHotKey(HotkeyMoveTabLeft, ModControl | ModAlt | ModShift | ModNoRepeat, VkPageUp, "Ctrl+Alt+Shift+PageUp");
+        TryRegisterHotKey(HotkeyMoveTabRight, ModControl | ModAlt | ModShift | ModNoRepeat, VkPageDown, "Ctrl+Alt+Shift+PageDown");
+        TryRegisterHotKey(HotkeySessionDashboard, ModControl | ModAlt | ModNoRepeat, Vk0, "Ctrl+Alt+0");
         // 全画面中も解除キーとして機能させるため、Pause/Break と同様に RegisterAuxHotkeys には含めない
         if (App.Settings.FullscreenKey != 0)
             TryRegisterHotKey(HotkeyFullscreenCustom, App.Settings.FullscreenModifiers, App.Settings.FullscreenKey,
@@ -260,7 +275,8 @@ public partial class MainWindow : Window
             : $"F11 / Ctrl+Alt+Pause / {HotkeyCaptureDialog.BuildDisplayText(App.Settings.FullscreenModifiers, App.Settings.FullscreenKey)}";
     }
 
-    // Pause/Break（全画面解除）以外の補助ホットキー一式。全画面中は解除し純正 mstsc 同様にキーをリモートへ流す
+    // タブ巡回等の補助ホットキー一式。全画面中は解除し、純正 mstsc 同様にキーをリモートへ流す。
+    // 閉じる・移動等のセッション操作キーは OnSourceInitialized で別途登録し、ここには含めない。
     private void RegisterAuxHotkeys()
     {
         TryRegisterHotKey(HotkeyF11, 0, VkF11, "F11");
@@ -291,6 +307,11 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyFullscreenCustom);
         UnregisterHotKey(_hwnd, HotkeyClipboardToRemote);
         UnregisterHotKey(_hwnd, HotkeyClipboardFromRemote);
+        UnregisterHotKey(_hwnd, HotkeyCloseTab);
+        UnregisterHotKey(_hwnd, HotkeyMoveTabOtherPane);
+        UnregisterHotKey(_hwnd, HotkeyMoveTabLeft);
+        UnregisterHotKey(_hwnd, HotkeyMoveTabRight);
+        UnregisterHotKey(_hwnd, HotkeySessionDashboard);
         UnregisterAuxHotkeys();
     }
 
@@ -310,6 +331,11 @@ public partial class MainWindow : Window
             else if (id == HotkeyFocusPane) { _sessions.FocusOtherPane(); handled = true; }
             else if (id == HotkeyClipboardToRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote); handled = true; }
             else if (id == HotkeyClipboardFromRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.RemoteToLocal); handled = true; }
+            else if (id == HotkeyCloseTab) { _sessions.CloseActiveTab(); handled = true; }
+            else if (id == HotkeyMoveTabOtherPane) { _sessions.MoveActiveTabToOtherPane(); handled = true; }
+            else if (id == HotkeyMoveTabLeft) { _sessions.MoveActiveTab(-1); handled = true; }
+            else if (id == HotkeyMoveTabRight) { _sessions.MoveActiveTab(1); handled = true; }
+            else if (id == HotkeySessionDashboard) { OnSessionDashboard(this, new RoutedEventArgs()); handled = true; }
             else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { _sessions.JumpToTab(id - HotkeyTab1); handled = true; }
         }
         else if (msg == WmExitSizeMove)
@@ -359,7 +385,8 @@ public partial class MainWindow : Window
                 WindowState = WindowState.Normal; // 一旦戻してから最大化しないと境界が残ることがある
                 WindowState = WindowState.Maximized;
             }
-            // 純正 mstsc 同様、全画面中は Pause/Break 以外のキーをリモートへ流すため補助ホットキーを解除する
+            // 純正 mstsc 同様、全画面中はタブ巡回等の補助ホットキーを解除する。
+            // 明示的なセッション操作キーと全画面解除キーだけは登録を維持する。
             UnregisterAuxHotkeys();
             // KeyboardHookMode=2 と連動: 全画面中のみ Win キー組み合わせがリモートへ送られるようになる。
             // FullScreen 設定が FullscreenChangeRequested を発火させるため、_fullscreen を先に確定させて再入を防ぐ
@@ -640,6 +667,10 @@ public partial class MainWindow : Window
     private void OnCloseCurrentTab(object sender, RoutedEventArgs e) => _sessions.CloseActiveTab();
 
     private void OnMoveTabOtherPane(object sender, RoutedEventArgs e) => _sessions.MoveActiveTabToOtherPane();
+
+    private void OnMoveTabLeft(object sender, RoutedEventArgs e) => _sessions.MoveActiveTab(-1);
+
+    private void OnMoveTabRight(object sender, RoutedEventArgs e) => _sessions.MoveActiveTab(1);
 
     private void OnFocusOtherPane(object sender, RoutedEventArgs e) => _sessions.FocusOtherPane();
 

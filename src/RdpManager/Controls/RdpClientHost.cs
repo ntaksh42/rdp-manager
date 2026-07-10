@@ -127,6 +127,9 @@ public sealed class RdpClientHost : AxHost
     /// OnDisconnected イベント時に取得し、Connect() でリセットする。</summary>
     public int LastExtendedDisconnectReason { get; private set; }
 
+    /// <summary>直近の OnDisconnected の理由コード。トランスポート障害の判定に使用する。</summary>
+    public int LastDisconnectReason { get; private set; }
+
     /// <summary>ハンドルを確実に生成して OCX(dynamic) を返す。</summary>
     private dynamic GetClient()
     {
@@ -255,6 +258,7 @@ public sealed class RdpClientHost : AxHost
             }
 
             _lastRemoteW = _lastRemoteH = 0; // 新しい接続の初期解像度は DesktopWidth/Height で決まるため再送抑止をリセット
+            LastDisconnectReason = 0;
             LastExtendedDisconnectReason = 0; // 前回の切断理由を持ち越さない
             ocx.Connect();
             LastError = null;
@@ -345,10 +349,11 @@ public sealed class RdpClientHost : AxHost
         try
         {
             _connectedSink = () => ConnectionStateChanged?.Invoke();
-            _disconnectedSink = _ =>
+            _disconnectedSink = discReason =>
             {
-                // 切断理由は OnDisconnected 時点の ExtendedDisconnectReason で判別する
-                // （引数の discReason はトランスポート寄りの粗いコードのため使わない）
+                // OnDisconnected の理由はネットワーク障害、ExtendedDisconnectReason は
+                // ユーザー操作やサーバーポリシーの判別にそれぞれ使う。
+                LastDisconnectReason = discReason;
                 LastExtendedDisconnectReason = ReadExtendedDisconnectReason();
                 ConnectionStateChanged?.Invoke();
             };
