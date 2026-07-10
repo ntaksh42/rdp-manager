@@ -16,6 +16,16 @@ public sealed record RemoteNotification(string Title, string Message, string Lev
     /// </summary>
     public static bool TryParse(string raw, out RemoteNotification notification)
     {
+        if (TryParseText(raw, out notification)) return true;
+        // mstscax の OnChannelReceivedData はチャネルの生バイト列を「2 バイト = 1 文字」で BSTR に
+        // 詰めて渡すため、そのままでは文字列として解釈できない。UTF-16 コード単位をバイト列へ
+        // 戻してから再解釈する。
+        if (string.IsNullOrEmpty(raw) || raw.Length > MaxPayloadLength / 2) return false;
+        return TryParseText(Encoding.UTF8.GetString(Encoding.Unicode.GetBytes(raw)), out notification);
+    }
+
+    private static bool TryParseText(string raw, out RemoteNotification notification)
+    {
         notification = null!;
         if (string.IsNullOrWhiteSpace(raw) || raw.Length > MaxPayloadLength) return false;
 

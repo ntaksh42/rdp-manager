@@ -80,7 +80,7 @@ rdpmanager のタブを別のものに切り替えるかウィンドウを非ア
 `rdp-notify.ps1` を使わずに自前で送ることもできます。
 
 - チャネル名: `CCNOTIF`（静的仮想チャネル）。リモート側から `WTSVirtualChannelOpen` / `WTSVirtualChannelWrite` で書き込む
-- ペイロード: `Base64(UTF-8 JSON)`。素の JSON も受理されるが、`OnChannelReceivedData` の BSTR 変換（ANSI→Unicode）でマルチバイト文字が壊れるため Base64 を推奨
+- ペイロード: `Base64(UTF-8 JSON)`。素の JSON も受理される。`OnChannelReceivedData` はチャネルの生バイト列を「2 バイト = 1 文字」で BSTR に詰めて渡すため、クライアント側は文字列としての解釈に失敗した場合に UTF-16 コード単位をバイト列へ戻して再解釈する。マルチバイト文字を確実に通すため Base64 を推奨
 - JSON スキーマ: `{"title": "...", "message": "...", "level": "info" | "warn"}`（`message` 必須。`title` 省略時はセッション名を表示）
 - サイズ制限: 静的チャネルの1チャンク上限（1600 バイト）を超えると分割されて破棄される。1書き込み 1500 文字以内に収めること
 - 解釈できないデータは黙って破棄される（リモート側の任意プロセスが同チャネルへ書き込めるため）
