@@ -188,6 +188,7 @@ public sealed class SessionManager
         };
         session.NotificationReceived += (_, n) => SessionNotification?.Invoke(tab, title, n);
         session.FullScreenRequested += on => FullscreenChangeRequested?.Invoke(on);
+        session.CloseRequested += (_, _) => CloseSession(tab, session);
         // SelectionChanged は選択が「変化」した時しか発火しないため、選択中タブの再クリックや
         // RDP 画面内クリックでのペイン移動はこちらで補足する
         session.SessionFocused += (_, _) => { if (tab.Parent is TabControl tc) OnPaneActivated(tc); };
@@ -265,6 +266,10 @@ public sealed class SessionManager
         clipboardFromRemote.Click += (_, _) => SyncClipboard(session, ClipboardSyncDirection.RemoteToLocal);
         var move = new MenuItem { Header = "Move to Other Pane (Split)", InputGestureText = "Ctrl+Shift+M" };
         move.Click += (_, _) => MoveToOtherPane(tab);
+        var moveLeft = new MenuItem { Header = "Move Tab Left", InputGestureText = "Ctrl+Alt+Shift+PageUp" };
+        moveLeft.Click += (_, _) => MoveTab(tab, -1);
+        var moveRight = new MenuItem { Header = "Move Tab Right", InputGestureText = "Ctrl+Alt+Shift+PageDown" };
+        moveRight.Click += (_, _) => MoveTab(tab, 1);
         var close = new MenuItem { Header = "Close", InputGestureText = "Ctrl+W" };
         close.Click += (_, _) => CloseSession(tab, session);
         var closeOthers = new MenuItem { Header = "Close Other Tabs" };
@@ -285,6 +290,8 @@ public sealed class SessionManager
         menu.Items.Add(clipboardToRemote);
         menu.Items.Add(clipboardFromRemote);
         menu.Items.Add(move);
+        menu.Items.Add(moveLeft);
+        menu.Items.Add(moveRight);
         menu.Items.Add(new Separator());
         menu.Items.Add(close);
         menu.Items.Add(closeOthers);
@@ -398,6 +405,26 @@ public sealed class SessionManager
     public void MoveActiveTabToOtherPane()
     {
         if (ResolveActivePane().SelectedItem is TabItem tab) MoveToOtherPane(tab);
+    }
+
+    /// <summary>同じペイン内でタブを左右へ移動する。</summary>
+    private void MoveTab(TabItem tab, int delta)
+    {
+        if (tab.Parent is not TabControl pane) return;
+        int oldIndex = pane.Items.IndexOf(tab);
+        int newIndex = Math.Clamp(oldIndex + delta, 0, pane.Items.Count - 1);
+        if (oldIndex == newIndex) return;
+        pane.Items.RemoveAt(oldIndex);
+        pane.Items.Insert(newIndex, tab);
+        pane.SelectedItem = tab;
+        _activePane = pane;
+        FocusSelected(pane);
+    }
+
+    /// <summary>アクティブタブを同じペイン内で左右へ移動する。</summary>
+    public void MoveActiveTab(int delta)
+    {
+        if (ResolveActivePane().SelectedItem is TabItem tab) MoveTab(tab, delta);
     }
 
     /// <summary>もう一方のペインへフォーカスを移す（F6 / Ctrl+Alt+F6）。相手ペインが空なら何もしない。</summary>
