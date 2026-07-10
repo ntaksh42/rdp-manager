@@ -8,6 +8,9 @@ namespace RdpManager.Controls;
 /// <summary>RDP ActiveX の接続状態（IDispatch の Connected プロパティ値に対応）。</summary>
 public enum RdpConnectionState { Disconnected = 0, Connected = 1, Connecting = 2 }
 
+/// <summary>手動クリップボード同期の方向。</summary>
+public enum ClipboardSyncDirection { LocalToRemote, RemoteToLocal }
+
 /// <summary>
 /// RDP ActiveX コントロール（mstscax.dll）を AxHost としてホストするラッパー。
 /// 型付き相互運用アセンブリ（AxMSTSCLib）を生成せず、IDispatch を dynamic で操作する。
@@ -435,6 +438,76 @@ public sealed class RdpClientHost : AxHost
         {
             Logger.Warn($"FullScreen state sync failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 接続中セッションとローカルのクリップボードを一度だけ明示同期する。
+    /// ManualClipboardSyncEnabled は接続後にも変更可能なため、同期中だけ有効にし、完了後は
+    /// 自動同期へ戻す。これにより通常の RDP クリップボード共有の挙動を変えずに、複数セッション間で
+    /// 確実にクリップボードを受け渡せる。
+    /// </summary>
+    public bool TrySyncClipboard(ClipboardSyncDirection direction, out string error)
+    {
+        error = "";
+        if (_ocx is not { } ocx || ConnectionState != RdpConnectionState.Connected)
+        {
+            error = "The session is not connected.";
+            return false;
+        }
+
+        if ((object)ocx is not MSTSCLib.IMsRdpExtendedSettings ext ||
+            (object)ocx is not MSTSCLib.IMsRdpClientNonScriptable7 nonScriptable)
+        {
+            error = "Clipboard synchronization is not supported by this RDP client.";
+            return false;
+        }
+
+        bool manualEnabled = false;
+        try
+        {
+            object enabled = true;
+            ext.set_Property("ManualClipboardSyncEnabled", ref enabled);
+            manualEnabled = true;
+
+            var clipboard = nonScriptable.Clipboard;
+            if (clipboard is null)
+                throw new InvalidOperationException("The RDP client did not provide a clipboard controller.");
+
+            if (direction == ClipboardSyncDirection.LocalToRemote)
+                clipboard.SyncLocalClipboardToRemoteSession();
+            else
+                clipboard.SyncRemoteClipboardToLocalSession();
+
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            if (manualEnabled)
+            {
+                try
+                {
+                    object disabled = false;
+                    ext.set_Property("ManualClipboardSyncEnabled", ref disabled);
+                }
+                catch (Exception ex)
+                {
+                    if (string.IsNullOrEmpty(error)) error = "Automatic clipboard sharing could not be restored.";
+                    Logger.Warn($"Automatic clipboard synchronization could not be restored: {ex.Message}");
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(error))
+        {
+            Logger.Warn($"Clipboard synchronization failed ({direction}): {error}");
+            return false;
+        }
+
+        Logger.Info($"Clipboard synchronized: {direction}");
+        return true;
     }
 
     public void DisconnectSession()

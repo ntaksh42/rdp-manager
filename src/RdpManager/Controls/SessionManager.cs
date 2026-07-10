@@ -58,6 +58,9 @@ public sealed class SessionManager
     /// <summary>セッション内のキー操作（Ctrl+Alt+Break / カスタムキー）による全画面切替要求（true=全画面化）。</summary>
     public event Action<bool>? FullscreenChangeRequested;
 
+    /// <summary>クリップボード同期の結果（成功可否, ユーザー向けメッセージ）。</summary>
+    public event Action<bool, string>? ClipboardSyncCompleted;
+
     public SessionManager(TabControl left, TabControl right, Grid leftHost, Grid rightHost, TextBlock emptyHint,
         ColumnDefinition leftCol, ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
     {
@@ -248,6 +251,18 @@ public sealed class SessionManager
     {
         var reconnect = new MenuItem { Header = "Reconnect" };
         reconnect.Click += (_, _) => { if (session.VisualState == SessionVisualState.Disconnected) session.Reconnect(); };
+        var clipboardToRemote = new MenuItem
+        {
+            Header = "Send Local Clipboard to Session",
+            InputGestureText = "Ctrl+Alt+Shift+V"
+        };
+        clipboardToRemote.Click += (_, _) => SyncClipboard(session, ClipboardSyncDirection.LocalToRemote);
+        var clipboardFromRemote = new MenuItem
+        {
+            Header = "Get Clipboard from Session",
+            InputGestureText = "Ctrl+Alt+Shift+C"
+        };
+        clipboardFromRemote.Click += (_, _) => SyncClipboard(session, ClipboardSyncDirection.RemoteToLocal);
         var move = new MenuItem { Header = "Move to Other Pane (Split)", InputGestureText = "Ctrl+Shift+M" };
         move.Click += (_, _) => MoveToOtherPane(tab);
         var close = new MenuItem { Header = "Close", InputGestureText = "Ctrl+W" };
@@ -259,14 +274,43 @@ public sealed class SessionManager
 
         var menu = new ContextMenu();
         // 接続中の Reconnect は ActiveX が例外を投げるため、切断時のみ有効化
-        menu.Opened += (_, _) => reconnect.IsEnabled = session.VisualState == SessionVisualState.Disconnected;
+        menu.Opened += (_, _) =>
+        {
+            reconnect.IsEnabled = session.VisualState == SessionVisualState.Disconnected;
+            clipboardToRemote.IsEnabled = clipboardFromRemote.IsEnabled =
+                session.VisualState == SessionVisualState.Connected && session.ClipboardSharingEnabled;
+        };
         menu.Items.Add(reconnect);
+        menu.Items.Add(new Separator());
+        menu.Items.Add(clipboardToRemote);
+        menu.Items.Add(clipboardFromRemote);
         menu.Items.Add(move);
         menu.Items.Add(new Separator());
         menu.Items.Add(close);
         menu.Items.Add(closeOthers);
         menu.Items.Add(closeAll);
         return menu;
+    }
+
+    private void SyncClipboard(RdpSessionControl session, ClipboardSyncDirection direction)
+    {
+        bool success = session.TrySyncClipboard(direction, out var error);
+        string message = success
+            ? direction == ClipboardSyncDirection.LocalToRemote
+                ? "Local clipboard sent to the active session."
+                : "Clipboard received from the active session."
+            : error;
+        ClipboardSyncCompleted?.Invoke(success, message);
+    }
+
+    /// <summary>アクティブペインの接続中セッションとクリップボードを明示同期する。</summary>
+    public void SyncActiveClipboard(ClipboardSyncDirection direction)
+    {
+        var pane = ResolveActivePane();
+        if (pane.SelectedItem is TabItem tab && SessionOf(tab) is { } session)
+            SyncClipboard(session, direction);
+        else
+            ClipboardSyncCompleted?.Invoke(false, "There is no active session.");
     }
 
     public void CloseSession(TabItem tab, RdpSessionControl session)
