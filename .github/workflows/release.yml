@@ -1,59 +1,103 @@
 # MSI をビルドして GitHub Release を作成する。
-# ローカルのリリース手順(publish → wix build → gh release)を Windows ランナー上で再現する。
-# 手動実行(workflow_dispatch)専用。バージョンは csproj/wxs と一致していることを検証してから実行する。
+# 毎日 0:00 JST に実行し、最新リリースタグより main が進んでいれば自動採番してリリースする。
+# バージョンは「最新タグの patch+1」と「csproj の <Version>」の大きい方を採用し、
+# リポジトリには書き戻さずビルド時に注入する(-p:Version / wxs の書き換え)。
+# minor/major を上げたいときは csproj の <Version> を上げてマージするだけでよい。
 name: release
 
 on:
+  schedule:
+    - cron: '0 15 * * *' # 0:00 JST
   workflow_dispatch:
     inputs:
       version:
-        description: 'リリースバージョン (例: 0.4.0)。csproj/wxs の Version と一致している必要がある'
-        required: true
+        description: 'リリースバージョン (例: 0.5.0)。省略時は自動採番'
+        required: false
         type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # タグ一覧とタグ以降のコミット数の判定に全履歴が必要
+          fetch-depth: 0
+
+      - name: Determine version
+        id: ver
+        shell: pwsh
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+        run: |
+          $tag = git tag --list 'v*' --sort=-v:refname | Select-Object -First 1
+          # 手動実行でバージョン指定がある場合を除き、タグから進んでいなければスキップ
+          if ($tag -and -not $env:MANUAL_VERSION -and (git rev-list "$tag..HEAD" --count) -eq 0) {
+            Write-Host "No new commits since $tag - skipping release"
+            "skip=true" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          if ($env:MANUAL_VERSION) {
+            $v = [version]$env:MANUAL_VERSION
+          } else {
+            $next = if ($tag) {
+              $t = [version]$tag.TrimStart('v')
+              [version]::new($t.Major, $t.Minor, $t.Build + 1)
+            } else { [version]'0.0.1' }
+            $csproj = [version][regex]::Match(
+              (Get-Content src/RdpManager/RdpManager.csproj -Raw),
+              '<Version>([^<]+)</Version>').Groups[1].Value
+            $v = if ($csproj -gt $next) { $csproj } else { $next }
+          }
+          Write-Host "Releasing version $v (latest tag: $tag)"
+          "version=$v" >> $env:GITHUB_OUTPUT
 
       - uses: actions/setup-dotnet@v4
+        if: steps.ver.outputs.skip != 'true'
         with:
           dotnet-version: '10.0.x'
 
-      # csproj と wxs のバージョン同期漏れ(リリース手順の典型ミス)をここで止める
-      - name: Verify version consistency
+      # wxs はビルド時のバージョン注入手段がないため、ワークスペース内のファイルを書き換える(コミットはしない)
+      - name: Apply version to wxs
+        if: steps.ver.outputs.skip != 'true'
         shell: pwsh
         run: |
-          $v = '${{ inputs.version }}'
-          $csproj = Select-String -Path src/RdpManager/RdpManager.csproj -Pattern "<Version>$([regex]::Escape($v))</Version>"
-          $wxs = Select-String -Path installer/RdpManager.wxs -Pattern "Version=`"$([regex]::Escape($v))`""
-          if (-not $csproj) { throw "csproj の <Version> が $v と一致しません" }
-          if (-not $wxs) { throw "wxs の Version= が $v と一致しません" }
+          $v = '${{ steps.ver.outputs.version }}'
+          $path = 'installer/RdpManager.wxs'
+          (Get-Content $path -Raw) -replace 'Version="\d+\.\d+\.\d+"', "Version=`"$v`"" | Set-Content $path
 
       - name: Publish self-contained
+        if: steps.ver.outputs.skip != 'true'
         run: >
           dotnet publish src/RdpManager/RdpManager.csproj -c Release -r win-x64
           --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:Version=${{ steps.ver.outputs.version }}
           -o publish-sc
 
       # WiX 7 は有償 OSMF EULA のため 5 に固定する
       - name: Install WiX 5
+        if: steps.ver.outputs.skip != 'true'
         run: dotnet tool install --global wix --version 5.0.2
 
       - name: Build MSI
-        run: wix build installer/RdpManager.wxs -bindpath publish-sc -o dist/rdpmanager-${{ inputs.version }}.msi
+        if: steps.ver.outputs.skip != 'true'
+        run: wix build installer/RdpManager.wxs -bindpath publish-sc -o dist/rdpmanager-${{ steps.ver.outputs.version }}.msi
 
       - name: Create GitHub release
+        if: steps.ver.outputs.skip != 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create "v${{ inputs.version }}"
-          "dist/rdpmanager-${{ inputs.version }}.msi"
-          --title "v${{ inputs.version }}"
+          gh release create "v${{ steps.ver.outputs.version }}"
+          "dist/rdpmanager-${{ steps.ver.outputs.version }}.msi"
+          --title "v${{ steps.ver.outputs.version }}"
           --target ${{ github.sha }}
           --generate-notes
