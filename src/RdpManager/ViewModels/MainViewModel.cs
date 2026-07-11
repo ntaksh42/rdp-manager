@@ -16,9 +16,15 @@ public class MainViewModel : ObservableObject
     /// <summary>接続起動などの失敗をビューへ通知する。</summary>
     public event Action<string>? Error;
 
-    public MainViewModel()
+    // false のとき起動時 Load とファイルへの Save を行わない（ユニットテストが実データを読み書きしないため）
+    private readonly bool _persist;
+
+    public MainViewModel() : this(loadAndPersist: true) { }
+
+    internal MainViewModel(bool loadAndPersist)
     {
-        Load();
+        _persist = loadAndPersist;
+        if (loadAndPersist) Load();
     }
 
     private IEnumerable<TreeNodeViewModel> AllConnections(IEnumerable<TreeNodeViewModel>? nodes = null)
@@ -31,7 +37,7 @@ public class MainViewModel : ObservableObject
     }
 
     /// <summary>フォルダを含む全ノードを走査する。</summary>
-    private IEnumerable<TreeNodeViewModel> AllNodes(IEnumerable<TreeNodeViewModel>? nodes = null)
+    public IEnumerable<TreeNodeViewModel> AllNodes(IEnumerable<TreeNodeViewModel>? nodes = null)
     {
         foreach (var n in nodes ?? RootNodes)
         {
@@ -220,9 +226,10 @@ public class MainViewModel : ObservableObject
 
         // 削除したノード（子孫含む）の ID が OpenOnExit に孤児として残らないよう除去
         var removedIds = SelfAndDescendants(node).Select(n => n.Id.ToString()).ToHashSet();
-        int before = App.Settings.OpenOnExit.Count;
+        int before = App.Settings.OpenOnExit.Count + App.Settings.OpenOnExitRight.Count;
         App.Settings.OpenOnExit.RemoveAll(removedIds.Contains);
-        if (before != App.Settings.OpenOnExit.Count)
+        App.Settings.OpenOnExitRight.RemoveAll(removedIds.Contains);
+        if (before != App.Settings.OpenOnExit.Count + App.Settings.OpenOnExitRight.Count)
             App.Settings.Save();
 
         Save();
@@ -293,21 +300,27 @@ public class MainViewModel : ObservableObject
     // ── 検索フィルタ ──
     private void ApplyFilter()
     {
-        foreach (var root in RootNodes) FilterNode(root, SearchText.Trim());
+        foreach (var root in RootNodes) FilterNode(root, SearchText.Trim(), false);
     }
 
-    private static bool FilterNode(TreeNodeViewModel node, string query)
+    /// <summary>
+    /// ノードを query でフィルタする。ancestorMatch が true の場合、自身や子孫が query に
+    /// マッチしなくても祖先のマッチにより可視化する（フォルダ名がヒットした場合に配下の
+    /// 接続をすべて表示するため）。
+    /// </summary>
+    private static bool FilterNode(TreeNodeViewModel node, string query, bool ancestorMatch)
     {
         if (string.IsNullOrEmpty(query))
         {
             node.IsVisible = true;
-            foreach (var c in node.Children) FilterNode(c, query);
+            foreach (var c in node.Children) FilterNode(c, query, false);
             return true;
         }
-        bool selfMatch = node.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+        bool selfMatch = ancestorMatch
+                         || node.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
                          || node.Host.Contains(query, StringComparison.OrdinalIgnoreCase);
         bool childMatch = false;
-        foreach (var c in node.Children) childMatch |= FilterNode(c, query);
+        foreach (var c in node.Children) childMatch |= FilterNode(c, query, selfMatch);
         node.IsVisible = selfMatch || childMatch;
         if (childMatch) node.IsExpanded = true;
         return node.IsVisible;
@@ -316,6 +329,9 @@ public class MainViewModel : ObservableObject
     // ── 永続化 ──
     public void Save()
     {
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(HasNoConnections));
+        if (!_persist) return;
         var doc = new StoreDocument
         {
             Root = new NodeDto { Kind = "folder", Name = "Root", Children = RootNodes.Select(ToDto).ToList() },
@@ -329,8 +345,6 @@ public class MainViewModel : ObservableObject
         };
         try { ConnectionStore.Save(doc); }
         catch (Exception ex) { Logger.Warn($"Failed to save connections: {ex.Message}"); }
-        OnPropertyChanged(nameof(StatusText));
-        OnPropertyChanged(nameof(HasNoConnections));
     }
 
     private void Load()

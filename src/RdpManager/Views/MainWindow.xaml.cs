@@ -95,8 +95,11 @@ public partial class MainWindow : Window
         {
             double vl = SystemParameters.VirtualScreenLeft, vt = SystemParameters.VirtualScreenTop;
             double vw = SystemParameters.VirtualScreenWidth, vh = SystemParameters.VirtualScreenHeight;
-            // モニタ構成が変わっていても、一部でも画面内に入るときだけ復元する
-            if (l < vl + vw - 100 && l + w > vl + 100 && t < vt + vh - 100 && t + h > vt)
+            // モニタ構成が変わっていても、一部でも画面内に入るときだけ復元する。
+            // 縦方向も横方向と同じ100pxマージンにし、さらにタイトルバー（ウィンドウ上端）が
+            // 仮想画面の上端より下（しきい値付き）にあることも課し、タイトルバーが画面外に出ないようにする
+            if (l < vl + vw - 100 && l + w > vl + 100 &&
+                t < vt + vh - 100 && t + h > vt + 100 && t > vt - 100)
             {
                 WindowStartupLocation = WindowStartupLocation.Manual;
                 Left = l; Top = t; Width = w; Height = h;
@@ -131,6 +134,12 @@ public partial class MainWindow : Window
             var node = Vm.FindConnectionById(id);
             if (node != null) ConnectEmbedded(node);
         }
+        // 右ペインにあったセッションは分割ビューの配置ごと復元する
+        foreach (var id in App.Settings.OpenOnExitRight.ToList())
+        {
+            var node = Vm.FindConnectionById(id);
+            if (node != null) ConnectEmbedded(node, SessionTabsRight);
+        }
     }
 
     private void OnClosingSaveSessions(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -147,10 +156,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        var ids = tabs
-            .Select(t => (t.Tag as SessionTag)?.NodeId)
-            .Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
-        App.Settings.OpenOnExit = ids;
+        // ペインごとに保存し、次回起動時に分割ビューの配置を再現する
+        static string? IdOf(TabItem t) => (t.Tag as SessionTag)?.NodeId;
+        App.Settings.OpenOnExit = tabs.Where(t => t.Parent != SessionTabsRight)
+            .Select(IdOf).Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
+        App.Settings.OpenOnExitRight = tabs.Where(t => t.Parent == SessionTabsRight)
+            .Select(IdOf).Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
         SaveWindowBounds();
         App.Settings.Save();
 
@@ -728,18 +739,12 @@ public partial class MainWindow : Window
         var dlg = new PatternAddDialog { Owner = this };
         if (dlg.ShowDialog() != true) return;
         var parent = TargetFolder();
-        foreach (var host in dlg.Hosts)
+        var nodes = dlg.Hosts.Select(host => new TreeNodeViewModel
         {
-            var node = new TreeNodeViewModel
-            {
-                Kind = NodeKind.Connection, Name = host, Host = host,
-                Port = dlg.Port, CredentialMode = "inheritFromParent"
-            };
-            if (parent is null) { Vm.RootNodes.Add(node); node.Parent = null; }
-            else { node.Parent = parent; parent.Children.Add(node); }
-        }
-        if (parent != null) parent.IsExpanded = true;
-        Vm.NotifyEdited();
+            Kind = NodeKind.Connection, Name = host, Host = host,
+            Port = dlg.Port, CredentialMode = "inheritFromParent"
+        }).ToList();
+        Vm.AddImported(nodes, parent);
     }
 
     private void OnEditNode(object sender, RoutedEventArgs e)
@@ -841,7 +846,7 @@ public partial class MainWindow : Window
 
     private void OnManageProfiles(object sender, RoutedEventArgs e)
     {
-        var dlg = new CredentialProfilesDialog(Vm.CredentialProfiles) { Owner = this };
+        var dlg = new CredentialProfilesDialog(Vm.CredentialProfiles, Vm.AllNodes()) { Owner = this };
         dlg.ShowDialog();
         if (dlg.Renames.Count > 0) Vm.ApplyProfileRenames(dlg.Renames);
         if (dlg.Changed) Vm.NotifyEdited();
@@ -908,11 +913,17 @@ public partial class MainWindow : Window
 
         var oldModifiers = App.Settings.QuickSwitchModifiers;
         var oldKey = App.Settings.QuickSwitchKey;
+        var oldDisplayName = HotkeyCaptureDialog.BuildDisplayText(oldModifiers, oldKey);
+        var newDisplayName = dlg.DisplayText;
+
         UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
-        if (!RegisterHotKey(_hwnd, HotkeyQuickSwitch, dlg.Modifiers, dlg.Key))
+        _failedHotkeys.Remove(oldDisplayName); // 変更前の旧キーの警告は不要になるため消す
+        TryRegisterHotKey(HotkeyQuickSwitch, dlg.Modifiers, dlg.Key, newDisplayName);
+        if (_failedHotkeys.Contains(newDisplayName))
         {
-            // 他アプリと衝突している場合は旧設定に戻す
-            RegisterHotKey(_hwnd, HotkeyQuickSwitch, oldModifiers, oldKey);
+            // 他アプリと衝突している場合は旧設定に戻す（新キーは採用しないため警告にも残さない）
+            _failedHotkeys.Remove(newDisplayName);
+            TryRegisterHotKey(HotkeyQuickSwitch, oldModifiers, oldKey, oldDisplayName);
             MessageBox.Show(this, "This hotkey is already in use by another application.",
                 "Set Quick Switch Hotkey", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -931,11 +942,18 @@ public partial class MainWindow : Window
 
         var oldModifiers = App.Settings.FullscreenModifiers;
         var oldKey = App.Settings.FullscreenKey;
+        var oldDisplayName = HotkeyCaptureDialog.BuildDisplayText(oldModifiers, oldKey);
+        var newDisplayName = dlg.DisplayText;
+
         if (oldKey != 0) UnregisterHotKey(_hwnd, HotkeyFullscreenCustom);
-        if (!RegisterHotKey(_hwnd, HotkeyFullscreenCustom, dlg.Modifiers, dlg.Key))
+        _failedHotkeys.Remove(oldDisplayName); // 変更前の旧キーの警告は不要になるため消す
+        TryRegisterHotKey(HotkeyFullscreenCustom, dlg.Modifiers, dlg.Key, newDisplayName);
+        if (_failedHotkeys.Contains(newDisplayName))
         {
-            // 他アプリと衝突している場合は旧設定に戻す
-            if (oldKey != 0) RegisterHotKey(_hwnd, HotkeyFullscreenCustom, oldModifiers, oldKey);
+            // 他アプリと衝突している場合は旧設定に戻す（新キーは採用しないため警告にも残さない）
+            _failedHotkeys.Remove(newDisplayName);
+            if (oldKey != 0) TryRegisterHotKey(HotkeyFullscreenCustom, oldModifiers, oldKey, oldDisplayName);
+            else UpdateHotkeyWarning();
             MessageBox.Show(this, "This hotkey is already in use by another application.",
                 "Set Fullscreen Hotkey", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
@@ -945,6 +963,16 @@ public partial class MainWindow : Window
         App.Settings.FullscreenKey = dlg.Key;
         App.Settings.Save();
         UpdateFullscreenMenuGesture();
+
+        // RdpClientHost はカスタム全画面キーを Ctrl+Alt 修飾の場合しか
+        // コントロールの HotKeyFullScreen に伝えないため、それ以外の修飾では全画面中に効かない
+        if (dlg.Modifiers != (ModControl | ModAlt))
+        {
+            MessageBox.Show(this,
+                "While a fullscreen session has focus, this key will not work; the default Ctrl+Alt+Break remains available. Ctrl+Alt combinations are recommended.\n" +
+                "Also, this change will only take effect for already-connected sessions after they reconnect.",
+                "Set Fullscreen Hotkey", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
     }
 
     private async void OnRefreshStatus(object sender, RoutedEventArgs e) => await Vm.RefreshStatusesAsync();

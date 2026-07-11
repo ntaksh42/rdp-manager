@@ -23,7 +23,8 @@ public static class HostAddress
     public static string FormatWithPort(string host, int port)
         => (IsIPv6(host) ? $"[{host}]" : host) + ":" + port;
 
-    /// <summary>"host"/"host:port"/"[ipv6]"/"[ipv6]:port"/"裸の ipv6" を (host, port) に分離。</summary>
+    /// <summary>"host"/"host:port"/"[ipv6]"/"[ipv6]:port"/"裸の ipv6" を (host, port) に分離。
+    /// port は 1-65535 の範囲外なら null 扱いとする（host 部はそのまま返す）。</summary>
     public static (string host, int? port) Parse(string value)
     {
         value = value.Trim();
@@ -34,7 +35,7 @@ public static class HostAddress
             {
                 var host = value[1..end];
                 var rest = value[(end + 1)..];
-                if (rest.StartsWith(':') && int.TryParse(rest[1..], out var p)) return (host, p);
+                if (rest.StartsWith(':') && int.TryParse(rest[1..], out var p) && IsValidPort(p)) return (host, p);
                 return (host, null);
             }
             return (value, null);
@@ -44,9 +45,11 @@ public static class HostAddress
         if (first >= 0 && first == value.LastIndexOf(':'))
         {
             var host = value[..first];
-            if (int.TryParse(value[(first + 1)..], out var p)) return (host, p);
+            if (int.TryParse(value[(first + 1)..], out var p) && IsValidPort(p)) return (host, p);
             return (host, null);
         }
         return (value, null);
     }
+
+    private static bool IsValidPort(int port) => port is >= 1 and <= 65535;
 }

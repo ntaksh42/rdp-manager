@@ -16,6 +16,7 @@
         <SolidColorBrush x:Key="TabSelectedBg" Color="#FFFFFF"/>
         <SolidColorBrush x:Key="HoverBg" Color="#1A000000"/>
         <SolidColorBrush x:Key="PressedBg" Color="#33000000"/>
+        <SolidColorBrush x:Key="ErrorFg" Color="#C62828"/>
 
         <!-- 入力系はテーマブラシに追従（ダークモードで白背景が残らないように）-->
         <Style TargetType="TextBox">

@@ -20,17 +20,25 @@ public partial class PatternAddDialog : Window
     {
         var text = PatternBox.Text.Trim();
         if (string.IsNullOrEmpty(text)) { PreviewText.Text = ""; return; }
-        var total = PatternExpander.Count(text);
-        if (total > PatternExpander.MaxResults)
+        try
         {
-            PreviewText.Text = $"{total} host(s) — exceeds the limit of {PatternExpander.MaxResults}.";
-            return;
+            var total = PatternExpander.Count(text);
+            if (total > PatternExpander.MaxResults)
+            {
+                PreviewText.Text = $"{total} host(s) — exceeds the limit of {PatternExpander.MaxResults}.";
+                return;
+            }
+            var hosts = PatternExpander.Expand(text);
+            var sample = string.Join(", ", hosts.Take(4));
+            PreviewText.Text = hosts.Count > 4
+                ? $"{hosts.Count} host(s): {sample} …"
+                : $"{hosts.Count} host(s): {sample}";
         }
-        var hosts = PatternExpander.Expand(text);
-        var sample = string.Join(", ", hosts.Take(4));
-        PreviewText.Text = hosts.Count > 4
-            ? $"{hosts.Count} host(s): {sample} …"
-            : $"{hosts.Count} host(s): {sample}";
+        catch (PatternTooLargeException ex)
+        {
+            // 巨大な数値範囲（パース不能な桁数など）はプレビューにエラーを表示するだけに留める
+            PreviewText.Text = ex.Message;
+        }
     }
 
     private void OnOk(object sender, RoutedEventArgs e)

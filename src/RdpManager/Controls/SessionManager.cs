@@ -48,6 +48,10 @@ public sealed class SessionManager
     private TabControl _activePane;
     // Ctrl+Tab タブスイッチャー用の MRU（最近アクティブ化順）リスト。先頭が最新。
     private readonly List<TabItem> _mru = new();
+    // UpdateRightPane で直近に適用したペインの表示状態。null は未適用（初回は必ず反映）。
+    // 表示/非表示が変わらない限り Width を書き換えず、GridSplitter で調整した比率を保つ。
+    private bool? _leftVisible;
+    private bool? _rightVisible;
 
     /// <summary>タブの開閉でセッション数が変わったときに通知（ステータスバー表示用）。</summary>
     public event Action? SessionsChanged;
@@ -461,8 +465,18 @@ public sealed class SessionManager
     {
         bool right = _right.Items.Count > 0;
         bool left = _left.Items.Count > 0 || !right;
-        _leftCol.Width = left ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        _rightCol.Width = right ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        // 表示/非表示が切り替わったときだけ Width を書き換える。無条件に上書きすると
+        // GridSplitter でユーザーが調整した Star 比率がタブ開閉のたびに 1:1 へ戻ってしまう。
+        if (_leftVisible != left)
+        {
+            _leftCol.Width = left ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+            _leftVisible = left;
+        }
+        if (_rightVisible != right)
+        {
+            _rightCol.Width = right ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+            _rightVisible = right;
+        }
         bool both = left && right;
         _rightSplitterCol.Width = both ? GridLength.Auto : new GridLength(0);
         _rightSplitter.Visibility = both ? Visibility.Visible : Visibility.Collapsed;

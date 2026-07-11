@@ -22,6 +22,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- ユニットテストから internal コンストラクタ（永続化なしの MainViewModel）を使うため -->
+    <InternalsVisibleTo Include="RdpManager.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- 未パッケージアプリのトースト表示・クリック活性化(Compat)用 -->
     <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
     <!-- mstscax の RCW インターフェイス参照用（AxHost ラッパーは自前実装のため不要）。

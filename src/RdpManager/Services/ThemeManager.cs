@@ -25,6 +25,7 @@ public static class ThemeManager
             res["TabSelectedBg"] = Brush("#3E3E42");
             res["HoverBg"] = Brush("#33FFFFFF");
             res["PressedBg"] = Brush("#4DFFFFFF");
+            res["ErrorFg"] = Brush("#E5484D");
         }
         else
         {
@@ -40,6 +41,7 @@ public static class ThemeManager
             res["TabSelectedBg"] = Brush("#FFFFFF");
             res["HoverBg"] = Brush("#1A000000");
             res["PressedBg"] = Brush("#33000000");
+            res["ErrorFg"] = Brush("#C62828");
         }
     }
 

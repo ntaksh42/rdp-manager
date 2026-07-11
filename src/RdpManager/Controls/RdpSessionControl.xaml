@@ -10,7 +10,7 @@
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                 <TextBlock x:Name="StatusText" Text="Connecting…" Foreground="{DynamicResource TextFg}"
                            FontSize="16" HorizontalAlignment="Center"/>
-                <TextBlock x:Name="ErrorText" Foreground="#E5484D" FontSize="12"
+                <TextBlock x:Name="ErrorText" Foreground="{DynamicResource ErrorFg}" FontSize="12"
                            Margin="0,8,0,0" HorizontalAlignment="Center" TextWrapping="Wrap"
                            MaxWidth="420" TextAlignment="Center" Visibility="Collapsed"/>
                 <StackPanel x:Name="RecoveryButtons" Orientation="Horizontal" Margin="0,16,0,0"

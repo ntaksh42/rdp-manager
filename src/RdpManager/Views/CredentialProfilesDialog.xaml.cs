@@ -9,14 +9,16 @@ namespace RdpManager.Views;
 public partial class CredentialProfilesDialog : Window
 {
     private readonly ObservableCollection<CredentialProfile> _profiles;
+    private readonly IReadOnlyList<TreeNodeViewModel> _allNodes;
     public bool Changed { get; private set; }
     /// <summary>このダイアログ内で行われたプロファイル改名（旧名, 新名）。参照ノードの追従に使う。</summary>
     public List<(string OldName, string NewName)> Renames { get; } = new();
 
-    public CredentialProfilesDialog(ObservableCollection<CredentialProfile> profiles)
+    public CredentialProfilesDialog(ObservableCollection<CredentialProfile> profiles, IEnumerable<TreeNodeViewModel> allNodes)
     {
         InitializeComponent();
         _profiles = profiles;
+        _allNodes = allNodes.ToList();
         ProfileList.ItemsSource = _profiles;
     }
 
@@ -57,6 +59,11 @@ public partial class CredentialProfilesDialog : Window
         }
         else if (!string.IsNullOrEmpty(target.Name) && target.Name != name)
         {
+            if (_profiles.Any(x => x != target && x.Name == name))
+            {
+                MessageBox.Show(this, "A profile with this name already exists.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             // 既存プロファイルの改名 → 参照しているノードの追従用に記録
             Renames.Add((target.Name, name));
         }
@@ -76,9 +83,18 @@ public partial class CredentialProfilesDialog : Window
     {
         if (Selected is { } p)
         {
-            if (MessageBox.Show(this, $"Delete profile '{p.Name}'?", "Confirm Delete",
+            var referencing = _allNodes.Where(n => n.CredentialMode == "profile" && n.CredentialProfile == p.Name).ToList();
+            var message = referencing.Count > 0
+                ? $"Delete profile '{p.Name}'?\n{referencing.Count} item(s) reference this profile and will be reset to inherit credentials from their parent."
+                : $"Delete profile '{p.Name}'?";
+            if (MessageBox.Show(this, message, "Confirm Delete",
                     MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
                 return;
+            foreach (var n in referencing)
+            {
+                n.CredentialMode = "inheritFromParent";
+                n.CredentialProfile = "";
+            }
             _profiles.Remove(p);
             Changed = true;
             OnNew(sender, e);

@@ -50,20 +50,38 @@ public static partial class PatternExpander
         {
             var literal = pattern.Substring(pos, m.Index - pos);
             var options = new List<string>();
+            long segmentCount;
             if (m.Groups[1].Success)
             {
                 options.AddRange(m.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries));
+                if (options.Count == 0) options.Add(""); // "abc{}" のような空展開でも直前リテラルを失わない
+                segmentCount = options.Count;
             }
             else
             {
+                // \d+ は桁数無制限のため int.Parse だと巨大な値で OverflowException になる。
+                // long.Parse でも表現できない桁数はパース失敗として PatternTooLargeException に正規化する。
                 string lo = m.Groups[2].Value, hi = m.Groups[3].Value;
-                int a = int.Parse(lo), b = int.Parse(hi), width = lo.Length;
+                if (!long.TryParse(lo, out var a) || !long.TryParse(hi, out var b))
+                    throw new PatternTooLargeException(long.MaxValue);
                 if (a > b) (a, b) = (b, a);
-                for (int n = a; n <= b; n++) options.Add(n.ToString().PadLeft(width, '0'));
+                int width = lo.Length;
+                try { segmentCount = checked(b - a + 1); }
+                catch (OverflowException) { throw new PatternTooLargeException(long.MaxValue); }
+
+                if (segmentCount > MaxResults)
+                {
+                    // この時点で全体の件数超過が確定するため、巨大レンジを実体化しない
+                    // （実際の文字列生成は Expand() 側の上限チェックで拒否されるので不要）
+                }
+                else
+                {
+                    for (long n = a; n <= b; n++) options.Add(n.ToString().PadLeft(width, '0'));
+                }
             }
-            if (options.Count == 0) options.Add(""); // "abc{}" のような空展開でも直前リテラルを失わない
             segments.Add((literal, options));
-            total *= Math.Max(options.Count, 1);
+            try { total = checked(total * Math.Max(segmentCount, 1)); }
+            catch (OverflowException) { total = int.MaxValue; }
             if (total > int.MaxValue) total = int.MaxValue; // オーバーフロー回避（上限超は確定）
             pos = m.Index + m.Length;
         }

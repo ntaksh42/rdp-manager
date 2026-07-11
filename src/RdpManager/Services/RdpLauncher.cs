@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using RdpManager.Common;
 using RdpManager.Models;
@@ -13,6 +15,13 @@ namespace RdpManager.Services;
 /// </summary>
 public static class RdpLauncher
 {
+    /// <summary>起動ごとの後始末情報（TERMSRV 資格情報の復旧・削除と、一時 .rdp ファイルの削除）。</summary>
+    private sealed record PendingCleanup(string Host, string RdpPath, bool WroteCred, (string user, string password, uint persist)? ExistingCred);
+
+    // .rdp のパス（ホストごとに一意）をキーに、未実行の遅延クリーンアップを追跡する。
+    // アプリ終了時に CleanupAllPending() から一括で片付けられるようにするため。
+    private static readonly ConcurrentDictionary<string, PendingCleanup> PendingCleanups = new();
+
     public static Process Launch(LaunchInfo info)
     {
         // 1) 資格情報を登録（パスワードがある場合）。CredWrite で直接書き込み。
@@ -28,37 +37,67 @@ public static class RdpLauncher
 
         // 2) .rdp ファイルを生成
         var rdpPath = WriteRdpFile(info);
+        PendingCleanups[rdpPath] = new PendingCleanup(info.Host, rdpPath, wroteCred, existingCred);
 
-        // 3) mstsc 起動（ArgumentList でパスのクオートを安全に処理）
-        var psi = new ProcessStartInfo { FileName = "mstsc.exe", UseShellExecute = true };
-        psi.ArgumentList.Add(rdpPath);
-        var proc = Process.Start(psi)!;
-
-        // 4) 書き込んだ TERMSRV 資格情報をクリーンアップ。
-        // CRED_PERSIST_SESSION でもログオフまで残るため、mstsc が読み終えた頃に削除する。
-        // 退避した既存の資格情報があれば、削除せず元の内容へ書き戻す。
-        if (wroteCred)
+        try
         {
-            var host = info.Host;
+            // 3) mstsc 起動（ArgumentList でパスのクオートを安全に処理）
+            var psi = new ProcessStartInfo { FileName = "mstsc.exe", UseShellExecute = true };
+            psi.ArgumentList.Add(rdpPath);
+            var proc = Process.Start(psi)!;
+
+            // 4) 書き込んだ TERMSRV 資格情報・一時 .rdp ファイルをクリーンアップ。
+            // CRED_PERSIST_SESSION でもログオフまで残るため、mstsc が読み終えた頃に削除する。
+            // 30秒以内にアプリが終了した場合は App.OnExit から CleanupAllPending() で即時に片付ける。
             _ = Task.Run(async () =>
             {
                 await Task.Delay(TimeSpan.FromSeconds(30));
-                if (existingCred is { } e)
-                {
-                    CredentialManager.WriteTerminalServer(host, e.user, e.password, e.persist);
-                    Logger.Info($"Restored previous TERMSRV credential for {host}.");
-                }
-                else
-                {
-                    CredentialManager.DeleteTerminalServer(host);
-                    Logger.Info($"Cleaned up TERMSRV credential for {host}.");
-                }
+                CleanupOne(rdpPath);
             });
+
+            // 5) 外部起動ではこれ以上 LaunchInfo のパスワードは不要なのでクリア（A-4 緩和）。
+            info.ScrubPassword();
+            return proc;
+        }
+        catch
+        {
+            // 起動自体が失敗した場合、30秒後のクリーンアップを待たず即座に片付ける
+            CleanupOne(rdpPath);
+            throw;
+        }
+    }
+
+    /// <summary>未実行の遅延クリーンアップをすべて即座に片付ける。App 終了処理から呼ぶ。</summary>
+    public static void CleanupAllPending()
+    {
+        foreach (var key in PendingCleanups.Keys.ToArray())
+            CleanupOne(key);
+    }
+
+    private static void CleanupOne(string rdpPath)
+    {
+        if (!PendingCleanups.TryRemove(rdpPath, out var pending)) return;
+
+        if (pending.WroteCred)
+        {
+            // 退避した既存の資格情報があれば、削除せず元の内容へ書き戻す。
+            if (pending.ExistingCred is { } e)
+            {
+                CredentialManager.WriteTerminalServer(pending.Host, e.user, e.password, e.persist);
+                Logger.Info($"Restored previous TERMSRV credential for {pending.Host}.");
+            }
+            else
+            {
+                CredentialManager.DeleteTerminalServer(pending.Host);
+                Logger.Info($"Cleaned up TERMSRV credential for {pending.Host}.");
+            }
         }
 
-        // 5) 外部起動ではこれ以上 LaunchInfo のパスワードは不要なのでクリア（A-4 緩和）。
-        info.ScrubPassword();
-        return proc;
+        try
+        {
+            if (File.Exists(pending.RdpPath)) File.Delete(pending.RdpPath);
+        }
+        catch { /* 一時ファイル削除の失敗はアプリ動作を妨げない */ }
     }
 
     private static string WriteRdpFile(LaunchInfo info)

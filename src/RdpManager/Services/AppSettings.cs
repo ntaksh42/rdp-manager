@@ -25,6 +25,8 @@ public sealed class AppSettings
     /// <summary>全画面トグル用の追加グローバルホットキーの仮想キーコード。既定は未設定（0）。</summary>
     public uint FullscreenKey { get; set; }
     public List<string> OpenOnExit { get; set; } = new();
+    /// <summary>終了時に右ペイン（分割ビュー）で開いていた接続。復元時に配置を再現する。</summary>
+    public List<string> OpenOnExitRight { get; set; } = new();
 
     // 前回終了時のウィンドウ位置・サイズ（未保存なら null で既定のまま）
     public double? WindowLeft { get; set; }
