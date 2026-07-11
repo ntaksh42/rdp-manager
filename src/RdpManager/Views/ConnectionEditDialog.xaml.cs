@@ -93,6 +93,12 @@ public partial class ConnectionEditDialog : Window
             return;
         }
 
+        if (SelectedCredMode == "profile" && ProfileBox.SelectedItem == null)
+        {
+            MessageBox.Show(this, "Please select a credential profile.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         int port = 0;
         if (_node.IsConnection)
         {

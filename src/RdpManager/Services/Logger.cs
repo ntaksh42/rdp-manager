@@ -13,6 +13,9 @@ public static class Logger
     /// <summary>有効化フラグ。App 起動時に AppSettings から設定する。</summary>
     public static bool Enabled { get; set; }
 
+    /// <summary>ログファイルの上限サイズ。超過したら .old にローテーションする（世代は1つのみ保持）。</summary>
+    private const long MaxLogSizeBytes = 5 * 1024 * 1024; // 5MB
+
     private static string LogPath
     {
         get
@@ -38,10 +41,21 @@ public static class Logger
             {
                 var dir = Path.Combine(ConnectionStore.Directory, "logs");
                 Directory.CreateDirectory(dir);
+                RotateIfNeeded();
                 var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] {message}{Environment.NewLine}";
                 File.AppendAllText(LogPath, line);
             }
         }
         catch { /* ログ自体の失敗はアプリ動作を妨げない */ }
+    }
+
+    /// <summary>ログが上限サイズを超えていたら .old へリネームする（既存の .old は削除して上書き）。</summary>
+    private static void RotateIfNeeded()
+    {
+        if (!File.Exists(LogPath)) return;
+        if (new FileInfo(LogPath).Length < MaxLogSizeBytes) return;
+        var oldPath = LogPath + ".old";
+        if (File.Exists(oldPath)) File.Delete(oldPath);
+        File.Move(LogPath, oldPath);
     }
 }

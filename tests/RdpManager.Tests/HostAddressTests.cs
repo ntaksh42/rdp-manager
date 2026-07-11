@@ -102,6 +102,38 @@ public class HostAddressTests
     }
 
     [Fact]
+    public void Parse_PortBelowValidRange_ReturnsHostAndNullPort()
+    {
+        var (host, port) = HostAddress.Parse("host:-1");
+        Assert.Equal("host", host);
+        Assert.Null(port);
+    }
+
+    [Fact]
+    public void Parse_PortAboveValidRange_ReturnsHostAndNullPort()
+    {
+        var (host, port) = HostAddress.Parse("host:99999");
+        Assert.Equal("host", host);
+        Assert.Null(port);
+    }
+
+    [Fact]
+    public void Parse_PortZero_ReturnsHostAndNullPort()
+    {
+        var (host, port) = HostAddress.Parse("host:0");
+        Assert.Equal("host", host);
+        Assert.Null(port);
+    }
+
+    [Fact]
+    public void Parse_BracketedIPv6WithOutOfRangePort_ReturnsHostAndNullPort()
+    {
+        var (host, port) = HostAddress.Parse("[fe80::1]:99999");
+        Assert.Equal("fe80::1", host);
+        Assert.Null(port);
+    }
+
+    [Fact]
     public void Parse_TrimsWhitespace()
     {
         var (host, port) = HostAddress.Parse("  host:3390  ");

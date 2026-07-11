@@ -92,11 +92,20 @@ public partial class App : Application
         win.Show();
     }
 
+    protected override void OnExit(ExitEventArgs e)
+    {
+        // 30秒の遅延クリーンアップ待たず、外部起動で残った TERMSRV 資格情報・一時 .rdp ファイルを片付ける
+        RdpLauncher.CleanupAllPending();
+        base.OnExit(e);
+    }
+
     private static readonly TimeSpan ErrorDialogThrottle = TimeSpan.FromSeconds(30);
     private DateTime? _lastErrorShown;
 
     private void OnUnhandled(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
+        // 表示スロットル中でも痕跡が残るよう、内容は常にログへ記録する
+        Logger.Warn(e.Exception.ToString());
         if (_selfTest)
         {
             if (!System.IO.File.Exists(SelfTestLog))

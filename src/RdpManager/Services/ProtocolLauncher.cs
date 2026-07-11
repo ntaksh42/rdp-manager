@@ -21,6 +21,17 @@ public static class ProtocolLauncher
             message = "The username contains characters that are not allowed.";
             return false;
         }
+        // 先頭が '-' だと ssh/telnet にオプションとして解釈される（引数インジェクション）ため拒否
+        if (host.StartsWith('-'))
+        {
+            message = "The host must not start with '-'.";
+            return false;
+        }
+        if (user.StartsWith('-'))
+        {
+            message = "The username must not start with '-'.";
+            return false;
+        }
         try
         {
             switch (protocol.ToUpperInvariant())
@@ -28,7 +39,8 @@ public static class ProtocolLauncher
                 case "SSH":
                     var sshPort = port == 3389 ? 22 : port;
                     var target = string.IsNullOrEmpty(user) ? host : $"{user}@{host}";
-                    Process.Start(new ProcessStartInfo("cmd.exe", $"/k ssh -p {sshPort} {target}") { UseShellExecute = true });
+                    // 宛先の前に -- を入れ、万一の混入時も ssh のオプションとして解釈されないようにする
+                    Process.Start(new ProcessStartInfo("cmd.exe", $"/k ssh -p {sshPort} -- {target}") { UseShellExecute = true });
                     return true;
 
                 case "TELNET":

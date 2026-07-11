@@ -31,6 +31,7 @@ public partial class RdpSessionControl : UserControl
     private int _autoRetries;
     private bool _reconnectScheduled;
     private long _connectedAt;        // 直近の接続成立時刻（Stopwatch タイムスタンプ）
+    private bool _closed;              // Cleanup 済みフラグ（破棄後に飛んでくる遅延ディスパッチを無視する）
 
     public event EventHandler? StateChanged;
     /// <summary>リモート側から仮想チャネル経由の通知を受信したとき。</summary>
@@ -102,7 +103,7 @@ public partial class RdpSessionControl : UserControl
 
     private void BeginConnect()
     {
-        if (_info is null) return;
+        if (_closed || _info is null) return;
         _prevState = null;
         _client.Connect(_info);
         _poll.Start();
@@ -113,6 +114,7 @@ public partial class RdpSessionControl : UserControl
 
     private void OnPoll(object? sender, EventArgs e)
     {
+        if (_closed) return;
         var st = _client.ConnectionState;
         switch (st)
         {
@@ -200,6 +202,7 @@ public partial class RdpSessionControl : UserControl
 
     public void Cleanup()
     {
+        _closed = true;
         _reconnect.Stop();
         _reconnectScheduled = false;
         _poll.Stop();

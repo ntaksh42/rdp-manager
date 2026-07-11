@@ -63,4 +63,26 @@ public class PatternExpanderTests
     {
         Assert.Equal(9999, PatternExpander.Count("[1-9999]"));
     }
+
+    [Fact]
+    public void Expand_RangeBeyondIntMaxValue_ThrowsPatternTooLargeExceptionInsteadOfOverflow()
+    {
+        // 回帰テスト(#67): int.Parse だと OverflowException になっていた巨大な数値範囲
+        Assert.Throws<PatternTooLargeException>(() => PatternExpander.Expand("server[1-9999999999]"));
+    }
+
+    [Fact]
+    public void Count_RangeBeyondIntMaxValue_DoesNotThrowAndReportsOverLimit()
+    {
+        // long で受けるため OverflowException は発生せず、上限超過の件数として扱われる
+        var total = PatternExpander.Count("server[1-9999999999]");
+        Assert.True(total > PatternExpander.MaxResults);
+    }
+
+    [Fact]
+    public void Count_RangeBeyondLongCapacity_ThrowsPatternTooLargeException()
+    {
+        // long.Parse すら扱えない桁数はパース失敗として PatternTooLargeException に正規化する
+        Assert.Throws<PatternTooLargeException>(() => PatternExpander.Count("[1-999999999999999999999]"));
+    }
 }
