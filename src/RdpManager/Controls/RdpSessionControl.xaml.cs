@@ -34,6 +34,8 @@ public partial class RdpSessionControl : UserControl
     private string _lastDisconnectMessage = "The connection was lost.";
     private long _connectedAt;        // 直近の接続成立時刻（Stopwatch タイムスタンプ）
     private bool _closed;              // Cleanup 済みフラグ（破棄後に飛んでくる遅延ディスパッチを無視する）
+    private string? _overlayStatus;
+    private string? _overlayError;
 
     public event EventHandler? StateChanged;
     /// <summary>リモート側から仮想チャネル経由の通知を受信したとき。</summary>
@@ -62,7 +64,15 @@ public partial class RdpSessionControl : UserControl
         // ウィンドウ/タブのサイズ変更に追従。mstsc.exe と同様、ドラッグ中も一定間隔（400ms）で
         // リモート解像度を随時更新するスロットル方式（最終サイズは WM_EXITSIZEMOVE 等の即時適用が拾う）
         _resizeThrottle.Tick += (_, _) => { _resizeThrottle.Stop(); ApplyResize(); };
-        SizeChanged += (_, _) => { if (!_resizeThrottle.IsEnabled) _resizeThrottle.Start(); };
+        SizeChanged += (_, _) =>
+        {
+            if (IsVisible && !_resizeThrottle.IsEnabled) _resizeThrottle.Start();
+        };
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible)
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(ApplyResizeNow));
+        };
         // 再接続待機中だけカウントダウンを更新する。通常時のバックグラウンド処理は増やさない。
         _reconnect.Tick += OnReconnectTick;
         // タブ切替で Unloaded しても切断しない（明示的に閉じた時のみ Cleanup）
@@ -71,7 +81,7 @@ public partial class RdpSessionControl : UserControl
     /// <summary>現在の表示サイズにリモート解像度を合わせる。</summary>
     private void ApplyResize()
     {
-        if (_client.ConnectionState == RdpConnectionState.Connected && _client.Width > 0 && _client.Height > 0)
+        if (IsVisible && _client.ConnectionState == RdpConnectionState.Connected && _client.Width > 0 && _client.Height > 0)
             _client.ResizeRemote(_client.Width, _client.Height);
     }
 
@@ -110,6 +120,7 @@ public partial class RdpSessionControl : UserControl
     {
         if (_closed || _info is null) return;
         _prevState = null;
+        _poll.Interval = TimeSpan.FromMilliseconds(700);
         _client.Connect(_info);
         _poll.Start();
         // 接続直後の失敗（即時 LastError）を反映
@@ -124,6 +135,7 @@ public partial class RdpSessionControl : UserControl
         switch (st)
         {
             case RdpConnectionState.Connected:
+                _poll.Interval = TimeSpan.FromSeconds(5);
                 if (_prevState != RdpConnectionState.Connected)
                 {
                     ApplyResize(); // 接続/再接続成立時にサイズ合わせ
@@ -138,9 +150,11 @@ public partial class RdpSessionControl : UserControl
                 SetOverlay(SessionVisualState.Connected, "");
                 break;
             case RdpConnectionState.Connecting:
+                _poll.Interval = TimeSpan.FromMilliseconds(700);
                 SetOverlay(SessionVisualState.Connecting, "Connecting…");
                 break;
             default: // Disconnected
+                _poll.Interval = TimeSpan.FromMilliseconds(700);
                 if (_wasConnected)
                 {
                     var deliberate = DeliberateDisconnectReason(_client.LastExtendedDisconnectReason);
@@ -228,7 +242,10 @@ public partial class RdpSessionControl : UserControl
     private void SetOverlay(SessionVisualState state, string status, string? error = null)
     {
         bool changed = state != VisualState;
+        if (!changed && status == _overlayStatus && error == _overlayError) return;
         VisualState = state;
+        _overlayStatus = status;
+        _overlayError = error;
         StatusText.Text = status;
         Overlay.Visibility = state == SessionVisualState.Connected ? Visibility.Collapsed : Visibility.Visible;
         bool recoverable = state is SessionVisualState.Disconnected or SessionVisualState.Reconnecting;
