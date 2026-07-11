@@ -94,6 +94,8 @@
                 </MenuItem>
             </MenuItem>
             <MenuItem Header="_View">
+                <MenuItem Header="Focus Connection Tree" InputGestureText="Alt+N" Click="OnFocusTree"/>
+                <Separator/>
                 <MenuItem Header="Sessions (Dashboard)…" InputGestureText="Ctrl+Alt+0" Click="OnSessionDashboard"/>
                 <MenuItem Header="Refresh Host Status" Click="OnRefreshStatus"/>
                 <Separator/>
