@@ -66,6 +66,7 @@ public sealed class RdpClientHost : AxHost
 
     private static string? _resolvedClsid;
     private dynamic? _ocx;
+    private long _connectRequestedAt;
 
     public RdpClientHost() : base(ResolveClsid()) { }
 
@@ -79,11 +80,18 @@ public sealed class RdpClientHost : AxHost
     {
         if (_resolvedClsid != null) return _resolvedClsid;
 
+        var startedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+
         // 1) ProgID から新しい順に探索（CLSID のハードコードに依存しない）
         for (int v = MaxProbeVersion; v >= 7; v--)
         {
             var type = Type.GetTypeFromProgID($"MsRdpClient{v}NotSafeForScripting");
-            if (TryProbe(type, out var guid)) { _resolvedClsid = guid; return guid; }
+            if (TryProbe(type, out var guid))
+            {
+                _resolvedClsid = guid;
+                LogClsidResolution(startedAt, guid);
+                return guid;
+            }
         }
 
         // 2) 既知 CLSID 候補
@@ -92,6 +100,7 @@ public sealed class RdpClientHost : AxHost
             if (TryProbe(Type.GetTypeFromCLSID(new Guid(clsid)), out _))
             {
                 _resolvedClsid = clsid;
+                LogClsidResolution(startedAt, clsid);
                 return clsid;
             }
         }
@@ -99,8 +108,12 @@ public sealed class RdpClientHost : AxHost
         // 3) 最後の手段（最古の既知版）
         Logger.Warn("No RDP ActiveX control could be instantiated; falling back to the oldest known CLSID.");
         _resolvedClsid = CandidateClsids[^1];
+        LogClsidResolution(startedAt, _resolvedClsid);
         return _resolvedClsid;
     }
+
+    private static void LogClsidResolution(long startedAt, string clsid)
+        => Logger.Info($"RDP control resolved: clsid={clsid} in {System.Diagnostics.Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds:F0} ms");
 
     /// <summary>type を実体化して生成可否を確認し、成功なら CLSID 文字列を返す。</summary>
     private static bool TryProbe(Type? type, out string clsid)
@@ -167,7 +180,9 @@ public sealed class RdpClientHost : AxHost
     {
         try
         {
+            var setupStartedAt = System.Diagnostics.Stopwatch.GetTimestamp();
             dynamic ocx = GetClient();
+            var controlReadyMs = System.Diagnostics.Stopwatch.GetElapsedTime(setupStartedAt).TotalMilliseconds;
 
             ocx.Server = info.Host;
             if (!string.IsNullOrEmpty(info.Username)) ocx.UserName = info.Username;
@@ -228,6 +243,8 @@ public sealed class RdpClientHost : AxHost
             {
                 object hw = true;
                 TrySet(() => ext.set_Property("EnableHardwareMode", ref hw), "EnableHardwareMode");
+                object urcp = true;
+                TrySet(() => ext.set_Property("UseURCP", ref urcp), "UseURCP");
                 // 初期スケールを DPI に合わせて渡す。渡さないと 100% で接続 → 直後の ApplyResize で
                 // スケール送信 → サーバー側の再レイアウトが一度必ず走ってしまう
                 var (desktopScale, deviceScale) = GetScaleFactors();
@@ -239,9 +256,8 @@ public sealed class RdpClientHost : AxHost
             TrySet(() => adv.BitmapPeristence = 1, "BitmapPeristence");  // ※API名のスペルは "Peristence"
             TrySet(() => adv.CachePersistenceActive = 1, "CachePersistenceActive");
             // 帯域変化の自動検出（mstsc の既定）。有効時はサーバー側がコーデック/フレームレートを回線に合わせる。
-            // NetworkConnectionType は自動検出が使えないサーバー向けの初期ヒントとして残す（LAN=6）
+            // LAN 固定の初期ヒントは VPN/WAN 接続で過剰な描画品質を選ばせるため指定しない。
             TrySet(() => adv.BandwidthDetection = true, "BandwidthDetection");
-            TrySet(() => adv.NetworkConnectionType = 6u, "NetworkConnectionType");
             if (info.PerformanceMode)
             {
                 // サーバー側の装飾を無効化（壁紙/フルウィンドウドラッグ/メニューアニメ/テーマ/カーソル影）
@@ -260,9 +276,11 @@ public sealed class RdpClientHost : AxHost
             _lastRemoteW = _lastRemoteH = 0; // 新しい接続の初期解像度は DesktopWidth/Height で決まるため再送抑止をリセット
             LastDisconnectReason = 0;
             LastExtendedDisconnectReason = 0; // 前回の切断理由を持ち越さない
+            _connectRequestedAt = System.Diagnostics.Stopwatch.GetTimestamp();
             ocx.Connect();
             LastError = null;
-            Logger.Info($"RDP connect initiated: {info.Host}:{info.Port}");
+            var setupMs = System.Diagnostics.Stopwatch.GetElapsedTime(setupStartedAt).TotalMilliseconds;
+            Logger.Info($"RDP connect initiated: {info.Host}:{info.Port}; control={controlReadyMs:F0} ms, setup={setupMs:F0} ms");
         }
         catch (Exception ex)
         {
@@ -348,7 +366,16 @@ public sealed class RdpClientHost : AxHost
         if (_connectedSink != null) return;
         try
         {
-            _connectedSink = () => ConnectionStateChanged?.Invoke();
+            _connectedSink = () =>
+            {
+                var at = _connectRequestedAt;
+                if (at != 0)
+                {
+                    _connectRequestedAt = 0;
+                    Logger.Info($"RDP connected in {System.Diagnostics.Stopwatch.GetElapsedTime(at).TotalMilliseconds:F0} ms");
+                }
+                ConnectionStateChanged?.Invoke();
+            };
             _disconnectedSink = discReason =>
             {
                 // OnDisconnected の理由はネットワーク障害、ExtendedDisconnectReason は
