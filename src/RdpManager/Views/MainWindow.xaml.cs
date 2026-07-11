@@ -204,6 +204,7 @@ public partial class MainWindow : Window
     private const int HotkeyMoveTabRight = 0x900E;
     private const int HotkeySessionDashboard = 0x900F;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
+    private const int HotkeyFocusTree = 0x9019;
     private const int WmHotkey = 0x0312;
     private const int WmExitSizeMove = 0x0232;
     private const uint VkF11 = 0x7A;
@@ -215,6 +216,7 @@ public partial class MainWindow : Window
     private const uint VkC = 0x43;
     private const uint VkV = 0x56;
     private const uint VkW = 0x57;
+    private const uint VkN = 0x4E;
     private const uint Vk0 = 0x30;
     private const uint ModAlt = 0x1;
     private const uint ModControl = 0x2;
@@ -296,6 +298,7 @@ public partial class MainWindow : Window
         TryRegisterHotKey(HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey,
             HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey)); // 設定可能な Quick Switch ホットキー
         TryRegisterHotKey(HotkeyFocusPane, ModControl | ModAlt, VkF6, "Ctrl+Alt+F6"); // 分割ペイン間のフォーカス切替
+        TryRegisterHotKey(HotkeyFocusTree, ModAlt, VkN, "Alt+N");
         for (uint i = 0; i < 9; i++)
             TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
     }
@@ -307,6 +310,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyPrevTab);
         UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
         UnregisterHotKey(_hwnd, HotkeyFocusPane);
+        UnregisterHotKey(_hwnd, HotkeyFocusTree);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
@@ -340,6 +344,7 @@ public partial class MainWindow : Window
             else if (id == HotkeyPrevTab) { _sessions.CycleTab(-1); handled = true; }
             else if (id == HotkeyQuickSwitch) { OnQuickSwitch(this, new RoutedEventArgs()); handled = true; }
             else if (id == HotkeyFocusPane) { _sessions.FocusOtherPane(); handled = true; }
+            else if (id == HotkeyFocusTree) { Tree.Focus(); handled = true; }
             else if (id == HotkeyClipboardToRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote); handled = true; }
             else if (id == HotkeyClipboardFromRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.RemoteToLocal); handled = true; }
             else if (id == HotkeyCloseTab) { _sessions.CloseActiveTab(); handled = true; }
@@ -583,6 +588,7 @@ public partial class MainWindow : Window
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+        bool alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
         // 検索ボックス等でのテキスト入力中は F2/Delete をショートカットとして奪わない
         bool inTextInput = Keyboard.FocusedElement is System.Windows.Controls.TextBox or System.Windows.Controls.PasswordBox;
 
@@ -601,6 +607,7 @@ public partial class MainWindow : Window
         else if (ctrl && shift && e.Key == Key.N) { OnNewFolder(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && e.Key == Key.N) { OnNewConnection(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && e.Key == Key.F) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
+        else if (alt && !ctrl && !shift && e.SystemKey == Key.N) { Tree.Focus(); e.Handled = true; }
         else if (ctrl && e.Key == Key.D) { OnDuplicateNode(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && shift && e.Key == Key.M) { _sessions.MoveActiveTabToOtherPane(); e.Handled = true; }
         else if (ctrl && e.Key == Key.W) { _sessions.CloseActiveTab(); e.Handled = true; }
@@ -674,6 +681,8 @@ public partial class MainWindow : Window
         SearchBox.Focus();
         SearchBox.SelectAll();
     }
+
+    private void OnFocusTree(object sender, RoutedEventArgs e) => Tree.Focus();
 
     private void OnCloseCurrentTab(object sender, RoutedEventArgs e) => _sessions.CloseActiveTab();
 
