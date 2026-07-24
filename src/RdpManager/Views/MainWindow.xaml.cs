@@ -255,6 +255,7 @@ public partial class MainWindow : Window
         if (App.Settings.FullscreenKey != 0)
             TryRegisterHotKey(HotkeyFullscreenCustom, App.Settings.FullscreenModifiers, App.Settings.FullscreenKey,
                 HotkeyCaptureDialog.BuildDisplayText(App.Settings.FullscreenModifiers, App.Settings.FullscreenKey));
+        RegisterSwitchHotkeys();
         RegisterAuxHotkeys();
         QuickSwitchMenuItem.InputGestureText = HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey);
         UpdateFullscreenMenuGesture();
@@ -288,29 +289,40 @@ public partial class MainWindow : Window
             : $"F11 / Ctrl+Alt+Pause / {HotkeyCaptureDialog.BuildDisplayText(App.Settings.FullscreenModifiers, App.Settings.FullscreenKey)}";
     }
 
-    // タブ巡回等の補助ホットキー一式。全画面中は解除し、純正 mstsc 同様にキーをリモートへ流す。
-    // 閉じる・移動等のセッション操作キーは OnSourceInitialized で別途登録し、ここには含めない。
+    // 単独キー/Alt 単押しの補助ホットキー。全画面中は解除し、純正 mstsc 同様にキーをリモートへ流す
+    // （リモートアプリの F11 や Alt メニューを潰さないため）。全画面の解除は Ctrl+Alt+Pause/Break と
+    // 設定済みのカスタム全画面キーで行える。
     private void RegisterAuxHotkeys()
     {
         TryRegisterHotKey(HotkeyF11, 0, VkF11, "F11");
-        TryRegisterHotKey(HotkeyNextTab, ModControl | ModAlt, VkPageDown, "Ctrl+Alt+PageDown");
-        TryRegisterHotKey(HotkeyPrevTab, ModControl | ModAlt, VkPageUp, "Ctrl+Alt+PageUp");
-        TryRegisterHotKey(HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey,
-            HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey)); // 設定可能な Quick Switch ホットキー
-        TryRegisterHotKey(HotkeyFocusPane, ModControl | ModAlt, VkF6, "Ctrl+Alt+F6"); // 分割ペイン間のフォーカス切替
         TryRegisterHotKey(HotkeyFocusTree, ModAlt, VkN, "Alt+N");
-        for (uint i = 0; i < 9; i++)
-            TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
     }
 
     private void UnregisterAuxHotkeys()
     {
         UnregisterHotKey(_hwnd, HotkeyF11);
+        UnregisterHotKey(_hwnd, HotkeyFocusTree);
+    }
+
+    // セッション切替系ホットキー。全画面中こそタブを切り替えたいため、閉じる・移動等のセッション操作キーと
+    // 同様に全画面中も登録を維持する。いずれも Ctrl+Alt+ 修飾でリモート側での使用頻度が低い。
+    private void RegisterSwitchHotkeys()
+    {
+        TryRegisterHotKey(HotkeyNextTab, ModControl | ModAlt, VkPageDown, "Ctrl+Alt+PageDown");
+        TryRegisterHotKey(HotkeyPrevTab, ModControl | ModAlt, VkPageUp, "Ctrl+Alt+PageUp");
+        TryRegisterHotKey(HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey,
+            HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey)); // 設定可能な Quick Switch ホットキー
+        TryRegisterHotKey(HotkeyFocusPane, ModControl | ModAlt, VkF6, "Ctrl+Alt+F6"); // 分割ペイン間のフォーカス切替
+        for (uint i = 0; i < 9; i++)
+            TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
+    }
+
+    private void UnregisterSwitchHotkeys()
+    {
         UnregisterHotKey(_hwnd, HotkeyNextTab);
         UnregisterHotKey(_hwnd, HotkeyPrevTab);
         UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
         UnregisterHotKey(_hwnd, HotkeyFocusPane);
-        UnregisterHotKey(_hwnd, HotkeyFocusTree);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
@@ -327,6 +339,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyMoveTabLeft);
         UnregisterHotKey(_hwnd, HotkeyMoveTabRight);
         UnregisterHotKey(_hwnd, HotkeySessionDashboard);
+        UnregisterSwitchHotkeys();
         UnregisterAuxHotkeys();
     }
 
@@ -401,8 +414,8 @@ public partial class MainWindow : Window
                 WindowState = WindowState.Normal; // 一旦戻してから最大化しないと境界が残ることがある
                 WindowState = WindowState.Maximized;
             }
-            // 純正 mstsc 同様、全画面中はタブ巡回等の補助ホットキーを解除する。
-            // 明示的なセッション操作キーと全画面解除キーだけは登録を維持する。
+            // 純正 mstsc 同様、全画面中は単独キー系の補助ホットキーを解除しリモートへ流す。
+            // セッション切替・操作キーと全画面解除キーは登録を維持する。
             UnregisterAuxHotkeys();
             // KeyboardHookMode=2 と連動: 全画面中のみ Win キー組み合わせがリモートへ送られるようになる。
             // FullScreen 設定が FullscreenChangeRequested を発火させるため、_fullscreen を先に確定させて再入を防ぐ
