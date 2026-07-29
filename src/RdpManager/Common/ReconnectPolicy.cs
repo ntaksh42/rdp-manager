@@ -33,6 +33,10 @@ public static class ReconnectPolicy
             2308;   // socket closed
     }
 
+    /// <summary>リモート側の操作でセッションが明示的に終了したかを判定する。</summary>
+    public static bool IsRemoteSessionEnded(int extendedReason)
+        => extendedReason is 1 or 2 or 3 or 4 or 5 or 11 or 12;
+
     public static string DescribeDisconnect(int disconnectReason) => disconnectReason switch
     {
         264 or 1796 => "The connection timed out.",
