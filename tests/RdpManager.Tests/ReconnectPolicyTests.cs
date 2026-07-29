@@ -35,4 +35,22 @@ public class ReconnectPolicyTests
     [Fact]
     public void IsTransientDisconnect_RejectsAuthenticationFailure()
         => Assert.False(ReconnectPolicy.IsTransientDisconnect(2055, 0));
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(11)]
+    [InlineData(12)]
+    public void IsRemoteSessionEnded_AcceptsDeliberateRemoteDisconnects(int extendedReason)
+        => Assert.True(ReconnectPolicy.IsRemoteSessionEnded(extendedReason));
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(6)]
+    [InlineData(2308)]
+    public void IsRemoteSessionEnded_RejectsOtherDisconnects(int extendedReason)
+        => Assert.False(ReconnectPolicy.IsRemoteSessionEnded(extendedReason));
 }
