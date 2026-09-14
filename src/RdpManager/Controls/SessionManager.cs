@@ -3,6 +3,7 @@ using System.Windows.Shapes;
 using RdpManager.Common;
 using RdpManager.Models;
 using RdpManager.Services;
+using RdpManager.Views;
 using Button = System.Windows.Controls.Button;
 using Cursors = System.Windows.Input.Cursors;
 using MouseButton = System.Windows.Input.MouseButton;
@@ -23,8 +24,12 @@ using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 namespace RdpManager.Controls;
 
 /// <summary>タブ Tag に持たせる、セッション復元・後処理用の付随情報。SessionKey はトースト活性化用の一意キー。
-/// Session は常駐ホスト方式のため TabItem.Content ではなくここで持つ。</summary>
-public sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info, string SessionKey, RdpSessionControl Session);
+/// Session は常駐ホスト方式のため TabItem.Content ではなくここで持つ。Title はユーザーが Rename で
+/// 変更できるよう可変（初期値はツリーノード名）。</summary>
+public sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info, string SessionKey, RdpSessionControl Session)
+{
+    public string Title { get; set; } = "";
+}
 
 /// <summary>
 /// 左右2ペインの RDP セッションタブのライフサイクル（生成/クローズ/巡回/分割表示）を担う。
@@ -185,12 +190,13 @@ public sealed class SessionManager
             VerticalAlignment = VerticalAlignment.Center, Fill = Brushes.Orange
         };
 
+        var tag = new SessionTag(nodeId, postCommand, info, Guid.NewGuid().ToString("N"), session) { Title = title };
         var tab = new TabItem
         {
-            Tag = new SessionTag(nodeId, postCommand, info, Guid.NewGuid().ToString("N"), session),
+            Tag = tag,
             ToolTip = HostAddress.FormatWithPort(info.Host, info.Port)
         };
-        session.NotificationReceived += (_, n) => SessionNotification?.Invoke(tab, title, n);
+        session.NotificationReceived += (_, n) => SessionNotification?.Invoke(tab, tag.Title, n);
         session.FullScreenRequested += on => FullscreenChangeRequested?.Invoke(on);
         session.CloseRequested += (_, _) => CloseSession(tab, session);
         // SelectionChanged は選択が「変化」した時しか発火しないため、選択中タブの再クリックや
@@ -206,14 +212,15 @@ public sealed class SessionManager
         };
         close.Click += (_, _) => CloseSession(tab, session);
 
-        var header = new StackPanel { Orientation = Orientation.Horizontal };
-        header.Children.Add(dot);
-        header.Children.Add(new TextBlock
+        var titleText = new TextBlock
         {
             Text = title, VerticalAlignment = VerticalAlignment.Center,
             MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis,
             ToolTip = title
-        });
+        };
+        var header = new StackPanel { Orientation = Orientation.Horizontal };
+        header.Children.Add(dot);
+        header.Children.Add(titleText);
         header.Children.Add(close);
         tab.Header = header;
 
@@ -222,7 +229,7 @@ public sealed class SessionManager
         {
             if (e.ChangedButton == MouseButton.Middle) { CloseSession(tab, session); e.Handled = true; }
         };
-        tab.ContextMenu = BuildTabMenu(tab, session);
+        tab.ContextMenu = BuildTabMenu(tab, session, titleText);
 
         session.StateChanged += (_, _) => dot.Fill = session.VisualState switch
         {
@@ -252,8 +259,10 @@ public sealed class SessionManager
         session.Start(info);
     }
 
-    private ContextMenu BuildTabMenu(TabItem tab, RdpSessionControl session)
+    private ContextMenu BuildTabMenu(TabItem tab, RdpSessionControl session, TextBlock titleText)
     {
+        var rename = new MenuItem { Header = "Rename…" };
+        rename.Click += (_, _) => RenameTab(tab, titleText);
         var reconnect = new MenuItem { Header = "Reconnect" };
         reconnect.Click += (_, _) => { if (session.VisualState == SessionVisualState.Disconnected) session.Reconnect(); };
         var clipboardToRemote = new MenuItem
@@ -289,6 +298,7 @@ public sealed class SessionManager
             clipboardToRemote.IsEnabled = clipboardFromRemote.IsEnabled =
                 session.VisualState == SessionVisualState.Connected && session.ClipboardSharingEnabled;
         };
+        menu.Items.Add(rename);
         menu.Items.Add(reconnect);
         menu.Items.Add(new Separator());
         menu.Items.Add(clipboardToRemote);
@@ -301,6 +311,18 @@ public sealed class SessionManager
         menu.Items.Add(closeOthers);
         menu.Items.Add(closeAll);
         return menu;
+    }
+
+    /// <summary>タブの表示名をユーザー入力でリネームする（右クリックメニュー「Rename…」から）。</summary>
+    private void RenameTab(TabItem tab, TextBlock titleText)
+    {
+        if (tab.Tag is not SessionTag tag) return;
+        var owner = Window.GetWindow(tab);
+        var dlg = new RenameSessionDialog(tag.Title) { Owner = owner };
+        if (dlg.ShowDialog() != true) return;
+        tag.Title = dlg.NewName;
+        titleText.Text = dlg.NewName;
+        titleText.ToolTip = dlg.NewName;
     }
 
     private void SyncClipboard(RdpSessionControl session, ClipboardSyncDirection direction)
