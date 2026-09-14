@@ -249,7 +249,14 @@ public partial class RdpSessionControl : UserControl
     private void OnNotificationData(string payload)
     {
         if (RemoteNotification.TryParse(payload, out var n))
+        {
+            Logger.Info($"Remote notification parsed: host={_info?.Host}, level={n.Level}, title=\"{n.Title}\"");
             NotificationReceived?.Invoke(this, n);
+        }
+        else
+        {
+            Logger.Warn($"Remote notification payload could not be parsed: host={_info?.Host}, len={payload.Length}");
+        }
     }
 
     private void OnReconnect(object sender, RoutedEventArgs e) => Reconnect();

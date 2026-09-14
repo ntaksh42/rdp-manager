@@ -1028,7 +1028,11 @@ public partial class MainWindow : Window
     // ── リモート通知（仮想チャネル → トースト） ──
     private void OnSessionNotification(TabItem tab, string title, RemoteNotification n)
     {
-        if (!App.Settings.RemoteNotifications) return;
+        if (!App.Settings.RemoteNotifications)
+        {
+            Logger.Info("Remote notification suppressed: RemoteNotifications setting is off.");
+            return;
+        }
         // 通知元が分かるよう、タブ名にホストを併記する（例: "DevPC1 (192.168.3.4)"）
         var tag = tab.Tag as SessionTag;
         var host = tag?.Info?.Host;

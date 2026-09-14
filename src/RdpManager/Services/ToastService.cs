@@ -28,6 +28,7 @@ public static class ToastService
             if (!string.IsNullOrEmpty(sessionKey))
                 builder.AddArgument("sessionKey", sessionKey);
             builder.Show();
+            Logger.Info($"Toast shown: \"{title}\"");
         }
         catch (Exception ex)
         {
