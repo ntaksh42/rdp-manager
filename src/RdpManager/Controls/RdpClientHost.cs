@@ -440,8 +440,8 @@ public sealed class RdpClientHost : AxHost
         if (_goFullScreenSink != null) return;
         try
         {
-            _goFullScreenSink = () => FullScreenRequested?.Invoke(true);
-            _leaveFullScreenSink = () => FullScreenRequested?.Invoke(false);
+            _goFullScreenSink = () => RaiseFullScreenRequested(true);
+            _leaveFullScreenSink = () => RaiseFullScreenRequested(false);
             ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnRequestGoFullScreen, _goFullScreenSink);
             ComEventsHelper.Combine(ocx, EventsInterfaceId, DispidOnRequestLeaveFullScreen, _leaveFullScreenSink);
         }
@@ -453,6 +453,16 @@ public sealed class RdpClientHost : AxHost
         }
     }
 
+    // アプリ側から最後に通知した全画面状態。FullScreen 設定時にもコントロールが要求イベントを発火するため、
+    // これと同じ向きの要求は自分の設定のエコーとして捨てる（遅延処理されたエコーが実状態と食い違い、
+    // 全画面トグルが連鎖的に繰り返されるのを防ぐ）
+    private bool _containerFullScreen;
+
+    private void RaiseFullScreenRequested(bool on)
+    {
+        if (on != _containerFullScreen) FullScreenRequested?.Invoke(on);
+    }
+
     /// <summary>
     /// アプリウィンドウの全画面状態をコントロールへ通知する。
     /// ContainerHandledFullScreen 有効時は FullScreen を設定しても画面遷移はコンテナ（本アプリ）任せのまま、
@@ -461,6 +471,7 @@ public sealed class RdpClientHost : AxHost
     /// </summary>
     public void SetContainerFullScreen(bool fullscreen)
     {
+        _containerFullScreen = fullscreen;
         try
         {
             if (_ocx is { } o && (int)o.Connected == 1 && (bool)o.FullScreen != fullscreen)
