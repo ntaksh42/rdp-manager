@@ -8,6 +8,7 @@ using Button = System.Windows.Controls.Button;
 using Cursors = System.Windows.Input.Cursors;
 using MouseButton = System.Windows.Input.MouseButton;
 using Orientation = System.Windows.Controls.Orientation;
+using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 using ContextMenu = System.Windows.Controls.ContextMenu;
 using MenuItem = System.Windows.Controls.MenuItem;
@@ -101,7 +102,14 @@ public sealed class SessionManager
     {
         var selected = pane.SelectedItem is TabItem tab ? SessionOf(tab) : null;
         foreach (UIElement child in HostOf(pane).Children)
-            child.Visibility = child == selected ? Visibility.Visible : Visibility.Hidden;
+        {
+            bool show = child == selected;
+            // 背面に回るセッションは隠す直前の画面をセッション一覧用に保存する
+            // （非表示中の RDP コントロールは描画内容を取得できないことがあるため）
+            if (!show && child.Visibility == Visibility.Visible && child is RdpSessionControl leaving)
+                leaving.TryUpdateSnapshot(allowScreenCopy: false, deferConversion: true);
+            child.Visibility = show ? Visibility.Visible : Visibility.Hidden;
+        }
     }
 
     private void TrackMruSelection(TabControl pane)
@@ -112,6 +120,18 @@ public sealed class SessionManager
             _mru.Insert(0, tab);
         }
     }
+
+    /// <summary>セッション状態の表示色（タブのドット・セッション一覧で共通）。</summary>
+    public static Brush StateBrush(SessionVisualState state) => state switch
+    {
+        SessionVisualState.Connected => Brushes.LimeGreen,
+        SessionVisualState.Disconnected => Brushes.Gray,
+        SessionVisualState.Reconnecting => Brushes.Gold,
+        _ => Brushes.Orange
+    };
+
+    /// <summary>タブが右ペインにあるか（セッション一覧での表示用）。</summary>
+    public bool IsInRightPane(TabItem tab) => tab.Parent == _right;
 
     public TabControl DefaultPane => _left;
 
@@ -174,6 +194,9 @@ public sealed class SessionManager
         FocusSelected(tc);
     }
 
+    /// <summary>アクティブペインの選択中タブ（セッションが無ければ null）。</summary>
+    public TabItem? ActiveTab => ResolveActivePane().SelectedItem as TabItem;
+
     /// <summary>開いている全タブを MRU（最近アクティブ化）順で返す。MRU に無いタブは末尾に補完する。</summary>
     public IReadOnlyList<TabItem> GetMruTabs()
         => _mru.Concat(AllTabs.Where(t => !_mru.Contains(t))).ToList();
@@ -231,13 +254,7 @@ public sealed class SessionManager
         };
         tab.ContextMenu = BuildTabMenu(tab, session, titleText);
 
-        session.StateChanged += (_, _) => dot.Fill = session.VisualState switch
-        {
-            SessionVisualState.Connected => Brushes.LimeGreen,
-            SessionVisualState.Disconnected => Brushes.Gray,
-            SessionVisualState.Reconnecting => Brushes.Gold,
-            _ => Brushes.Orange
-        };
+        session.StateChanged += (_, _) => dot.Fill = StateBrush(session.VisualState);
         // 全画面中に接続が成立した（開いた/再接続した）セッションにも全画面状態を反映する
         session.StateChanged += (_, _) =>
         {

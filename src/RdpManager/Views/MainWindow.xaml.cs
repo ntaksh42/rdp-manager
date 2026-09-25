@@ -874,37 +874,68 @@ public partial class MainWindow : Window
         if (dlg.Changed) Vm.NotifyEdited();
     }
 
+    // ── セッション一覧（Ctrl+Alt+0）──
+    private SessionOverviewWindow? _overview;
+
     private void OnSessionDashboard(object sender, RoutedEventArgs e)
     {
-        var entries = new List<SessionEntry>();
+        // 表示中にもう一度 Ctrl+Alt+0 を押したら閉じる（トグル）
+        if (_overview != null) { _overview.Dismiss(); return; }
+
+        var tiles = new List<OverviewTile>();
         foreach (var tab in _sessions.AllTabs)
         {
             if (SessionManager.SessionOf(tab) is not { } s) continue;
-            var capturedTab = tab;
-            Brush color = s.VisualState switch
-            {
-                Controls.SessionVisualState.Connected => Brushes.LimeGreen,
-                Controls.SessionVisualState.Disconnected => Brushes.Gray,
-                Controls.SessionVisualState.Reconnecting => Brushes.Gold,
-                _ => Brushes.Orange
-            };
-            var info = (tab.Tag as SessionTag)?.Info;
-            entries.Add(new SessionEntry
-            {
-                Title = (tab.Header as System.Windows.Controls.StackPanel)?.Children
-                    .OfType<System.Windows.Controls.TextBlock>().FirstOrDefault()?.Text ?? "Session",
-                Host = info?.Host ?? "",
-                StateText = s.VisualState.ToString(),
-                StateColor = color,
-                Activate = () => { if (capturedTab.Parent is TabControl tc) tc.SelectedItem = capturedTab; }
-            });
+            tiles.Add(new OverviewTile(tab, s, (tab.Tag as SessionTag)?.Title ?? "Session", _sessions.IsInRightPane(tab)));
         }
-        if (entries.Count == 0)
+        if (tiles.Count == 0)
         {
             MessageBox.Show(this, "There are no active sessions.", "Sessions", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        new SessionsDialog(entries) { Owner = this }.ShowDialog();
+
+        // グローバルホットキーなので他アプリ使用中・最小化中にも呼ばれうる
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        UpdateLayout();
+
+        // 前面のセッションは一覧で覆う前に撮っておく（覆った後は画面複写のフォールバックが使えないため）
+        foreach (var t in tiles.Where(t => t.Session.IsVisible))
+        {
+            t.Session.TryUpdateSnapshot(allowScreenCopy: IsActive);
+            t.Refresh();
+        }
+
+        var visible = tiles.FirstOrDefault(t => t.Session.IsVisible && t.Session.ActualHeight > 0);
+        double aspect = visible is null ? 16.0 / 9.0 : visible.Session.ActualWidth / visible.Session.ActualHeight;
+        var active = _sessions.ActiveTab;
+        var dlg = new SessionOverviewWindow(tiles, tiles.FirstOrDefault(t => t.Tab == active), ClientAreaScreenBounds(), aspect)
+        {
+            Owner = this
+        };
+        _overview = dlg;
+        dlg.Closed += (_, _) =>
+        {
+            _overview = null;
+            if (dlg.Result is not { } chosen || chosen.Tab.Parent is null) return;
+            _sessions.ActivateTab(chosen.Tab);
+            // 切断中のセッションを選んだら再接続する（ツリーから開き直したときと同じ挙動）
+            if (chosen.Session.VisualState == Controls.SessionVisualState.Disconnected)
+                chosen.Session.Reconnect();
+        };
+        dlg.Show();
+        dlg.Activate();
+    }
+
+    /// <summary>ウィンドウのクライアント領域（メニュー・ツリー・タブ含む全体）のスクリーン座標（DIP）。</summary>
+    private Rect ClientAreaScreenBounds()
+    {
+        var root = (FrameworkElement)Content;
+        var source = PresentationSource.FromVisual(this);
+        if (source?.CompositionTarget is null)
+            return new Rect(Left, Top, ActualWidth, ActualHeight);
+        var topLeft = source.CompositionTarget.TransformFromDevice.Transform(root.PointToScreen(new Point(0, 0)));
+        return new Rect(topLeft.X, topLeft.Y, root.ActualWidth, root.ActualHeight);
     }
 
     // ── クイック切替（Ctrl+Alt+Home グローバルホットキー）──

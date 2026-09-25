@@ -26,6 +26,8 @@ public static class ThemeManager
             res["HoverBg"] = Brush("#33FFFFFF");
             res["PressedBg"] = Brush("#4DFFFFFF");
             res["ErrorFg"] = Brush("#E5484D");
+            res["AccentBg"] = Brush("#2F6FEB");
+            res["AccentFg"] = Brush("#FFFFFF");
         }
         else
         {
@@ -42,6 +44,8 @@ public static class ThemeManager
             res["HoverBg"] = Brush("#1A000000");
             res["PressedBg"] = Brush("#33000000");
             res["ErrorFg"] = Brush("#C62828");
+            res["AccentBg"] = Brush("#0067C0");
+            res["AccentFg"] = Brush("#FFFFFF");
         }
     }
 
