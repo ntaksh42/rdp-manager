@@ -567,6 +567,46 @@ public sealed class RdpClientHost : AxHost
     /// タブを閉じるとコントロール一式（mstscax インスタンス・スレッド・HWND）が GC されず
     /// 蓄積する。破棄時にシンクを外して OCX 参照を手放す（OCX 自体の解放は base が行う）。
     /// </summary>
+    [DllImport("user32.dll")]
+    private static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
+    // DWM のリダイレクト面から取得する（ハードウェア描画や他ウィンドウに隠れた状態でも取得できる）
+    private const uint PwRenderFullContent = 0x2;
+
+    /// <summary>
+    /// セッション一覧のサムネイル用に現在の描画内容を取得する。取得できない・真っ黒（非表示中で
+    /// 描画されていない等）の場合は、allowScreenCopy が true なら画面からの複写を試み、それも駄目なら null。
+    /// 返した Bitmap の破棄は呼び出し側の責任。
+    /// </summary>
+    public System.Drawing.Bitmap? CaptureImage(bool allowScreenCopy)
+    {
+        if (!IsHandleCreated || Width <= 0 || Height <= 0) return null;
+        var bmp = new System.Drawing.Bitmap(Width, Height, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+        try
+        {
+            bool ok;
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+            {
+                IntPtr hdc = g.GetHdc();
+                try { ok = PrintWindow(Handle, hdc, PwRenderFullContent); }
+                finally { g.ReleaseHdc(hdc); }
+            }
+            if (ok && !SessionSnapshot.IsBlank(bmp)) return bmp;
+
+            if (allowScreenCopy && Visible)
+            {
+                using (var g = System.Drawing.Graphics.FromImage(bmp))
+                    g.CopyFromScreen(PointToScreen(System.Drawing.Point.Empty), System.Drawing.Point.Empty, bmp.Size);
+                if (!SessionSnapshot.IsBlank(bmp)) return bmp;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn($"Session snapshot capture failed: {ex.Message}");
+        }
+        bmp.Dispose();
+        return null;
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing && _ocx is not null)

@@ -96,7 +96,7 @@
             <MenuItem Header="_View">
                 <MenuItem Header="Focus Connection Tree" InputGestureText="Alt+N" Click="OnFocusTree"/>
                 <Separator/>
-                <MenuItem Header="Sessions (Dashboard)…" InputGestureText="Ctrl+Alt+0" Click="OnSessionDashboard"/>
+                <MenuItem Header="Session Overview…" InputGestureText="Ctrl+Alt+0" Click="OnSessionDashboard"/>
                 <MenuItem Header="Refresh Host Status" Click="OnRefreshStatus"/>
                 <Separator/>
                 <MenuItem x:Name="FullscreenMenuItem" Header="Toggle Full Screen" InputGestureText="F11 / Ctrl+Alt+Pause" Click="OnToggleFullscreenMenu"/>

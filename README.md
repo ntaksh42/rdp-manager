@@ -59,7 +59,7 @@ dotnet run --project src/RdpManager
 | Ctrl+Alt+W | 現在のタブを閉じる（RDP フォーカス中も有効） |
 | Ctrl+Alt+Shift+F6 | 現在のタブを反対側のペインへ移動 |
 | Ctrl+Alt+Shift+PageUp / PageDown | 現在のタブを左右へ移動 |
-| Ctrl+Alt+0 | セッション一覧を表示 |
+| Ctrl+Alt+0 | セッション一覧（サムネイル）を表示。矢印で選択・Enter で切替・Space で拡大・1〜9 でジャンプ・文字入力で絞り込み |
 | Ctrl+Alt+Home（変更可） | Quick Switch（接続の検索・切替。RDP フォーカス中も有効） |
 
 ## 更新の確認

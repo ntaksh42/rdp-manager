@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using RdpManager.Common;
 using RdpManager.Models;
@@ -49,6 +50,18 @@ public partial class RdpSessionControl : UserControl
     public event EventHandler? CloseRequested;
     public SessionVisualState VisualState { get; private set; } = SessionVisualState.Connecting;
     public bool ClipboardSharingEnabled => _info?.RedirectClipboard == true;
+
+    // セッション一覧のサムネイルはこの幅まで縮小して保持する（多数セッションでもメモリを抑えるため）
+    private const int MaxSnapshotWidth = 1600;
+
+    /// <summary>セッション一覧用に最後に取得した画面（未取得なら null）。</summary>
+    public BitmapSource? Snapshot { get; private set; }
+
+    /// <summary>Snapshot を取得した時刻（UTC）。</summary>
+    public DateTime SnapshotAt { get; private set; }
+
+    /// <summary>リモートホスト表示名（ポート付き）。</summary>
+    public string HostDisplay => _info is null ? "" : HostAddress.FormatWithPort(_info.Host, _info.Port);
 
     public RdpSessionControl()
     {
@@ -296,6 +309,43 @@ public partial class RdpSessionControl : UserControl
         return _client.TrySyncClipboard(direction, out error);
     }
 
+    /// <summary>
+    /// 現在の画面を取得して Snapshot を更新する（接続中のみ）。deferConversion が true なら取得だけ同期で行い、
+    /// 縮小・変換はアイドル時に回す（タブ切替の直前に呼ぶため、切替の体感速度を落とさないように）。
+    /// </summary>
+    public bool TryUpdateSnapshot(bool allowScreenCopy, bool deferConversion = false)
+    {
+        if (_closed || VisualState != SessionVisualState.Connected) return false;
+        var bmp = _client.CaptureImage(allowScreenCopy);
+        if (bmp is null) return false;
+        var at = DateTime.UtcNow;
+        if (deferConversion)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => ApplySnapshot(bmp, at)));
+            return true;
+        }
+        ApplySnapshot(bmp, at);
+        return true;
+    }
+
+    private void ApplySnapshot(System.Drawing.Bitmap bmp, DateTime at)
+    {
+        using (bmp)
+        {
+            // 遅延変換中に新しい取得が先に反映された場合や、破棄済みの場合は捨てる
+            if (_closed || at < SnapshotAt) return;
+            try
+            {
+                Snapshot = SessionSnapshot.ToBitmapSource(bmp, MaxSnapshotWidth);
+                SnapshotAt = at;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Session snapshot conversion failed: {ex.Message}");
+            }
+        }
+    }
+
     /// <summary>埋め込み RDP コントロールへキーボードフォーカスを移す。</summary>
     public void FocusSession()
     {
@@ -305,6 +355,7 @@ public partial class RdpSessionControl : UserControl
     public void Cleanup()
     {
         _closed = true;
+        Snapshot = null;
         _reconnect.Stop();
         _reconnectScheduled = false;
         _poll.Stop();
