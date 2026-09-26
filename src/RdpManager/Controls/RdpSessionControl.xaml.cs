@@ -310,12 +310,14 @@ public partial class RdpSessionControl : UserControl
     }
 
     /// <summary>
-    /// 現在の画面を取得して Snapshot を更新する（接続中のみ）。deferConversion が true なら取得だけ同期で行い、
+    /// 現在の画面を取得して Snapshot を更新する（接続中かつ表示中のみ）。deferConversion が true なら取得だけ同期で行い、
     /// 縮小・変換はアイドル時に回す（タブ切替の直前に呼ぶため、切替の体感速度を落とさないように）。
     /// </summary>
     public bool TryUpdateSnapshot(bool allowScreenCopy, bool deferConversion = false)
     {
-        if (_closed || VisualState != SessionVisualState.Connected) return false;
+        // 非表示（背面タブ）では取得しない。PrintWindow は非表示の子ウィンドウに対して
+        // 同じ位置に表示中の別セッションの画面を返すため、スナップショットが上書きされてしまう
+        if (_closed || !IsVisible || VisualState != SessionVisualState.Connected) return false;
         var bmp = _client.CaptureImage(allowScreenCopy);
         if (bmp is null) return false;
         var at = DateTime.UtcNow;

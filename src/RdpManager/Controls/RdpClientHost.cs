@@ -562,11 +562,9 @@ public sealed class RdpClientHost : AxHost
         catch { /* ignore */ }
     }
 
-    /// <summary>
-    /// ComEventsHelper のシンクは COM 接続ポイント側から強参照されるため、解除せずに
-    /// タブを閉じるとコントロール一式（mstscax インスタンス・スレッド・HWND）が GC されず
-    /// 蓄積する。破棄時にシンクを外して OCX 参照を手放す（OCX 自体の解放は base が行う）。
-    /// </summary>
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
+
     [DllImport("user32.dll")]
     private static extern bool PrintWindow(IntPtr hwnd, IntPtr hdcBlt, uint nFlags);
     // DWM のリダイレクト面から取得する（ハードウェア描画や他ウィンドウに隠れた状態でも取得できる）
@@ -579,7 +577,9 @@ public sealed class RdpClientHost : AxHost
     /// </summary>
     public System.Drawing.Bitmap? CaptureImage(bool allowScreenCopy)
     {
-        if (!IsHandleCreated || Width <= 0 || Height <= 0) return null;
+        // 非表示ウィンドウは PW_RENDERFULLCONTENT でトップレベルの合成画面（同じ位置にある前面セッション）が
+        // 返ってしまうため取得しない。IsWindowVisible は親（WindowsFormsHost）の非表示も反映する
+        if (!IsHandleCreated || Width <= 0 || Height <= 0 || !IsWindowVisible(Handle)) return null;
         var bmp = new System.Drawing.Bitmap(Width, Height, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
         try
         {
@@ -607,6 +607,11 @@ public sealed class RdpClientHost : AxHost
         return null;
     }
 
+    /// <summary>
+    /// ComEventsHelper のシンクは COM 接続ポイント側から強参照されるため、解除せずに
+    /// タブを閉じるとコントロール一式（mstscax インスタンス・スレッド・HWND）が GC されず
+    /// 蓄積する。破棄時にシンクを外して OCX 参照を手放す（OCX 自体の解放は base が行う）。
+    /// </summary>
     protected override void Dispose(bool disposing)
     {
         if (disposing && _ocx is not null)

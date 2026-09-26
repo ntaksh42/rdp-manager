@@ -130,6 +130,25 @@ public sealed class SessionManager
         _ => Brushes.Orange
     };
 
+    /// <summary>
+    /// セッション一覧の画面取得用に、指定セッションだけをそのペインで表示する（同じペインの他は Hidden）。
+    /// 非表示の子ウィンドウは PrintWindow で取得できず、重なった別セッションの画面が返るため、
+    /// 一覧ウィンドウがメインウィンドウを覆っている間だけ一時的に表示して撮る。閉じたら RestoreVisibility で戻す。
+    /// </summary>
+    public void ShowForCapture(RdpSessionControl session)
+    {
+        if (session.Parent is not Grid host) return;
+        foreach (UIElement child in host.Children)
+            child.Visibility = child == session ? Visibility.Visible : Visibility.Hidden;
+    }
+
+    /// <summary>ShowForCapture で変えた表示を、各ペインの選択中タブだけが見える通常状態に戻す。</summary>
+    public void RestoreVisibility()
+    {
+        SyncSessionVisibility(_left);
+        SyncSessionVisibility(_right);
+    }
+
     /// <summary>タブが右ペインにあるか（セッション一覧での表示用）。</summary>
     public bool IsInRightPane(TabItem tab) => tab.Parent == _right;
 

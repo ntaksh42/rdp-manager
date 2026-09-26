@@ -133,8 +133,15 @@ public partial class SessionOverviewWindow : Window
     private OverviewTile? _selected;
     private bool _spotlight;
     private bool _closing;
-    // 表示中（前面タブ）のセッションだけを定期的に撮り直す。一覧を開いている間だけ動かす
-    private readonly DispatcherTimer _refresh = new() { Interval = TimeSpan.FromSeconds(2) };
+    // 一覧を開いている間だけ、全セッションを1件ずつ順番に「一時表示 → 描画待ち → 取得」して最新化する。
+    // 非表示の子ウィンドウは PrintWindow で取得できない（前面セッションの画面が返る）ため、
+    // メインウィンドウを一覧で覆っている間に対象セッションだけを表示して撮る。表示後の描画を待つため
+    // 取得は次の tick で行う
+    private readonly DispatcherTimer _cycle = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private readonly Action<RdpSessionControl> _showForCapture;
+    private readonly List<OverviewTile> _cycleOrder;
+    private int _cycleIndex = -1;
+    private OverviewTile? _pendingCapture;
 
     /// <summary>確定されたタイル（Esc やフォーカス喪失で閉じた場合は null）。</summary>
     public OverviewTile? Result { get; private set; }
@@ -143,44 +150,53 @@ public partial class SessionOverviewWindow : Window
     /// <param name="initial">最初に選択するタイル（通常はアクティブなセッション）。</param>
     /// <param name="bounds">重ねる領域（DIP・スクリーン座標）。</param>
     /// <param name="aspect">リモート画面の縦横比（幅/高さ）。</param>
-    public SessionOverviewWindow(IReadOnlyList<OverviewTile> tiles, OverviewTile? initial, Rect bounds, double aspect)
+    /// <param name="showForCapture">指定セッションだけをそのペインで表示する（取得用。閉じた後の表示復元は呼び出し側）。</param>
+    public SessionOverviewWindow(IReadOnlyList<OverviewTile> tiles, OverviewTile? initial, Rect bounds, double aspect,
+                                 Action<RdpSessionControl> showForCapture)
     {
         InitializeComponent();
         _all = tiles.ToList();
         _aspect = aspect > 0 ? aspect : 16.0 / 9.0;
+        _showForCapture = showForCapture;
+        // 前面のセッションは開く直前に撮ってあるため、背面のセッションから先に最新化する
+        _cycleOrder = _all.Where(t => !t.Session.IsVisible).Concat(_all.Where(t => t.Session.IsVisible)).ToList();
         Left = bounds.Left;
         Top = bounds.Top;
         Width = bounds.Width;
         Height = bounds.Height;
         _selected = initial ?? _all.FirstOrDefault();
-        _refresh.Tick += (_, _) => RefreshSnapshots(visibleOnly: true);
-        Closed += (_, _) => _refresh.Stop();
+        _cycle.Tick += (_, _) => OnCycleTick();
+        Closed += (_, _) => _cycle.Stop();
         ApplyFilter();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         FilterBox.Focus();
-        _refresh.Start();
-        // 背面タブは取得できる環境なら最新化を試みる（ウィンドウ表示を待たせないようアイドル時に1件ずつ）
-        foreach (var tile in _all.Where(t => !t.Session.IsVisible))
-        {
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-            {
-                if (_closing) return;
-                if (tile.Session.TryUpdateSnapshot(allowScreenCopy: false)) tile.Refresh();
-            }));
-        }
+        OnCycleTick();
+        _cycle.Start();
     }
 
-    private void RefreshSnapshots(bool visibleOnly)
+    /// <summary>前回表示したセッションを撮り、次のセッションを表示する。タイルの鮮度表示もここで更新する。</summary>
+    private void OnCycleTick()
     {
-        foreach (var tile in _all)
+        if (_closing) return;
+        if (_pendingCapture is { } pending && pending.Session.TryUpdateSnapshot(allowScreenCopy: false))
+            pending.Refresh();
+        _pendingCapture = null;
+
+        // 接続中のセッションだけが対象（切断中・接続中はオーバーレイ表示のため撮らない）
+        for (int i = 0; i < _cycleOrder.Count; i++)
         {
-            if (!visibleOnly || tile.Session.IsVisible)
-                tile.Session.TryUpdateSnapshot(allowScreenCopy: false);
-            tile.Refresh();
+            _cycleIndex = (_cycleIndex + 1) % _cycleOrder.Count;
+            var next = _cycleOrder[_cycleIndex];
+            if (next.Session.VisualState != SessionVisualState.Connected) continue;
+            _showForCapture(next.Session);
+            _pendingCapture = next;
+            break;
         }
+
+        foreach (var tile in _all) tile.Refresh();
     }
 
     private void OnFilterChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => ApplyFilter();
