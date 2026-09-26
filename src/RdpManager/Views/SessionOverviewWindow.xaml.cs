@@ -153,7 +153,7 @@ public partial class SessionOverviewWindow : Window
         Width = bounds.Width;
         Height = bounds.Height;
         _selected = initial ?? _all.FirstOrDefault();
-        _refresh.Tick += (_, _) => RefreshSnapshots(visibleOnly: true);
+        _refresh.Tick += (_, _) => RefreshSnapshots();
         Closed += (_, _) => _refresh.Stop();
         ApplyFilter();
     }
@@ -162,22 +162,17 @@ public partial class SessionOverviewWindow : Window
     {
         FilterBox.Focus();
         _refresh.Start();
-        // 背面タブは取得できる環境なら最新化を試みる（ウィンドウ表示を待たせないようアイドル時に1件ずつ）
-        foreach (var tile in _all.Where(t => !t.Session.IsVisible))
-        {
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-            {
-                if (_closing) return;
-                if (tile.Session.TryUpdateSnapshot(allowScreenCopy: false)) tile.Refresh();
-            }));
-        }
+        // 背面タブは撮り直さない: 非表示の子ウィンドウに PrintWindow(PW_RENDERFULLCONTENT) を使うと
+        // トップレベルの合成画面の同じ位置（＝前面セッション）が返り、全タイルが同じ画面になるため。
+        // 背面タブはタブ切替で隠れる直前に保存したスナップショットを表示する
     }
 
-    private void RefreshSnapshots(bool visibleOnly)
+    private void RefreshSnapshots()
     {
         foreach (var tile in _all)
         {
-            if (!visibleOnly || tile.Session.IsVisible)
+            // 前面のセッションだけ撮り直す（TryUpdateSnapshot 側でも非表示なら取得しない）
+            if (tile.Session.IsVisible)
                 tile.Session.TryUpdateSnapshot(allowScreenCopy: false);
             tile.Refresh();
         }
