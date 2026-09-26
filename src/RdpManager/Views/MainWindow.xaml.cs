@@ -909,7 +909,8 @@ public partial class MainWindow : Window
         var visible = tiles.FirstOrDefault(t => t.Session.IsVisible && t.Session.ActualHeight > 0);
         double aspect = visible is null ? 16.0 / 9.0 : visible.Session.ActualWidth / visible.Session.ActualHeight;
         var active = _sessions.ActiveTab;
-        var dlg = new SessionOverviewWindow(tiles, tiles.FirstOrDefault(t => t.Tab == active), ClientAreaScreenBounds(), aspect)
+        var dlg = new SessionOverviewWindow(tiles, tiles.FirstOrDefault(t => t.Tab == active), ClientAreaScreenBounds(), aspect,
+            _sessions.ShowForCapture)
         {
             Owner = this
         };
@@ -917,6 +918,8 @@ public partial class MainWindow : Window
         dlg.Closed += (_, _) =>
         {
             _overview = null;
+            // 画面取得のために一時表示を切り替えていたので、各ペインの選択中タブの表示に戻す
+            _sessions.RestoreVisibility();
             if (dlg.Result is not { } chosen || chosen.Tab.Parent is null) return;
             _sessions.ActivateTab(chosen.Tab);
             // 切断中のセッションを選んだら再接続する（ツリーから開き直したときと同じ挙動）
