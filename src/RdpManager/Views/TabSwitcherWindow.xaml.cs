@@ -43,6 +43,12 @@ public partial class TabSwitcherWindow : Window
         ResultsList.ItemsSource = _entries;
         if (_entries.Count > 0)
             ResultsList.SelectedIndex = Math.Clamp(initialIndex, 0, _entries.Count - 1);
+        // Ctrl+Tab を素早く押して離すと、Ctrl の KeyUp がこのウィンドウの表示前に処理されて届かず、
+        // Enter を押すまで閉じなくなる。表示時点で Ctrl が離されていれば即座に確定する
+        Loaded += (_, _) =>
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == 0) Commit();
+        };
     }
 
     private static TabSwitchEntry BuildEntry(TabItem tab)

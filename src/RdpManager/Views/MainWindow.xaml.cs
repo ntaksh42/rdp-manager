@@ -851,13 +851,13 @@ public partial class MainWindow : Window
         }
         if (r.IsNewer)
         {
-            if (MessageBox.Show(this, $"A new version {r.LatestTag} is available (current v{r.Current}).\nOpen the download page?",
+            if (MessageBox.Show(this, $"A new version {r.LatestTag} is available (current v{r.Current.ToString(3)}).\nOpen the download page?",
                     "Check for Updates", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
                 Process.Start(new ProcessStartInfo(Services.UpdateChecker.ReleasesUrl) { UseShellExecute = true });
         }
         else
         {
-            MessageBox.Show(this, $"You are using the latest version (v{r.Current}).", "Check for Updates", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, $"You are using the latest version (v{r.Current.ToString(3)}).", "Check for Updates", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 

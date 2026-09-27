@@ -58,6 +58,9 @@ public sealed class SessionManager
     // 表示/非表示が変わらない限り Width を書き換えず、GridSplitter で調整した比率を保つ。
     private bool? _leftVisible;
     private bool? _rightVisible;
+    // 同一ペイン内の並べ替え中（RemoveAt/Insert で一時的に選択が隣のタブへ移る）は MRU・表示の追従を止める。
+    // 止めないと隣のタブが MRU の2番手に割り込み、Ctrl+Tab の戻り先が変わる上、セッションが一瞬隠れて再表示される
+    private bool _reordering;
 
     /// <summary>タブの開閉でセッション数が変わったときに通知（ステータスバー表示用）。</summary>
     public event Action? SessionsChanged;
@@ -87,8 +90,8 @@ public sealed class SessionManager
 
         // SelectionChanged はネストしたコントロールからバブリングすることもあるため、
         // ペイン自身が発火元のときだけ MRU・表示セッションを更新する
-        _left.SelectionChanged += (_, e) => { if (e.Source == _left) { TrackMruSelection(_left); SyncSessionVisibility(_left); } };
-        _right.SelectionChanged += (_, e) => { if (e.Source == _right) { TrackMruSelection(_right); SyncSessionVisibility(_right); } };
+        _left.SelectionChanged += (_, e) => { if (e.Source == _left && !_reordering) { TrackMruSelection(_left); SyncSessionVisibility(_left); } };
+        _right.SelectionChanged += (_, e) => { if (e.Source == _right && !_reordering) { TrackMruSelection(_right); SyncSessionVisibility(_right); } };
     }
 
     /// <summary>タブに対応するセッション本体（常駐ホスト方式のため Content ではなく Tag から引く）。</summary>
@@ -476,9 +479,14 @@ public sealed class SessionManager
         int oldIndex = pane.Items.IndexOf(tab);
         int newIndex = Math.Clamp(oldIndex + delta, 0, pane.Items.Count - 1);
         if (oldIndex == newIndex) return;
-        pane.Items.RemoveAt(oldIndex);
-        pane.Items.Insert(newIndex, tab);
-        pane.SelectedItem = tab;
+        _reordering = true;
+        try
+        {
+            pane.Items.RemoveAt(oldIndex);
+            pane.Items.Insert(newIndex, tab);
+            pane.SelectedItem = tab;
+        }
+        finally { _reordering = false; }
         _activePane = pane;
         FocusSelected(pane);
     }
