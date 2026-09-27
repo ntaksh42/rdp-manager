@@ -63,6 +63,18 @@ public class ImportExportTests
         Assert.Equal(3389, result.Port);
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("65536")]
+    public void FromCsv_OutOfRangePort_DefaultsTo3389(string port)
+    {
+        var parsed = ImportExport.FromCsv($"foo,bar,{port},,,\n");
+
+        var result = Assert.Single(parsed);
+        Assert.Equal(3389, result.Port);
+    }
+
     [Fact]
     public void FromCsv_BlankLine_IsIgnored()
     {
