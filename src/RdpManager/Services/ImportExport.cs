@@ -32,7 +32,8 @@ public static class ImportExport
             if (string.IsNullOrWhiteSpace(host) && string.IsNullOrWhiteSpace(name)) continue;
             if (string.IsNullOrWhiteSpace(host)) host = name;
             if (string.IsNullOrWhiteSpace(name)) name = host;
-            int port = int.TryParse(f.ElementAtOrDefault(2), out var p) ? p : 3389;
+            // 範囲外のポートは接続時に失敗するだけなので既定値に戻す（.rdp インポートと同じ扱い）
+            int port = int.TryParse(f.ElementAtOrDefault(2), out var p) && p is >= 1 and <= 65535 ? p : 3389;
             list.Add(new ImportedConn(name, host, port,
                 Unescape(f.ElementAtOrDefault(3) ?? ""), Unescape(f.ElementAtOrDefault(4) ?? ""), Unescape(f.ElementAtOrDefault(5) ?? "")));
         }

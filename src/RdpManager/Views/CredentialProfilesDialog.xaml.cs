@@ -79,11 +79,21 @@ public partial class CredentialProfilesDialog : Window
         ProfileList.SelectedItem = target;
     }
 
+    /// <summary>このダイアログ内の改名を順に適用した後のプロファイル名。</summary>
+    private string RenamedName(string name)
+    {
+        foreach (var (oldName, newName) in Renames)
+            if (name == oldName) name = newName;
+        return name;
+    }
+
     private void OnDelete(object sender, RoutedEventArgs e)
     {
         if (Selected is { } p)
         {
-            var referencing = _allNodes.Where(n => n.CredentialMode == "profile" && n.CredentialProfile == p.Name).ToList();
+            // 改名はダイアログを閉じた後にノードへ反映されるため、このダイアログ内での改名を適用した名前で照合する
+            // （改名直後に削除すると参照ノードを取りこぼし、閉じた後に存在しないプロファイル参照が残るため）
+            var referencing = _allNodes.Where(n => n.CredentialMode == "profile" && RenamedName(n.CredentialProfile) == p.Name).ToList();
             var message = referencing.Count > 0
                 ? $"Delete profile '{p.Name}'?\n{referencing.Count} item(s) reference this profile and will be reset to inherit credentials from their parent."
                 : $"Delete profile '{p.Name}'?";
