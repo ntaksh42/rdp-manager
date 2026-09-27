@@ -52,7 +52,8 @@ public static class ProtocolLauncher
                     var vncPort = port == 3389 ? 5900 : port;
                     try
                     {
-                        Process.Start(new ProcessStartInfo($"vnc://{host}:{vncPort}") { UseShellExecute = true });
+                        // IPv6 リテラルはポートのコロンと区別できるよう角括弧で囲む（vnc://[fe80::1]:5900）
+                        Process.Start(new ProcessStartInfo($"vnc://{HostAddress.FormatWithPort(host, vncPort)}") { UseShellExecute = true });
                         return true;
                     }
                     catch
