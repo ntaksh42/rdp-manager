@@ -33,11 +33,20 @@ public static class ReconnectPolicy
             2308;   // socket closed
     }
 
-    /// <summary>リモート側の操作でセッションが明示的に終了したかを判定する。</summary>
+    /// <summary>リモート側の操作でセッションが明示的に終了したかを判定する。
+    /// アイドル(3)/ログオン(4)タイムアウトは利用者の操作ではなく、無通知でタブを閉じると戻ったときに
+    /// タブが消えているため含めない（切断オーバーレイで理由を表示し、再接続できるようにする）。</summary>
     public static bool IsRemoteSessionEnded(int extendedReason)
-        => extendedReason is 1 or 2 or 3 or 4 or 5 or 11 or 12;
+        => extendedReason is 1 or 2 or 5 or 11 or 12;
 
-    public static string DescribeDisconnect(int disconnectReason) => disconnectReason switch
+    public static string DescribeDisconnect(int disconnectReason, int extendedReason = 0) => extendedReason switch
+    {
+        3 => "The remote session was disconnected because it was idle for too long.",
+        4 => "The logon to the remote computer timed out.",
+        _ => DescribeTransportFailure(disconnectReason)
+    };
+
+    private static string DescribeTransportFailure(int disconnectReason) => disconnectReason switch
     {
         264 or 1796 => "The connection timed out.",
         516 => "Could not connect to the server.",

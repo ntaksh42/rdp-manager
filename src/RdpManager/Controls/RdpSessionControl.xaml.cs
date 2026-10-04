@@ -191,7 +191,8 @@ public partial class RdpSessionControl : UserControl
                     }
                     else if (!_reconnectScheduled)
                     {
-                        _lastDisconnectMessage = ReconnectPolicy.DescribeDisconnect(_client.LastDisconnectReason);
+                        _lastDisconnectMessage = ReconnectPolicy.DescribeDisconnect(
+                            _client.LastDisconnectReason, _client.LastExtendedDisconnectReason);
                         SetOverlay(SessionVisualState.Disconnected, "Connection lost", _lastDisconnectMessage);
                     }
                 }
