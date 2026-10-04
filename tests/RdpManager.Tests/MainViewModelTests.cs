@@ -145,6 +145,75 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void MoveNodeOnto_NextSibling_MovesDown()
+    {
+        var vm = NewVm();
+        var f = Folder("f");
+        var a = Conn("a");
+        var b = Conn("b");
+        var c = Conn("c");
+        f.Add(a); f.Add(b); f.Add(c);
+        vm.RootNodes.Add(f);
+
+        vm.MoveNodeOnto(a, b); // 直下の兄弟へのドロップでも位置が入れ替わる
+
+        Assert.Equal(new[] { "b", "a", "c" }, f.Children.Select(n => n.Name));
+    }
+
+    [Fact]
+    public void MoveNodeOnto_LastSibling_MovesToEnd()
+    {
+        var vm = NewVm();
+        var f = Folder("f");
+        var a = Conn("a");
+        var b = Conn("b");
+        var c = Conn("c");
+        f.Add(a); f.Add(b); f.Add(c);
+        vm.RootNodes.Add(f);
+
+        vm.MoveNodeOnto(a, c);
+
+        Assert.Equal(new[] { "b", "c", "a" }, f.Children.Select(n => n.Name));
+    }
+
+    [Fact]
+    public void MoveNodeOnto_UpwardSibling_InsertsBeforeTarget()
+    {
+        var vm = NewVm();
+        var f = Folder("f");
+        var a = Conn("a");
+        var b = Conn("b");
+        var c = Conn("c");
+        f.Add(a); f.Add(b); f.Add(c);
+        vm.RootNodes.Add(f);
+
+        vm.MoveNodeOnto(c, a);
+
+        Assert.Equal(new[] { "c", "a", "b" }, f.Children.Select(n => n.Name));
+    }
+
+    [Fact]
+    public void MoveNodeOnto_OtherFolder_InsertsBeforeTarget()
+    {
+        var vm = NewVm();
+        var f = Folder("f");
+        var g = Folder("g");
+        var a = Conn("a");
+        var x = Conn("x");
+        var y = Conn("y");
+        f.Add(a);
+        g.Add(x); g.Add(y);
+        vm.RootNodes.Add(f);
+        vm.RootNodes.Add(g);
+
+        vm.MoveNodeOnto(a, y);
+
+        Assert.Equal(new[] { "x", "a", "y" }, g.Children.Select(n => n.Name));
+        Assert.Same(g, a.Parent);
+        Assert.Empty(f.Children);
+    }
+
+    [Fact]
     public void MoveNode_IntoOwnDescendant_IsRejected()
     {
         var vm = NewVm();

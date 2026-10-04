@@ -546,9 +546,8 @@ public partial class MainWindow : Window
         }
         else
         {
-            // 接続の上にドロップ → その兄弟として同じ位置へ挿入（同一フォルダ内の並べ替え）
-            var siblings = targetNode.Parent?.Children ?? Vm.RootNodes;
-            Vm.MoveNode(dragged, targetNode.Parent, siblings.IndexOf(targetNode));
+            // 接続の上にドロップ → その兄弟として target の位置へ挿入（同一フォルダ内の並べ替え）
+            Vm.MoveNodeOnto(dragged, targetNode);
         }
         e.Handled = true;
     }

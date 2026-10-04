@@ -266,6 +266,19 @@ public class MainViewModel : ObservableObject
         Save();
     }
 
+    /// <summary>
+    /// 接続ノード target の上へドロップしたときの移動。target の位置を取る（同じフォルダ内で下方向なら target の後ろ、
+    /// それ以外は target の手前に入る）。常に手前へ入れると、すぐ下の兄弟へのドロップが元の位置に戻って何も起きず、
+    /// フォルダ末尾へも移動できなかった。
+    /// </summary>
+    public void MoveNodeOnto(TreeNodeViewModel node, TreeNodeViewModel target)
+    {
+        var siblings = target.Parent?.Children ?? RootNodes;
+        int index = siblings.IndexOf(target);
+        if (node.Parent == target.Parent && siblings.IndexOf(node) < index) index++;
+        MoveNode(node, target.Parent, index);
+    }
+
     /// <summary>ノード（フォルダなら子孫ごと）を複製し、元の直後に挿入する。</summary>
     public void Duplicate(TreeNodeViewModel node)
     {
