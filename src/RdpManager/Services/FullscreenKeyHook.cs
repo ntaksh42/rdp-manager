@@ -71,9 +71,10 @@ public sealed class FullscreenKeyHook : IDisposable
         {
             int msg = wParam.ToInt32();
             var vk = (uint)Marshal.ReadInt32(lParam); // KBDLLHOOKSTRUCT.vkCode
+            var scanCode = (uint)Marshal.ReadInt32(lParam, 4); // KBDLLHOOKSTRUCT.scanCode
             bool keyUp = msg is WmKeyUp or WmSysKeyUp;
             // 修飾キーは状態を記録するだけで握りつぶさない（リモートへもそのまま流す）
-            if (_modifiers.Update(vk, isDown: !keyUp))
+            if (_modifiers.Update(vk, scanCode, isDown: !keyUp))
                 return CallNextHookEx(_hook, nCode, wParam, lParam);
             if (keyUp)
             {

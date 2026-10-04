@@ -32,11 +32,16 @@ public sealed class ModifierTracker
             if (isDown(vk)) _down.Add(vk);
     }
 
-    /// <summary>キーイベントを反映する。修飾キーなら true。</summary>
-    public bool Update(uint vk, bool isDown)
+    // AltGr 配列で AltGr（右 Alt）を押すと OS が合成する左 Ctrl のスキャンコード。
+    // これを Ctrl と数えると AltGr+7 等の文字入力（独語配列の { など）が Ctrl+Alt+7 のホットキーとして奪われる
+    private const uint AltGrFakeCtrlScanCode = 0x21D;
+
+    /// <summary>キーイベントを反映する。修飾キーなら true（AltGr が合成した左 Ctrl は状態に数えないが true を返す）。</summary>
+    public bool Update(uint vk, uint scanCode, bool isDown)
     {
         vk = Sided(vk);
         if (ModOf(vk) == 0) return false;
+        if (vk == 0xA2 && scanCode == AltGrFakeCtrlScanCode) return true;
         if (isDown) _down.Add(vk);
         else _down.Remove(vk);
         return true;
