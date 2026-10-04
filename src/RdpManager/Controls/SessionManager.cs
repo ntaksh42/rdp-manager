@@ -58,7 +58,7 @@ public sealed class SessionManager
     // 表示/非表示が変わらない限り Width を書き換えず、GridSplitter で調整した比率を保つ。
     private bool? _leftVisible;
     private bool? _rightVisible;
-    // 同一ペイン内の並べ替え中（RemoveAt/Insert で一時的に選択が隣のタブへ移る）は MRU・表示の追従を止める。
+    // 並べ替え・ペイン間移動中（タブを外すと一時的に選択が隣のタブへ移る）は MRU・表示の追従を止める。
     // 止めないと隣のタブが MRU の2番手に割り込み、Ctrl+Tab の戻り先が変わる上、セッションが一瞬隠れて再表示される
     private bool _reordering;
 
@@ -461,12 +461,20 @@ public sealed class SessionManager
     {
         if (tab.Parent is not TabControl source || SessionOf(tab) is not { } session) return;
         var target = source == _left ? _right : _left;
-        source.Items.Remove(tab);
-        HostOf(source).Children.Remove(session);
-        HostOf(target).Children.Add(session);
-        target.Items.Add(tab);
-        _activePane = target;
-        target.SelectedItem = tab;
+        // 移動元から外すと隣のタブが自動選択されて MRU の2番手に割り込み、Ctrl+Tab の戻り先が変わるため、
+        // 付け替え中は MRU・表示の追従を止め、移動したタブだけを MRU 先頭へ記録する（表示は下で明示同期）
+        _reordering = true;
+        try
+        {
+            source.Items.Remove(tab);
+            HostOf(source).Children.Remove(session);
+            HostOf(target).Children.Add(session);
+            target.Items.Add(tab);
+            _activePane = target;
+            target.SelectedItem = tab;
+        }
+        finally { _reordering = false; }
+        TrackMruSelection(target);
         SyncSessionVisibility(source);
         SyncSessionVisibility(target);
         UpdateEmptyHint();
