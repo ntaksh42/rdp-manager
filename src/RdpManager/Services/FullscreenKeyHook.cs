@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using RdpManager.Common;
 
 namespace RdpManager.Services;
 
@@ -17,10 +18,6 @@ public sealed class FullscreenKeyHook : IDisposable
     private const int WmKeyDown = 0x0100, WmKeyUp = 0x0101, WmSysKeyDown = 0x0104, WmSysKeyUp = 0x0105;
     private const int WmHotkey = 0x0312;
     private const uint ModNoRepeat = 0x4000;
-    private const int VkShift = 0x10, VkControl = 0x11, VkMenu = 0x12, VkLWin = 0x5B, VkRWin = 0x5C;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct KbdLlHookStruct { public uint VkCode, ScanCode, Flags, Time; public UIntPtr ExtraInfo; }
 
     private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -35,6 +32,9 @@ public sealed class FullscreenKeyHook : IDisposable
     private readonly IReadOnlyDictionary<int, HotkeyBinding> _bindings;
     private readonly HookProc _proc; // GC で回収されないよう保持する
     private readonly HashSet<uint> _swallowed = new(); // 押下を握りつぶし中のキー（対応するキーアップも握りつぶす）
+    // 修飾キーの押下状態。後段（RDP コントロール）のフックが修飾キーを握りつぶすと GetAsyncKeyState が
+    // 更新されないため、このフックが見たイベントから追跡する
+    private readonly ModifierTracker _modifiers = new();
     private IntPtr _hook;
 
     public FullscreenKeyHook(IntPtr hwnd, IReadOnlyDictionary<int, HotkeyBinding> bindings)
@@ -48,6 +48,8 @@ public sealed class FullscreenKeyHook : IDisposable
     public void Install()
     {
         Uninstall();
+        // 導入前に押された修飾キーはイベントを見ていないため、導入時点の非同期キー状態で初期化する
+        _modifiers.Reset(vk => (GetAsyncKeyState((int)vk) & 0x8000) != 0);
         _hook = SetWindowsHookEx(WhKeyboardLl, _proc, GetModuleHandle(null), 0);
         if (_hook == IntPtr.Zero)
             Logger.Warn($"Fullscreen key hook install failed: {Marshal.GetLastWin32Error()}");
@@ -69,7 +71,11 @@ public sealed class FullscreenKeyHook : IDisposable
         {
             int msg = wParam.ToInt32();
             var vk = (uint)Marshal.ReadInt32(lParam); // KBDLLHOOKSTRUCT.vkCode
-            if (msg is WmKeyUp or WmSysKeyUp)
+            bool keyUp = msg is WmKeyUp or WmSysKeyUp;
+            // 修飾キーは状態を記録するだけで握りつぶさない（リモートへもそのまま流す）
+            if (_modifiers.Update(vk, isDown: !keyUp))
+                return CallNextHookEx(_hook, nCode, wParam, lParam);
+            if (keyUp)
             {
                 if (_swallowed.Remove(vk)) return (IntPtr)1;
             }
@@ -86,7 +92,7 @@ public sealed class FullscreenKeyHook : IDisposable
 
     private bool TryMatch(uint vk, out int id, out HotkeyBinding binding)
     {
-        uint mods = CurrentModifiers();
+        uint mods = _modifiers.Current;
         foreach (var (key, b) in _bindings)
         {
             if (b.Vk == vk && (b.Modifiers & 0xF) == mods) { id = key; binding = b; return true; }
@@ -94,16 +100,4 @@ public sealed class FullscreenKeyHook : IDisposable
         id = 0; binding = default;
         return false;
     }
-
-    private static uint CurrentModifiers()
-    {
-        uint m = 0;
-        if (Down(VkMenu)) m |= 0x1;
-        if (Down(VkControl)) m |= 0x2;
-        if (Down(VkShift)) m |= 0x4;
-        if (Down(VkLWin) || Down(VkRWin)) m |= 0x8;
-        return m;
-    }
-
-    private static bool Down(int vk) => (GetAsyncKeyState(vk) & 0x8000) != 0;
 }
