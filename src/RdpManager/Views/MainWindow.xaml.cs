@@ -65,6 +65,9 @@ public partial class MainWindow : Window
         SessionTabsRight.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabsRight);
         _sessions.SessionsChanged += UpdateSessionCount;
         _sessions.SessionNotification += OnSessionNotification;
+        // コントロールは全画面状態になった時点でキーフックを入れるため、そのたびに自分のフックを先頭へ入れ直す
+        _sessions.FullscreenStateSynced += () => _fsKeyHook?.Install();
+        Activated += (_, _) => { if (_fullscreen) _fsKeyHook?.Install(); };
         _sessions.ClipboardSyncCompleted += OnClipboardSyncCompleted;
         // セッション内の Ctrl+Alt+Break / カスタムキーによる全画面切替要求（COM イベントから届くため UI スレッドへ移す）。
         // 自分で FullScreen プロパティを設定した際にも発火するため、状態が変わる時だけトグルする
@@ -265,12 +268,22 @@ public partial class MainWindow : Window
     // 従来は無警告だったため「F11 が黙って効かない」ように見えた — 失敗をステータスバーに表示する
     private readonly List<string> _failedHotkeys = new();
 
+    // 全画面中にセッションのキーフックへ奪われるホットキー（FullscreenKeyHook が代わりに拾う）。
+    // 全画面の解除キー（Pause/Break/カスタム）はコントロール内蔵のトグルが処理し、F11/Alt+N は全画面中は解除するため対象外
+    private readonly Dictionary<int, HotkeyBinding> _fsHookKeys = new();
+    private FullscreenKeyHook? _fsKeyHook;
+
     private void TryRegisterHotKey(int id, uint fsModifiers, uint vk, string displayName)
     {
-        if (RegisterHotKey(_hwnd, id, fsModifiers, vk))
+        bool ok = RegisterHotKey(_hwnd, id, fsModifiers, vk);
+        if (ok)
             _failedHotkeys.Remove(displayName);
         else if (!_failedHotkeys.Contains(displayName))
             _failedHotkeys.Add(displayName);
+        if (ok && id is not (HotkeyF11 or HotkeyPause or HotkeyBreak or HotkeyFullscreenCustom or HotkeyFocusTree))
+            _fsHookKeys[id] = new HotkeyBinding(fsModifiers, vk);
+        else
+            _fsHookKeys.Remove(id);
         UpdateHotkeyWarning();
     }
 
@@ -328,6 +341,7 @@ public partial class MainWindow : Window
 
     private void UnregisterHotkey()
     {
+        _fsKeyHook?.Dispose();
         if (_hwnd == IntPtr.Zero) return;
         UnregisterHotKey(_hwnd, HotkeyPause);
         UnregisterHotKey(_hwnd, HotkeyBreak);
@@ -421,6 +435,8 @@ public partial class MainWindow : Window
             // FullScreen 設定が FullscreenChangeRequested を発火させるため、_fullscreen を先に確定させて再入を防ぐ
             _fullscreen = true;
             _sessions.SetAppFullscreen(true);
+            // コントロールのキーフックより後に入れて先に呼ばれるようにする
+            (_fsKeyHook ??= new FullscreenKeyHook(_hwnd, _fsHookKeys)).Install();
             // レイアウト確定後にデバウンスを待たず即時にリモート解像度を合わせる
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
                 new Action(_sessions.ApplyResizeToAll));
@@ -444,6 +460,7 @@ public partial class MainWindow : Window
             RegisterAuxHotkeys();
             _fullscreen = false;
             _sessions.SetAppFullscreen(false);
+            _fsKeyHook?.Uninstall();
             // レイアウト確定後にデバウンスを待たず即時にリモート解像度を合わせる
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
                 new Action(_sessions.ApplyResizeToAll));
@@ -903,7 +920,7 @@ public partial class MainWindow : Window
         foreach (var t in tiles.Where(t => t.Session.IsVisible))
         {
             t.Session.TryUpdateSnapshot(allowScreenCopy: IsActive);
-            t.Refresh();
+            t.Refresh(OverviewTile.BaseLiveWindow);
         }
 
         var visible = tiles.FirstOrDefault(t => t.Session.IsVisible && t.Session.ActualHeight > 0);

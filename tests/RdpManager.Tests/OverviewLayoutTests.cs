@@ -68,7 +68,39 @@ public class OverviewLayoutTests
     [InlineData(185, "3m ago")]
     [InlineData(7300, "2h ago")]
     public void FormatAge_ProducesCompactText(int seconds, string expected)
-        => Assert.Equal(expected, OverviewLayout.FormatAge(TimeSpan.FromSeconds(seconds)));
+        => Assert.Equal(expected, OverviewLayout.FormatAge(TimeSpan.FromSeconds(seconds), TimeSpan.FromSeconds(3)));
+
+    [Fact]
+    public void FormatAge_WiderLiveWindow_KeepsCycledSnapshotsLive()
+    {
+        // 10 台を 600ms ずつ巡回すると各セッションは約 6 秒ごとに撮り直される
+        var window = TimeSpan.FromMilliseconds(600 * 11);
+        Assert.Equal("Live", OverviewLayout.FormatAge(TimeSpan.FromSeconds(6), window));
+        Assert.Equal("7s ago", OverviewLayout.FormatAge(TimeSpan.FromSeconds(7), window));
+    }
+
+    [Fact]
+    public void FiveSessions_UseThreeByTwo()
+    {
+        var r = Layout(5);
+        Assert.Equal(3, r.Columns);
+        Assert.Equal(2, r.Rows);
+    }
+
+    [Theory]
+    // 5 件・3 列（最終行は 2 件）: 右上から下は真下が無いので末尾へ
+    [InlineData(2, 5, 3, 0, 1, 4)]
+    [InlineData(0, 5, 3, 0, 1, 3)]
+    [InlineData(4, 5, 3, 0, 1, 4)]   // 最終行から下は動かない
+    [InlineData(1, 5, 3, 0, -1, 1)]  // 先頭行から上は動かない
+    [InlineData(4, 5, 3, 0, -1, 1)]
+    [InlineData(2, 5, 3, 1, 0, 3)]   // 右は行を跨いで次へ
+    [InlineData(4, 5, 3, 1, 0, 4)]   // 末尾で止まる
+    [InlineData(0, 5, 3, -1, 0, 0)]
+    [InlineData(-1, 5, 3, 1, 0, 0)]  // 未選択なら先頭
+    [InlineData(0, 0, 3, 1, 0, -1)]
+    public void MoveIndex_NavigatesGrid(int index, int count, int columns, int dx, int dy, int expected)
+        => Assert.Equal(expected, OverviewLayout.MoveIndex(index, count, columns, dx, dy));
 
     [Theory]
     [InlineData(null, true)]

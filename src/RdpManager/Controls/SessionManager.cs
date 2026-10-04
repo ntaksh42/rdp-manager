@@ -169,6 +169,9 @@ public sealed class SessionManager
     // アプリウィンドウの全画面状態。全セッションの KeyboardHookMode=2（全画面時のみ Win キーをリモートへ）と連動させる
     private bool _appFullscreen;
 
+    /// <summary>全画面中に接続が成立したセッションへ全画面状態を反映した後に発生する（コントロールが新しいキーフックを入れるタイミング）。</summary>
+    public event Action? FullscreenStateSynced;
+
     /// <summary>アプリの全画面トグル時に呼び、全セッションへ状態を反映する。</summary>
     public void SetAppFullscreen(bool fullscreen)
     {
@@ -281,7 +284,10 @@ public sealed class SessionManager
         session.StateChanged += (_, _) =>
         {
             if (_appFullscreen && session.VisualState == SessionVisualState.Connected)
+            {
                 session.SyncFullScreenState(true);
+                FullscreenStateSynced?.Invoke();
+            }
         };
 
         // セッション本体はホスト Grid に常駐させる（SelectedItem 設定 → SyncSessionVisibility で表示される）

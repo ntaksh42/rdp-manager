@@ -42,10 +42,27 @@ public static class OverviewLayout
         return new Result(fitCols, (count + fitCols - 1) / fitCols, width + chromeWidth, width);
     }
 
-    /// <summary>スナップショットの古さを表示用文字列にする（数秒以内は "Live"）。</summary>
-    public static string FormatAge(TimeSpan age)
+    /// <summary>
+    /// グリッド上の選択移動先のインデックス。上下は列数分移動し、最終行が欠けていて真下にタイルが無い場合は末尾へ寄せる。
+    /// 先頭行から上・最終行から下は動かさない。左右は端で止める（折り返さない）。
+    /// </summary>
+    public static int MoveIndex(int index, int count, int columns, int dx, int dy)
     {
-        if (age < TimeSpan.FromSeconds(3)) return "Live";
+        if (count <= 0) return -1;
+        if (index < 0 || index >= count) return 0;
+        columns = Math.Max(1, columns);
+        if (dy == 0) return Math.Clamp(index + dx, 0, count - 1);
+
+        int next = index + dy * columns;
+        if (next < 0) return index;
+        if (next >= count) return index / columns < (count - 1) / columns ? count - 1 : index;
+        return next;
+    }
+
+    /// <summary>スナップショットの古さを表示用文字列にする（liveWindow 以内は "Live"）。</summary>
+    public static string FormatAge(TimeSpan age, TimeSpan liveWindow)
+    {
+        if (age < liveWindow) return "Live";
         if (age < TimeSpan.FromMinutes(1)) return $"{(int)age.TotalSeconds}s ago";
         if (age < TimeSpan.FromHours(1)) return $"{(int)age.TotalMinutes}m ago";
         return $"{(int)age.TotalHours}h ago";

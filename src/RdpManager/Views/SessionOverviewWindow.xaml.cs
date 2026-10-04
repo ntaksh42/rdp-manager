@@ -33,8 +33,11 @@ public sealed class OverviewTile : ObservableObject
         RightPane = rightPane;
         _state = session.VisualState;
         _stateColor = SessionManager.StateBrush(_state);
-        Refresh();
+        Refresh(BaseLiveWindow);
     }
+
+    /// <summary>巡回取得をしていないときの "Live" 判定幅。</summary>
+    public static readonly TimeSpan BaseLiveWindow = TimeSpan.FromSeconds(3);
 
     public TabItem Tab { get; }
     public RdpSessionControl Session { get; }
@@ -83,10 +86,11 @@ public sealed class OverviewTile : ObservableObject
     }
 
     /// <summary>セッションの最新スナップショット・状態を反映する。</summary>
-    public void Refresh()
+    /// <param name="liveWindow">この時間内に取得したスナップショットを "Live" とみなす（巡回取得の1周分）。</param>
+    public void Refresh(TimeSpan liveWindow)
     {
         Image = Session.Snapshot;
-        Meta = Session.Snapshot is null ? "" : OverviewLayout.FormatAge(DateTime.UtcNow - Session.SnapshotAt);
+        Meta = Session.Snapshot is null ? "" : OverviewLayout.FormatAge(DateTime.UtcNow - Session.SnapshotAt, liveWindow);
         if (_state != Session.VisualState)
         {
             _state = Session.VisualState;
@@ -137,7 +141,8 @@ public partial class SessionOverviewWindow : Window
     // 非表示の子ウィンドウは PrintWindow で取得できない（前面セッションの画面が返る）ため、
     // メインウィンドウを一覧で覆っている間に対象セッションだけを表示して撮る。表示後の描画を待つため
     // 取得は次の tick で行う
-    private readonly DispatcherTimer _cycle = new() { Interval = TimeSpan.FromMilliseconds(600) };
+    private static readonly TimeSpan CycleInterval = TimeSpan.FromMilliseconds(600);
+    private readonly DispatcherTimer _cycle = new() { Interval = CycleInterval };
     private readonly Action<RdpSessionControl> _showForCapture;
     private readonly List<OverviewTile> _cycleOrder;
     private int _cycleIndex = -1;
@@ -181,8 +186,13 @@ public partial class SessionOverviewWindow : Window
     private void OnCycleTick()
     {
         if (_closing) return;
+        // 各セッションは接続中の台数ぶんの tick ごとに撮り直される。その1周（＋1 tick の余裕）以内なら
+        // 最新とみなし、台数が多いときに "Live" と "Ns ago" が交互に出るのを防ぐ
+        int connected = _cycleOrder.Count(t => t.Session.VisualState == SessionVisualState.Connected);
+        var liveWindow = TimeSpan.FromTicks(Math.Max(OverviewTile.BaseLiveWindow.Ticks, CycleInterval.Ticks * (connected + 1)));
+
         if (_pendingCapture is { } pending && pending.Session.TryUpdateSnapshot(allowScreenCopy: false))
-            pending.Refresh();
+            pending.Refresh(liveWindow);
         _pendingCapture = null;
 
         // 接続中のセッションだけが対象（切断中・接続中はオーバーレイ表示のため撮らない）
@@ -196,7 +206,7 @@ public partial class SessionOverviewWindow : Window
             break;
         }
 
-        foreach (var tile in _all) tile.Refresh();
+        foreach (var tile in _all) tile.Refresh(liveWindow);
     }
 
     private void OnFilterChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => ApplyFilter();
@@ -253,20 +263,14 @@ public partial class SessionOverviewWindow : Window
         }));
     }
 
-    /// <summary>選択を移動する。グリッド表示の上下は1行分（列数）移動する。</summary>
+    /// <summary>選択を移動する。グリッド表示の上下は1行分（列数）移動し、スポットライト表示は縦一列として扱う。</summary>
     private void MoveSelection(int dx, int dy)
     {
         if (_visible.Count == 0) return;
         int idx = _selected is null ? -1 : _visible.IndexOf(_selected);
-        if (idx < 0) { Select(_visible[0]); return; }
-        int step = _spotlight ? dx + dy : dx + dy * Math.Max(1, GridColumns);
-        int next = idx + step;
-        // 上下で範囲外になる場合は動かさない（左右は端で折り返さずに止める）
-        if (next < 0 || next >= _visible.Count)
-        {
-            if (dy != 0 && !_spotlight) return;
-            next = Math.Clamp(next, 0, _visible.Count - 1);
-        }
+        int next = _spotlight
+            ? OverviewLayout.MoveIndex(idx, _visible.Count, 1, dx + dy, 0)
+            : OverviewLayout.MoveIndex(idx, _visible.Count, GridColumns, dx, dy);
         Select(_visible[next]);
     }
 
