@@ -269,7 +269,8 @@ public partial class MainWindow : Window
     private readonly List<string> _failedHotkeys = new();
 
     // 全画面中にセッションのキーフックへ奪われるホットキー（FullscreenKeyHook が代わりに拾う）。
-    // 全画面の解除キー（Pause/Break/カスタム）はコントロール内蔵のトグルが処理し、F11/Alt+N は全画面中は解除するため対象外
+    // 全画面の解除キー Pause/Break はコントロール内蔵のトグルが処理し、F11/Alt+N は全画面中は解除するため対象外。
+    // カスタム全画面キーは修飾が Ctrl+Alt 以外だと内蔵トグルに渡せず、接続済みセッションへの反映も再接続が要るため対象に含める
     private readonly Dictionary<int, HotkeyBinding> _fsHookKeys = new();
     private FullscreenKeyHook? _fsKeyHook;
 
@@ -280,7 +281,7 @@ public partial class MainWindow : Window
             _failedHotkeys.Remove(displayName);
         else if (!_failedHotkeys.Contains(displayName))
             _failedHotkeys.Add(displayName);
-        if (ok && id is not (HotkeyF11 or HotkeyPause or HotkeyBreak or HotkeyFullscreenCustom or HotkeyFocusTree))
+        if (ok && id is not (HotkeyF11 or HotkeyPause or HotkeyBreak or HotkeyFocusTree))
             _fsHookKeys[id] = new HotkeyBinding(fsModifiers, vk);
         else
             _fsHookKeys.Remove(id);
@@ -1036,16 +1037,6 @@ public partial class MainWindow : Window
         App.Settings.FullscreenKey = dlg.Key;
         App.Settings.Save();
         UpdateFullscreenMenuGesture();
-
-        // RdpClientHost はカスタム全画面キーを Ctrl+Alt 修飾の場合しか
-        // コントロールの HotKeyFullScreen に伝えないため、それ以外の修飾では全画面中に効かない
-        if (dlg.Modifiers != (ModControl | ModAlt))
-        {
-            MessageBox.Show(this,
-                "While a fullscreen session has focus, this key will not work; the default Ctrl+Alt+Break remains available. Ctrl+Alt combinations are recommended.\n" +
-                "Also, this change will only take effect for already-connected sessions after they reconnect.",
-                "Set Fullscreen Hotkey", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
     }
 
     private async void OnRefreshStatus(object sender, RoutedEventArgs e) => await Vm.RefreshStatusesAsync();
