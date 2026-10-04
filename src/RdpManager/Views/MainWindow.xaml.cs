@@ -241,6 +241,14 @@ public partial class MainWindow : Window
         _hwnd = new WindowInteropHelper(this).Handle;
         var src = HwndSource.FromHwnd(_hwnd);
         src?.AddHook(WndProc);
+        RegisterAllHotkeys();
+        QuickSwitchMenuItem.InputGestureText = HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey);
+        UpdateFullscreenMenuGesture();
+    }
+
+    /// <summary>全グローバルホットキーを登録する（起動時と、ホットキー取り込み後の再登録用。全画面でない前提）。</summary>
+    private void RegisterAllHotkeys()
+    {
         // RDP セッションにフォーカスがあっても効くようグローバル登録
         TryRegisterHotKey(HotkeyPause, ModControl | ModAlt, VkPause, "Ctrl+Alt+Pause");
         TryRegisterHotKey(HotkeyBreak, ModControl | ModAlt, VkCancel, "Ctrl+Alt+Break");
@@ -260,8 +268,21 @@ public partial class MainWindow : Window
                 HotkeyCaptureDialog.BuildDisplayText(App.Settings.FullscreenModifiers, App.Settings.FullscreenKey));
         RegisterSwitchHotkeys();
         RegisterAuxHotkeys();
-        QuickSwitchMenuItem.InputGestureText = HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey);
-        UpdateFullscreenMenuGesture();
+    }
+
+    /// <summary>
+    /// ホットキー取り込みダイアログを表示する。登録済みのグローバルホットキーは WM_HOTKEY として先に消費され、
+    /// ダイアログに届かないうえ操作（Ctrl+Alt+W でタブを閉じる等）まで実行されるため、表示中は全て解除する。
+    /// 確定されなければ null。
+    /// </summary>
+    private HotkeyCaptureDialog? ShowHotkeyCapture()
+    {
+        var dlg = new HotkeyCaptureDialog { Owner = this };
+        UnregisterHotkey();
+        bool ok;
+        try { ok = dlg.ShowDialog() == true; }
+        finally { RegisterAllHotkeys(); }
+        return ok ? dlg : null;
     }
 
     // 他アプリ（旧インスタンス含む）がキーを保持していると RegisterHotKey は失敗する。
@@ -983,8 +1004,7 @@ public partial class MainWindow : Window
 
     private void OnSetQuickSwitchHotkey(object sender, RoutedEventArgs e)
     {
-        var dlg = new HotkeyCaptureDialog { Owner = this };
-        if (dlg.ShowDialog() != true) return;
+        if (ShowHotkeyCapture() is not { } dlg) return;
 
         var oldModifiers = App.Settings.QuickSwitchModifiers;
         var oldKey = App.Settings.QuickSwitchKey;
@@ -999,7 +1019,7 @@ public partial class MainWindow : Window
             // 他アプリと衝突している場合は旧設定に戻す（新キーは採用しないため警告にも残さない）
             _failedHotkeys.Remove(newDisplayName);
             TryRegisterHotKey(HotkeyQuickSwitch, oldModifiers, oldKey, oldDisplayName);
-            MessageBox.Show(this, "This hotkey is already in use by another application.",
+            MessageBox.Show(this, "This hotkey is already in use by another application or by rdpmanager itself.",
                 "Set Quick Switch Hotkey", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -1012,8 +1032,7 @@ public partial class MainWindow : Window
 
     private void OnSetFullscreenHotkey(object sender, RoutedEventArgs e)
     {
-        var dlg = new HotkeyCaptureDialog { Owner = this };
-        if (dlg.ShowDialog() != true) return;
+        if (ShowHotkeyCapture() is not { } dlg) return;
 
         var oldModifiers = App.Settings.FullscreenModifiers;
         var oldKey = App.Settings.FullscreenKey;
@@ -1029,7 +1048,7 @@ public partial class MainWindow : Window
             _failedHotkeys.Remove(newDisplayName);
             if (oldKey != 0) TryRegisterHotKey(HotkeyFullscreenCustom, oldModifiers, oldKey, oldDisplayName);
             else UpdateHotkeyWarning();
-            MessageBox.Show(this, "This hotkey is already in use by another application.",
+            MessageBox.Show(this, "This hotkey is already in use by another application or by rdpmanager itself.",
                 "Set Fullscreen Hotkey", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
