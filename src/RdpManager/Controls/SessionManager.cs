@@ -398,8 +398,12 @@ public sealed class SessionManager
             ExternalTools.Run(cmd, info);
         if (tab.Parent is TabControl pane)
         {
+            bool wasActive = pane == _activePane && pane.SelectedItem == tab;
             pane.Items.Remove(tab);
             HostOf(pane).Children.Remove(session);
+            // 閉じたセッションがフォーカスを持っていたため、次に選ばれたセッションへ移す。移さないとフォーカスが
+            // WPF 側に残り、全画面中にリモート向けに押した Esc で全画面が解除される
+            if (wasActive) FocusSelected(pane);
         }
         _mru.Remove(tab);
         UpdateEmptyHint();
