@@ -912,8 +912,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        // グローバルホットキーなので他アプリ使用中・最小化中にも呼ばれうる
-        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        // グローバルホットキーなので他アプリ使用中・最小化中にも呼ばれうる。
+        // WindowState=Normal だと最大化（全画面）から最小化した場合も通常サイズに戻ってしまうため、SC_RESTORE で最小化前の状態へ戻す
+        if (WindowState == WindowState.Minimized) SystemCommands.RestoreWindow(this);
         Activate();
         UpdateLayout();
 
@@ -1085,7 +1086,7 @@ public partial class MainWindow : Window
     /// <summary>トーストクリック: ウィンドウを前面化して通知元セッションへ移動する。</summary>
     private void FocusSessionFromToast(string key)
     {
-        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        if (WindowState == WindowState.Minimized) SystemCommands.RestoreWindow(this); // 最小化前の最大化/全画面状態へ戻す
         Activate();
         _sessions.ActivateBySessionKey(key);
     }
