@@ -934,7 +934,15 @@ public partial class MainWindow : Window
     {
         var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "CSV (*.csv)|*.csv|All files|*.*" };
         if (dlg.ShowDialog(this) != true) return;
-        var rows = Services.ImportExport.FromCsv(System.IO.File.ReadAllText(dlg.FileName));
+        string text;
+        // 他アプリで開いたまま（共有違反）やネットワーク切断などで読めない場合は、汎用の未処理例外ではなく理由を示す
+        try { text = System.IO.File.ReadAllText(dlg.FileName); }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, $"Could not read \"{dlg.FileName}\".\n{ex.Message}", "Import", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        var rows = Services.ImportExport.FromCsv(text);
         var nodes = rows.Select(r => new TreeNodeViewModel
         {
             Kind = NodeKind.Connection, Name = r.Name, Host = r.Host, Port = r.Port,
@@ -951,10 +959,18 @@ public partial class MainWindow : Window
         var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "RDP (*.rdp)|*.rdp", Multiselect = true };
         if (dlg.ShowDialog(this) != true) return;
         var nodes = new List<TreeNodeViewModel>();
+        var failed = new List<string>();
         foreach (var file in dlg.FileNames)
         {
-            var conn = Services.ImportExport.FromRdp(System.IO.File.ReadAllText(file),
-                System.IO.Path.GetFileNameWithoutExtension(file));
+            // 1 ファイルの読み込み失敗で全体を中断せず、読めた分だけ取り込む
+            string text;
+            try { text = System.IO.File.ReadAllText(file); }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                failed.Add($"{System.IO.Path.GetFileName(file)}: {ex.Message}");
+                continue;
+            }
+            var conn = Services.ImportExport.FromRdp(text, System.IO.Path.GetFileNameWithoutExtension(file));
             if (conn is null) continue;
             nodes.Add(new TreeNodeViewModel
             {
@@ -964,7 +980,10 @@ public partial class MainWindow : Window
             });
         }
         Vm.AddImported(nodes, TargetFolder());
-        MessageBox.Show(this, $"Imported {nodes.Count} connection(s).", "Import", MessageBoxButton.OK, MessageBoxImage.Information);
+        var summary = $"Imported {nodes.Count} connection(s).";
+        if (failed.Count > 0) summary += "\n\nCould not read:\n" + string.Join("\n", failed);
+        MessageBox.Show(this, summary, "Import", MessageBoxButton.OK,
+            failed.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
     }
 
     private void OnExportCsv(object sender, RoutedEventArgs e)
@@ -973,7 +992,13 @@ public partial class MainWindow : Window
         if (dlg.ShowDialog(this) != true) return;
         var rows = Vm.GetAllConnections().Select(c =>
             new Services.ImportedConn(c.Name, c.Host, c.Port, c.Domain, c.Username, c.Comment, c.Protocol, c.Gateway));
-        System.IO.File.WriteAllText(dlg.FileName, Services.ImportExport.ToCsv(rows), new System.Text.UTF8Encoding(true));
+        try { System.IO.File.WriteAllText(dlg.FileName, Services.ImportExport.ToCsv(rows), new System.Text.UTF8Encoding(true)); }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            // Excel で開いたままのファイルへの上書き（共有違反）など
+            MessageBox.Show(this, $"Could not write \"{dlg.FileName}\".\n{ex.Message}", "Export", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         MessageBox.Show(this, "Export complete.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
