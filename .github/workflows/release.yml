@@ -64,6 +64,15 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # build ワークフローの結果に関係なく走るため、配布前にここでも 0 警告ビルドとユニットテストを通す
+      - name: Build (warnings as errors)
+        if: steps.ver.outputs.skip != 'true'
+        run: dotnet build -warnaserror
+
+      - name: Test
+        if: steps.ver.outputs.skip != 'true'
+        run: dotnet test --no-build --verbosity normal
+
       # wxs はビルド時のバージョン注入手段がないため、ワークスペース内のファイルを書き換える(コミットはしない)
       - name: Apply version to wxs
         if: steps.ver.outputs.skip != 'true'
