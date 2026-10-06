@@ -51,9 +51,16 @@ public partial class CredentialProfilesDialog : Window
             return;
         }
 
-        var target = Selected ?? _profiles.FirstOrDefault(x => x.Name == name);
+        var target = Selected;
         if (target is null)
         {
+            // New からの保存で同名があると、そのプロファイルを参照している全接続の資格情報が黙って置き換わるため拒否する
+            if (_profiles.Any(x => x.Name == name))
+            {
+                MessageBox.Show(this, "A profile with this name already exists. Select it in the list to edit it.",
+                    "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
             target = new CredentialProfile();
             _profiles.Add(target);
         }
