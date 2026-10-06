@@ -316,4 +316,33 @@ public class MainViewModelTests
         Assert.True(prod.IsVisible);
         Assert.True(web.IsVisible);
     }
+
+    [Fact]
+    public void SearchActive_AddedNonMatchingNode_IsHidden()
+    {
+        var vm = NewVm();
+        vm.RootNodes.Add(Conn("db1"));
+        vm.SearchText = "db";
+
+        var web = Conn("web1");
+        vm.AddChild(null, web);
+
+        Assert.False(web.IsVisible);
+    }
+
+    [Fact]
+    public void SearchActive_EditedNodeNoLongerMatching_IsHidden()
+    {
+        var vm = NewVm();
+        var node = Conn("db1");
+        vm.RootNodes.Add(node);
+        vm.SearchText = "db";
+        Assert.True(node.IsVisible);
+
+        node.Name = "web1";
+        node.Host = "web-host";
+        vm.NotifyEdited();
+
+        Assert.False(node.IsVisible);
+    }
 }

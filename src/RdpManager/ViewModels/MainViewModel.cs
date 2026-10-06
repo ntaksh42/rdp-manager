@@ -344,6 +344,8 @@ public class MainViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(HasNoConnections));
+        // ツリーの変更はすべてここを通るため、検索中ならフィルタを掛け直す（追加・複製・編集したノードを条件どおりに表示する）
+        if (!string.IsNullOrWhiteSpace(SearchText)) ApplyFilter();
         if (!_persist) return;
         var doc = new StoreDocument
         {
