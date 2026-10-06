@@ -287,9 +287,9 @@ public partial class MainWindow : Window
     /// ダイアログに届かないうえ操作（Ctrl+Alt+W でタブを閉じる等）まで実行されるため、表示中は全て解除する。
     /// 確定されなければ null。
     /// </summary>
-    private HotkeyCaptureDialog? ShowHotkeyCapture()
+    private HotkeyCaptureDialog? ShowHotkeyCapture(string title)
     {
-        var dlg = new HotkeyCaptureDialog { Owner = this };
+        var dlg = new HotkeyCaptureDialog { Owner = this, Title = title };
         UnregisterHotkey();
         bool ok;
         try { ok = dlg.ShowDialog() == true; }
@@ -1136,7 +1136,7 @@ public partial class MainWindow : Window
 
     private void OnSetQuickSwitchHotkey(object sender, RoutedEventArgs e)
     {
-        if (ShowHotkeyCapture() is not { } dlg) return;
+        if (ShowHotkeyCapture("Set Quick Switch Hotkey") is not { } dlg) return;
 
         var oldModifiers = App.Settings.QuickSwitchModifiers;
         var oldKey = App.Settings.QuickSwitchKey;
@@ -1164,7 +1164,7 @@ public partial class MainWindow : Window
 
     private void OnSetFullscreenHotkey(object sender, RoutedEventArgs e)
     {
-        if (ShowHotkeyCapture() is not { } dlg) return;
+        if (ShowHotkeyCapture("Set Fullscreen Hotkey") is not { } dlg) return;
 
         var oldModifiers = App.Settings.FullscreenModifiers;
         var oldKey = App.Settings.FullscreenKey;
