@@ -415,6 +415,36 @@ public partial class MainWindow : Window
         _auxRegistered = false;
     }
 
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vk);
+    [DllImport("user32.dll")] private static extern uint MapVirtualKey(uint code, uint mapType);
+    [DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extraInfo);
+    private const int VkRMenu = 0xA5;
+    private const uint KeyEventFKeyUp = 0x2;
+
+    // AltGr は Ctrl+Alt として扱われるため、独語配列等の AltGr+7/8/9/0（{ [ ] }）が Ctrl+Alt+数字のホットキーに奪われる。
+    // 右 Alt が押されていれば文字入力とみなす
+    private static bool IsAltGrDown() => (GetAsyncKeyState(VkRMenu) & 0x8000) != 0;
+
+    /// <summary>ホットキーとして奪った AltGr の文字入力を、登録を一時的に外して前面のウィンドウへ送り直す。</summary>
+    private void ReinjectAsCharacter(int id)
+    {
+        if (!_fsHookKeys.TryGetValue(id, out var binding)) return;
+        UnregisterHotKey(_hwnd, id);
+        byte vk = (byte)binding.Vk, scan = (byte)MapVirtualKey(binding.Vk, 0);
+        keybd_event(vk, scan, 0, UIntPtr.Zero);
+        keybd_event(vk, scan, KeyEventFKeyUp, UIntPtr.Zero);
+        // 送り直した打鍵がホットキー判定を通過してから登録し直す（入力は非同期に処理されるため少し待つ）
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            // 待つ間に非アクティブになったセッション操作キーは登録し直さない
+            if (id == HotkeySessionDashboard || _sessionHotkeysRegistered)
+                RegisterHotKey(_hwnd, id, binding.Modifiers, binding.Vk);
+        };
+        timer.Start();
+    }
+
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == WmHotkey)
@@ -436,6 +466,11 @@ public partial class MainWindow : Window
             else if (id == HotkeyMoveTabOtherPane) { _sessions.MoveActiveTabToOtherPane(); handled = true; }
             else if (id == HotkeyMoveTabLeft) { _sessions.MoveActiveTab(-1); handled = true; }
             else if (id == HotkeyMoveTabRight) { _sessions.MoveActiveTab(1); handled = true; }
+            else if ((id == HotkeySessionDashboard || (id >= HotkeyTab1 && id < HotkeyTab1 + 9)) && IsAltGrDown())
+            {
+                ReinjectAsCharacter(id);
+                handled = true;
+            }
             else if (id == HotkeySessionDashboard) { OnSessionDashboard(this, new RoutedEventArgs()); handled = true; }
             else if (id >= HotkeyTab1 && id < HotkeyTab1 + 9) { _sessions.JumpToTab(id - HotkeyTab1); handled = true; }
         }
@@ -687,7 +722,8 @@ public partial class MainWindow : Window
             e.Handled = true;
         }
         // Ctrl+Alt+0 のグローバル登録に失敗しても、アプリ側にフォーカスがあれば一覧を開けるようにする
-        else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Alt)
+        // （AltGr+0 は独語配列等の "}" 入力のため除外する）
+        else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Alt) && !Keyboard.IsKeyDown(Key.RightAlt)
                  && (e.Key == Key.System ? e.SystemKey : e.Key) == Key.D0)
         {
             if (!e.IsRepeat) OnSessionDashboard(this, new RoutedEventArgs());
