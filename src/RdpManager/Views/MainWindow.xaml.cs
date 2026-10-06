@@ -789,8 +789,10 @@ public partial class MainWindow : Window
         }
         else if (e.Key == Key.Enter)
         {
-            // 選択中の接続、無ければ検索結果の先頭の接続へ（キーボードだけで検索→接続を完結させる）
-            var node = Vm.SelectedNode?.IsConnection == true ? Vm.SelectedNode : FirstVisibleConnection(Vm.RootNodes);
+            // 選択中の接続、無ければ検索結果の先頭の接続へ（キーボードだけで検索→接続を完結させる）。
+            // 選択中でも検索で非表示になった接続は対象外（検索前の選択が残っているだけのため）
+            var node = Vm.SelectedNode is { IsConnection: true } sel && IsShown(sel)
+                ? sel : FirstVisibleConnection(Vm.RootNodes);
             if (node != null) ConnectEmbedded(node);
             e.Handled = true;
         }
@@ -799,6 +801,14 @@ public partial class MainWindow : Window
             Tree.Focus();
             e.Handled = true;
         }
+    }
+
+    /// <summary>自身と祖先がすべて検索フィルタで表示されているか。</summary>
+    private static bool IsShown(TreeNodeViewModel node)
+    {
+        for (var n = node; n != null; n = n.Parent)
+            if (!n.IsVisible) return false;
+        return true;
     }
 
     private static TreeNodeViewModel? FirstVisibleConnection(IEnumerable<TreeNodeViewModel> nodes)
