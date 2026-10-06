@@ -427,8 +427,19 @@ public sealed class SessionManager
             pane.Items.Remove(tab);
             HostOf(pane).Children.Remove(session);
             // 閉じたセッションがフォーカスを持っていたため、次に選ばれたセッションへ移す。移さないとフォーカスが
-            // WPF 側に残り、全画面中にリモート向けに押した Esc で全画面が解除される
-            if (wasActive) FocusSelected(pane);
+            // WPF 側に残り、全画面中にリモート向けに押した Esc で全画面が解除される。
+            // ペインが空になった場合はもう一方のペインのセッションへ移す
+            if (wasActive)
+            {
+                var other = pane == _left ? _right : _left;
+                if (pane.Items.Count == 0 && other.Items.Count > 0)
+                {
+                    _activePane = other;
+                    if (other.SelectedItem is TabItem next) TouchMru(next);
+                    FocusSelected(other);
+                }
+                else FocusSelected(pane);
+            }
         }
         _mru.Remove(tab);
         UpdateEmptyHint();
