@@ -128,6 +128,9 @@ public static class RdpLauncher
     private static void WriteRdpFile(LaunchInfo info, string path)
     {
         var address = HostAddress.Format(info.Host, info.Port);
+        // 改行等を含む値をそのまま書くと、以降が独立した .rdp 設定行として解釈される（設定の注入）
+        if (new[] { address, info.Username, info.Domain, info.Gateway }.Any(v => v.Any(char.IsControl)))
+            throw new InvalidOperationException("The host, username, domain or gateway contains control characters.");
         var sb = new StringBuilder();
         sb.AppendLine($"full address:s:{address}");
         if (!string.IsNullOrEmpty(info.Username))

@@ -34,8 +34,10 @@ public static class ImportExport
             if (string.IsNullOrWhiteSpace(name)) name = host;
             // 範囲外のポートは接続時に失敗するだけなので既定値に戻す（.rdp インポートと同じ扱い）
             int port = int.TryParse(f.ElementAtOrDefault(2), out var p) && p is >= 1 and <= 65535 ? p : 3389;
-            list.Add(new ImportedConn(name, host, port,
-                Unescape(f.ElementAtOrDefault(3) ?? ""), Unescape(f.ElementAtOrDefault(4) ?? ""), Unescape(f.ElementAtOrDefault(5) ?? "")));
+            // 引用符内の改行は RFC4180 上は正当だが、接続先・資格情報に残ると .rdp 生成時に別の設定行として解釈されるため除去する
+            list.Add(new ImportedConn(name, StripControl(host), port,
+                StripControl(Unescape(f.ElementAtOrDefault(3) ?? "")), StripControl(Unescape(f.ElementAtOrDefault(4) ?? "")),
+                Unescape(f.ElementAtOrDefault(5) ?? "")));
         }
         return list;
     }
@@ -83,6 +85,8 @@ public static class ImportExport
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         return s;
     }
+
+    private static string StripControl(string s) => new(s.Where(c => !char.IsControl(c)).ToArray());
 
     /// <summary>Q() が数式インジェクション対策で付与した先頭の ' を取り除く（インポート時のラウンドトリップ用）。</summary>
     private static string Unescape(string s)

@@ -76,6 +76,19 @@ public class ImportExportTests
     }
 
     [Fact]
+    public void FromCsv_StripsNewlinesFromHostAndCredentials()
+    {
+        var text = "foo,\"srv01\ndrivestoredirect:s:*\",3389,\"DOM\r\n\",\"user\nx\",\"multi\nline\"\n";
+        var parsed = ImportExport.FromCsv(text);
+
+        var result = Assert.Single(parsed);
+        Assert.Equal("srv01drivestoredirect:s:*", result.Host);
+        Assert.Equal("DOM", result.Domain);
+        Assert.Equal("userx", result.Username);
+        Assert.Equal("multi\nline", result.Comment); // コメントは .rdp に書かないため改行を保つ
+    }
+
+    [Fact]
     public void FromCsv_BlankLine_IsIgnored()
     {
         var text = "Name,Host,Port,Domain,Username,Comment\n\nfoo,bar,3389,,,\n";
