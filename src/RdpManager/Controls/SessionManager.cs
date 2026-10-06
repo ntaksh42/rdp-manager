@@ -122,11 +122,14 @@ public sealed class SessionManager
 
     private void TrackMruSelection(TabControl pane)
     {
-        if (pane.SelectedItem is TabItem tab)
-        {
-            _mru.Remove(tab);
-            _mru.Insert(0, tab);
-        }
+        if (pane.SelectedItem is TabItem tab) TouchMru(tab);
+    }
+
+    /// <summary>タブを MRU の先頭へ移す。選択が変わらないペイン間のフォーカス移動（F6・画面クリック）でも呼ぶ。</summary>
+    private void TouchMru(TabItem tab)
+    {
+        _mru.Remove(tab);
+        _mru.Insert(0, tab);
     }
 
     /// <summary>セッション状態の表示色（タブのドット・セッション一覧で共通）。</summary>
@@ -221,6 +224,7 @@ public sealed class SessionManager
         if (tab.Parent is not TabControl tc) return;
         _activePane = tc;
         tc.SelectedItem = tab;
+        TouchMru(tab); // 既に選択中のタブ（他ペインから戻る場合）は SelectionChanged が来ない
         FocusSelected(tc);
     }
 
@@ -263,7 +267,14 @@ public sealed class SessionManager
         session.CloseRequested += (_, _) => CloseSession(tab, session);
         // SelectionChanged は選択が「変化」した時しか発火しないため、選択中タブの再クリックや
         // RDP 画面内クリックでのペイン移動はこちらで補足する
-        session.SessionFocused += (_, _) => { if (tab.Parent is TabControl tc) OnPaneActivated(tc); };
+        // 選択は変わらないため SelectionChanged では MRU が更新されない。ここで先頭へ移さないと、
+        // ペイン間を移った直後の Ctrl+Tab が現在のタブを選んでしまう
+        session.SessionFocused += (_, _) =>
+        {
+            if (tab.Parent is not TabControl tc) return;
+            OnPaneActivated(tc);
+            TouchMru(tab);
+        };
 
         var close = new Button
         {
@@ -536,6 +547,7 @@ public sealed class SessionManager
         if (other.Items.Count == 0) return;
         _activePane = other;
         if (other.SelectedItem is null) other.SelectedIndex = 0;
+        if (other.SelectedItem is TabItem tab) TouchMru(tab);
         FocusSelected(other);
     }
 
