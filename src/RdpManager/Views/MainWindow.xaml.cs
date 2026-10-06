@@ -650,6 +650,13 @@ public partial class MainWindow : Window
             ToggleFullscreen();
             e.Handled = true;
         }
+        // Ctrl+Alt+0 のグローバル登録に失敗しても、アプリ側にフォーカスがあれば一覧を開けるようにする
+        else if (Keyboard.Modifiers == (ModifierKeys.Control | ModifierKeys.Alt)
+                 && (e.Key == Key.System ? e.SystemKey : e.Key) == Key.D0)
+        {
+            if (!e.IsRepeat) OnSessionDashboard(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
         else if (e.Key == Key.Escape && _fullscreen)
         {
             ToggleFullscreen();
