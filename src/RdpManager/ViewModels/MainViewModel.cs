@@ -353,7 +353,7 @@ public class MainViewModel : ObservableObject
                 Name = p.Name,
                 Domain = p.Domain,
                 Username = p.Username,
-                PasswordEncrypted = CredentialProtector.Protect(p.Password)
+                PasswordEncrypted = p.CachedPasswordEnc ??= CredentialProtector.Protect(p.Password)
             }).ToList()
         };
         try { ConnectionStore.Save(doc); }
@@ -369,7 +369,9 @@ public class MainViewModel : ObservableObject
             CredentialProfiles.Add(new CredentialProfile
             {
                 Name = p.Name, Domain = p.Domain, Username = p.Username,
-                Password = CredentialProtector.Unprotect(p.PasswordEncrypted)
+                Password = CredentialProtector.Unprotect(p.PasswordEncrypted),
+                // Password の設定でキャッシュが消えるため後に置く（読み込んだ暗号文をそのまま保持する）
+                CachedPasswordEnc = p.PasswordEncrypted
             });
 
         foreach (var child in doc.Root.Children)
