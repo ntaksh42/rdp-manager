@@ -38,15 +38,32 @@ public sealed class AppSettings
     private static string FilePath =>
         Path.Combine(ConnectionStore.Directory, "appsettings.json");
 
-    public static AppSettings Load()
+    public static AppSettings Load() => LoadFrom(FilePath);
+
+    /// <summary>
+    /// 設定を読む。破損していれば .bak へ退避し、AtomicWrite が残す直前版(.prev)からの復旧を試みる
+    /// （無通知で既定値に戻すと、直後の保存で破損ファイルごとホットキー等の設定が失われるため）。
+    /// </summary>
+    internal static AppSettings LoadFrom(string path)
     {
-        try
+        if (!File.Exists(path)) return new AppSettings();
+        if (TryRead(path) is { } settings) return settings;
+
+        Logger.Warn($"App settings could not be read; backing up to {path}.bak");
+        try { File.Copy(path, path + ".bak", overwrite: true); }
+        catch { /* 退避失敗は致命的でない */ }
+        if (TryRead(path + ".prev") is { } prev)
         {
-            if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings();
+            Logger.Info("App settings restored from the previous version (.prev).");
+            return prev;
         }
-        catch { /* 既定値へ */ }
         return new AppSettings();
+    }
+
+    private static AppSettings? TryRead(string path)
+    {
+        try { return File.Exists(path) ? JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path)) : null; }
+        catch { return null; }
     }
 
     public void Save()
