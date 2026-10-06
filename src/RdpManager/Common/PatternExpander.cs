@@ -53,7 +53,8 @@ public static partial class PatternExpander
             long segmentCount;
             if (m.Groups[1].Success)
             {
-                options.AddRange(m.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries));
+                // "{a, b}" の空白がホスト名に残らないよう各要素をトリムする
+                options.AddRange(m.Groups[1].Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
                 if (options.Count == 0) options.Add(""); // "abc{}" のような空展開でも直前リテラルを失わない
                 segmentCount = options.Count;
             }

@@ -18,6 +18,12 @@ public class PatternExpanderTests
     }
 
     [Fact]
+    public void Expand_BraceListWithSpaces_TrimsEachOption()
+    {
+        Assert.Equal(new[] { "web01", "web02" }, PatternExpander.Expand("{web01, web02 }"));
+    }
+
+    [Fact]
     public void Expand_ReversedRange_IsCorrectedToAscending()
     {
         Assert.Equal(new[] { "1", "2", "3", "4", "5" }, PatternExpander.Expand("[5-1]"));

@@ -120,6 +120,19 @@ public class ImportExportTests
     }
 
     [Fact]
+    public void FromCsv_TrimsSpacesAroundFields()
+    {
+        var parsed = ImportExport.FromCsv("web01, 10.0.0.1, 3390, DOM , user ,note\n");
+
+        var result = Assert.Single(parsed);
+        Assert.Equal("web01", result.Name);
+        Assert.Equal("10.0.0.1", result.Host);
+        Assert.Equal(3390, result.Port);
+        Assert.Equal("DOM", result.Domain);
+        Assert.Equal("user", result.Username);
+    }
+
+    [Fact]
     public void FromCsv_BlankLine_IsIgnored()
     {
         var text = "Name,Host,Port,Domain,Username,Comment\n\nfoo,bar,3389,,,\n";

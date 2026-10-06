@@ -28,8 +28,9 @@ public static class ImportExport
             if (f[0].Equals("Name", StringComparison.OrdinalIgnoreCase) &&
                 f.Count > 1 && f[1].Equals("Host", StringComparison.OrdinalIgnoreCase)) continue;
 
-            string name = Unescape(f.ElementAtOrDefault(0) ?? "");
-            string host = Unescape(f.ElementAtOrDefault(1) ?? "");
+            // "web01, 10.0.0.1, 3389" のようにカンマの後に空白がある CSV でも、接続先・資格情報に空白を残さない
+            string name = Unescape(f.ElementAtOrDefault(0)?.Trim() ?? "");
+            string host = Unescape(f.ElementAtOrDefault(1)?.Trim() ?? "");
             if (string.IsNullOrWhiteSpace(host) && string.IsNullOrWhiteSpace(name)) continue;
             if (string.IsNullOrWhiteSpace(host)) host = name;
             if (string.IsNullOrWhiteSpace(name)) name = host;
@@ -37,10 +38,10 @@ public static class ImportExport
             int port = int.TryParse(f.ElementAtOrDefault(2), out var p) && p is >= 1 and <= 65535 ? p : 3389;
             // 引用符内の改行は RFC4180 上は正当だが、接続先・資格情報に残ると .rdp 生成時に別の設定行として解釈されるため除去する
             list.Add(new ImportedConn(name, StripControl(host), port,
-                StripControl(Unescape(f.ElementAtOrDefault(3) ?? "")), StripControl(Unescape(f.ElementAtOrDefault(4) ?? "")),
+                StripControl(Unescape(f.ElementAtOrDefault(3)?.Trim() ?? "")), StripControl(Unescape(f.ElementAtOrDefault(4)?.Trim() ?? "")),
                 Unescape(f.ElementAtOrDefault(5) ?? ""),
                 // Protocol / Gateway 列は後から追加したため、旧形式（6 列）の CSV では既定値になる
-                NormalizeProtocol(f.ElementAtOrDefault(6)), StripControl(Unescape(f.ElementAtOrDefault(7) ?? ""))));
+                NormalizeProtocol(f.ElementAtOrDefault(6)), StripControl(Unescape(f.ElementAtOrDefault(7)?.Trim() ?? ""))));
         }
         return list;
     }
