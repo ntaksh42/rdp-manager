@@ -576,8 +576,9 @@ public partial class MainWindow : Window
 
     private void OnTreeDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (Vm.SelectedNode?.IsConnection == true)
-            ConnectEmbedded(Vm.SelectedNode);
+        // MouseDoubleClick はスクロールバーや余白でも発火するため、選択中の接続ノード自体をダブルクリックした場合だけ接続する
+        if (FindNode(e.OriginalSource as DependencyObject) is { IsConnection: true } node && node == Vm.SelectedNode)
+            ConnectEmbedded(node);
     }
 
     // ── ドラッグ&ドロップ並べ替え ──
