@@ -20,7 +20,9 @@ public static class ExternalTools
             Process.Start(new ProcessStartInfo
             {
                 FileName = "cmd.exe",
-                Arguments = "/c " + cmd,
+                // 全体を引用符で囲み /s を付ける。囲まないと cmd が先頭と末尾の引用符を剥がし、
+                // "C:\Program Files\x.exe" "{host}" のような引用符付きコマンドが壊れる
+                Arguments = "/s /c \"" + cmd + "\"",
                 UseShellExecute = false,
                 CreateNoWindow = true
             });
