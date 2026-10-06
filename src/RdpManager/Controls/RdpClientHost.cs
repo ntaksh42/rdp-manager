@@ -197,10 +197,11 @@ public sealed class RdpClientHost : AxHost
             dynamic adv = ocx.AdvancedSettings9;
             if (info.Port != 3389) TrySet(() => adv.RDPPort = info.Port, "RDPPort");
             if (!string.IsNullOrEmpty(info.Password)) TrySet(() => adv.ClearTextPassword = info.Password, "ClearTextPassword");
-            // 動的解像度が反映されるまでの中間フレームを引き伸ばし表示にするため常時有効。
+            // 動的解像度が反映されるまでの中間フレームを引き伸ばし表示にするため、接続設定の Smart sizing が有効なら常時有効。
             // 定常状態では解像度がビューと一致するため見た目の差はなく、
-            // 動的解像度非対応サーバーでは従来から ResizeRemote のフォールバックで有効化される
-            TrySet(() => adv.SmartSizing = true, "SmartSizing");
+            // 動的解像度非対応サーバーでは ResizeRemote のフォールバックでも同じ設定に従う
+            _smartSizing = info.SmartSizing;
+            TrySet(() => adv.SmartSizing = info.SmartSizing, "SmartSizing");
             TrySet(() => adv.RedirectDrives = info.RedirectDrives, "RedirectDrives");
             TrySet(() => adv.RedirectClipboard = info.RedirectClipboard, "RedirectClipboard");
             TrySet(() => adv.EnableCredSspSupport = true, "EnableCredSspSupport");
@@ -331,6 +332,7 @@ public sealed class RdpClientHost : AxHost
     /// 非対応サーバーでは例外になるため、その場合は SmartSizing による拡縮にフォールバック。
     /// </summary>
     private uint _lastRemoteW, _lastRemoteH;
+    private bool _smartSizing = true; // 接続設定の Smart sizing（動的解像度非対応時のフォールバックで参照）
     private long _resizeRequestedAt; // Stopwatch タイムスタンプ（要求→反映の所要時間計測用）
 
     public void ResizeRemote(int width, int height)
@@ -351,8 +353,9 @@ public sealed class RdpClientHost : AxHost
         }
         catch
         {
-            // 動的解像度に非対応 → スマートサイジングで追従（拡縮表示）
-            TrySet(() => { if (_ocx is { } o) o.AdvancedSettings9.SmartSizing = true; }, "SmartSizing(fallback)");
+            // 動的解像度に非対応 → スマートサイジングで追従（拡縮表示）。接続設定で無効にされていれば拡縮しない
+            if (_smartSizing)
+                TrySet(() => { if (_ocx is { } o) o.AdvancedSettings9.SmartSizing = true; }, "SmartSizing(fallback)");
         }
     }
 

@@ -673,6 +673,8 @@ public partial class MainWindow : Window
         }
 
         _sessions.OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, target ?? SessionTabs);
+        // 接続設定の "Open full screen"（埋め込みではアプリウィンドウの全画面で表す）
+        if (info.Fullscreen && !_fullscreen) ToggleFullscreen();
     }
 
     private static IEnumerable<TreeNodeViewModel> DescendantConnections(TreeNodeViewModel folder)
