@@ -1008,15 +1008,16 @@ public partial class MainWindow : Window
             if (SessionManager.SessionOf(tab) is not { } s) continue;
             tiles.Add(new OverviewTile(tab, s, (tab.Tag as SessionTag)?.Title ?? "Session", _sessions.IsInRightPane(tab)));
         }
+        // グローバルホットキーなので他アプリ使用中・最小化中にも呼ばれうる。
+        // WindowState=Normal だと最大化（全画面）から最小化した場合も通常サイズに戻ってしまうため、SC_RESTORE で最小化前の状態へ戻す。
+        // セッションが無い旨のメッセージも Owner が最小化されたままだと見えないため、先に戻す
+        if (WindowState == WindowState.Minimized) SystemCommands.RestoreWindow(this);
         if (tiles.Count == 0)
         {
             MessageBox.Show(this, "There are no active sessions.", "Sessions", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
-        // グローバルホットキーなので他アプリ使用中・最小化中にも呼ばれうる。
-        // WindowState=Normal だと最大化（全画面）から最小化した場合も通常サイズに戻ってしまうため、SC_RESTORE で最小化前の状態へ戻す
-        if (WindowState == WindowState.Minimized) SystemCommands.RestoreWindow(this);
         Activate();
         UpdateLayout();
 
@@ -1066,6 +1067,9 @@ public partial class MainWindow : Window
     private void OnQuickSwitch(object sender, RoutedEventArgs e)
     {
         if (_quickSwitch != null) return; // 二重表示防止
+        // グローバルホットキーなので最小化中にも呼ばれうる。最小化された Owner のままだとダイアログも
+        // 切替先のセッションも見えないため、最小化前の状態（最大化/全画面）へ戻してから開く
+        if (WindowState == WindowState.Minimized) SystemCommands.RestoreWindow(this);
 
         var openIds = _sessions.AllTabs
             .Select(t => (t.Tag as SessionTag)?.NodeId)
