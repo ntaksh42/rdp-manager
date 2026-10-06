@@ -490,6 +490,10 @@ public partial class MainWindow : Window
     {
         if (!_fullscreen)
         {
+            // 全画面切替キーはグローバルなので最小化中にも届く。Minimized を保存すると解除時に最小化へ戻るため、
+            // 先に最小化前の状態（通常/最大化）へ戻してから保存し、前面に出す
+            if (WindowState == WindowState.Minimized) SystemCommands.RestoreWindow(this);
+            Activate();
             _savedStyle = WindowStyle;
             _savedResize = ResizeMode;
             _savedState = WindowState;
