@@ -317,7 +317,8 @@ public partial class SessionOverviewWindow : Window
                 Commit(_selected);
                 e.Handled = true;
                 break;
-            case Key.Space:
+            // 絞り込み入力中の Space は複数語検索の区切りとして絞り込み欄へ渡す（数字キーと同じ扱い）
+            case Key.Space when FilterBox.Text.Length == 0:
                 ToggleSpotlight();
                 e.Handled = true;
                 break;
