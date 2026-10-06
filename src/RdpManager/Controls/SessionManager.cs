@@ -30,6 +30,8 @@ namespace RdpManager.Controls;
 public sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo? Info, string SessionKey, RdpSessionControl Session)
 {
     public string Title { get; set; } = "";
+    /// <summary>手動再接続時に最新の接続設定で置き換わるため可変。</summary>
+    public LaunchInfo? Info { get; set; } = Info;
 }
 
 /// <summary>
@@ -73,6 +75,9 @@ public sealed class SessionManager
 
     /// <summary>クリップボード同期の結果（成功可否, ユーザー向けメッセージ）。</summary>
     public event Action<bool, string>? ClipboardSyncCompleted;
+
+    /// <summary>ノード ID から最新の接続情報を解決する（手動再接続で編集後の設定を使うため）。解決できなければ null。</summary>
+    public Func<string, LaunchInfo?>? InfoResolver { get; set; }
 
     public SessionManager(TabControl left, TabControl right, Grid leftHost, Grid rightHost, TextBlock emptyHint,
         ColumnDefinition leftCol, ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
@@ -244,6 +249,15 @@ public sealed class SessionManager
             Tag = tag,
             ToolTip = HostAddress.FormatWithPort(info.Host, info.Port)
         };
+        // 開いた後に接続が編集されていても、手動再接続では最新のホスト・資格情報を使う
+        if (nodeId != null)
+            session.RefreshInfo = () =>
+            {
+                if (InfoResolver?.Invoke(nodeId) is not { } latest) return null;
+                tag.Info = latest;
+                tab.ToolTip = HostAddress.FormatWithPort(latest.Host, latest.Port);
+                return latest;
+            };
         session.NotificationReceived += (_, n) => SessionNotification?.Invoke(tab, tag.Title, n);
         session.FullScreenRequested += on => FullscreenChangeRequested?.Invoke(on);
         session.CloseRequested += (_, _) => CloseSession(tab, session);

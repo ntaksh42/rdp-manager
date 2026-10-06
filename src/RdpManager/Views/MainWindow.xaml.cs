@@ -63,6 +63,9 @@ public partial class MainWindow : Window
         // SelectionChanged は選択が変化した時しか発火しないため、タブヘッダの再クリックも拾う
         SessionTabs.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabs);
         SessionTabsRight.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabsRight);
+        _sessions.InfoResolver = id => Vm.FindConnectionById(id) is { } n &&
+                                       string.Equals(n.Protocol, "RDP", StringComparison.OrdinalIgnoreCase)
+            ? Vm.BuildLaunchInfo(n) : null;
         _sessions.SessionsChanged += UpdateSessionCount;
         _sessions.SessionNotification += OnSessionNotification;
         // コントロールは全画面状態になった時点でキーフックを入れるため、そのたびに自分のフックを先頭へ入れ直す

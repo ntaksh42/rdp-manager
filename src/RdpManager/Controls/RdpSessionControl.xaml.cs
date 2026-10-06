@@ -285,15 +285,19 @@ public partial class RdpSessionControl : UserControl
 
     private void OnClose(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>手動再接続時に最新の接続情報を返す（開いた後の編集を反映するため）。null なら前回の情報を使う。</summary>
+    public Func<LaunchInfo?>? RefreshInfo { get; set; }
+
     /// <summary>手動再接続。切断状態からリトライ回数をリセットして接続し直す。</summary>
     public void Reconnect()
     {
-        if (_info is null) return;
+        var info = RefreshInfo?.Invoke() ?? _info;
+        if (info is null) return;
         _reconnect.Stop();
         _reconnectScheduled = false;
         _autoReconnectStopped = false;
         _autoRetries = 0;
-        Start(_info);
+        Start(info);
     }
 
     /// <summary>アプリの全画面状態をコントロールへ反映する（全画面時のみ Win キー組み合わせをリモートへ送るため）。</summary>
