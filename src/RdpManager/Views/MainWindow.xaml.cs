@@ -67,7 +67,12 @@ public partial class MainWindow : Window
         _sessions.SessionNotification += OnSessionNotification;
         // コントロールは全画面状態になった時点でキーフックを入れるため、そのたびに自分のフックを先頭へ入れ直す
         _sessions.FullscreenStateSynced += () => _fsKeyHook?.Install();
-        Activated += (_, _) => { if (_fullscreen) _fsKeyHook?.Install(); };
+        Activated += (_, _) =>
+        {
+            if (_fullscreen) _fsKeyHook?.Install();
+            UpdateAuxHotkeys();
+        };
+        Deactivated += (_, _) => UpdateAuxHotkeys();
         _sessions.ClipboardSyncCompleted += OnClipboardSyncCompleted;
         // セッション内の Ctrl+Alt+Break / カスタムキーによる全画面切替要求（COM イベントから届くため UI スレッドへ移す）。
         // 自分で FullScreen プロパティを設定した際にも発火するため、状態が変わる時だけトグルする
@@ -267,7 +272,7 @@ public partial class MainWindow : Window
             TryRegisterHotKey(HotkeyFullscreenCustom, App.Settings.FullscreenModifiers, App.Settings.FullscreenKey,
                 HotkeyCaptureDialog.BuildDisplayText(App.Settings.FullscreenModifiers, App.Settings.FullscreenKey));
         RegisterSwitchHotkeys();
-        RegisterAuxHotkeys();
+        UpdateAuxHotkeys();
     }
 
     /// <summary>
@@ -327,6 +332,18 @@ public partial class MainWindow : Window
     // 単独キー/Alt 単押しの補助ホットキー。全画面中は解除し、純正 mstsc 同様にキーをリモートへ流す
     // （リモートアプリの F11 や Alt メニューを潰さないため）。全画面の解除は Ctrl+Alt+Pause/Break と
     // 設定済みのカスタム全画面キーで行える。
+    // RegisterHotKey はシステム全体に効くため、アプリが非アクティブな間も登録しておくと他アプリの
+    // F11（ブラウザの全画面等）や Alt+N（ダイアログの「いいえ(N)」等）まで奪ってしまう。アクティブな間だけ登録する
+    private bool _auxRegistered;
+
+    private void UpdateAuxHotkeys()
+    {
+        bool want = IsActive && !_fullscreen && _hwnd != IntPtr.Zero;
+        if (want == _auxRegistered) return;
+        if (want) RegisterAuxHotkeys(); else UnregisterAuxHotkeys();
+        _auxRegistered = want;
+    }
+
     private void RegisterAuxHotkeys()
     {
         TryRegisterHotKey(HotkeyF11, 0, VkF11, "F11");
@@ -377,6 +394,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeySessionDashboard);
         UnregisterSwitchHotkeys();
         UnregisterAuxHotkeys();
+        _auxRegistered = false;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -450,12 +468,12 @@ public partial class MainWindow : Window
                 WindowState = WindowState.Normal; // 一旦戻してから最大化しないと境界が残ることがある
                 WindowState = WindowState.Maximized;
             }
-            // 純正 mstsc 同様、全画面中は単独キー系の補助ホットキーを解除しリモートへ流す。
-            // セッション切替・操作キーと全画面解除キーは登録を維持する。
-            UnregisterAuxHotkeys();
             // KeyboardHookMode=2 と連動: 全画面中のみ Win キー組み合わせがリモートへ送られるようになる。
             // FullScreen 設定が FullscreenChangeRequested を発火させるため、_fullscreen を先に確定させて再入を防ぐ
             _fullscreen = true;
+            // 純正 mstsc 同様、全画面中は単独キー系の補助ホットキーを解除しリモートへ流す。
+            // セッション切替・操作キーと全画面解除キーは登録を維持する。
+            UpdateAuxHotkeys();
             _sessions.SetAppFullscreen(true);
             // コントロールのキーフックより後に入れて先に呼ばれるようにする
             (_fsKeyHook ??= new FullscreenKeyHook(_hwnd, _fsHookKeys)).Install();
@@ -479,8 +497,8 @@ public partial class MainWindow : Window
             Left = _savedBounds.Left; Top = _savedBounds.Top;
             Width = _savedBounds.Width; Height = _savedBounds.Height;
             WindowState = _savedState;
-            RegisterAuxHotkeys();
             _fullscreen = false;
+            UpdateAuxHotkeys();
             _sessions.SetAppFullscreen(false);
             _fsKeyHook?.Uninstall();
             // レイアウト確定後にデバウンスを待たず即時にリモート解像度を合わせる
