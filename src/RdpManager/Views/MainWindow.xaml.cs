@@ -58,6 +58,7 @@ public partial class MainWindow : Window
         // レイアウト確定後にデバウンスを待たず即時反映する
         StateChanged += (_, _) => Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
             new Action(_sessions.ApplyResizeToAll));
+        StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) _stateBeforeMinimize = WindowState; };
         SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _sessions.OnPaneActivated(SessionTabs); };
         SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _sessions.OnPaneActivated(SessionTabsRight); };
         // SelectionChanged は選択が変化した時しか発火しないため、タブヘッダの再クリックも拾う
@@ -123,8 +124,11 @@ public partial class MainWindow : Window
                 Left = l; Top = t; Width = w; Height = h;
             }
         }
-        if (s.WindowMaximized) WindowState = WindowState.Maximized;
+        if (s.WindowMaximized) WindowState = _stateBeforeMinimize = WindowState.Maximized;
     }
+
+    // 最小化中に閉じても最大化を保存できるよう、最小化前の状態を覚えておく
+    private WindowState _stateBeforeMinimize = WindowState.Normal;
 
     private void SaveWindowBounds()
     {
@@ -135,7 +139,7 @@ public partial class MainWindow : Window
             : RestoreBounds;
         s.WindowMaximized = _fullscreen
             ? _savedState == WindowState.Maximized
-            : WindowState == WindowState.Maximized;
+            : (WindowState == WindowState.Minimized ? _stateBeforeMinimize : WindowState) == WindowState.Maximized;
         if (bounds.Width > 0 && bounds.Height > 0)
         {
             s.WindowLeft = bounds.Left; s.WindowTop = bounds.Top;
