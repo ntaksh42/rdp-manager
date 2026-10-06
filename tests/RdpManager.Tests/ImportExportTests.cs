@@ -24,6 +24,37 @@ public class ImportExportTests
     }
 
     [Fact]
+    public void ToCsv_FromCsv_RoundTrips_ProtocolAndGateway()
+    {
+        var conn = new ImportedConn("ssh1", "host", 22, "", "user", "", "SSH", "gw.example.com");
+
+        var parsed = ImportExport.FromCsv(ImportExport.ToCsv(new[] { conn }));
+
+        Assert.Equal(conn, Assert.Single(parsed));
+    }
+
+    [Fact]
+    public void FromCsv_LegacySixColumns_DefaultsToRdpWithoutGateway()
+    {
+        var parsed = ImportExport.FromCsv("Name,Host,Port,Domain,Username,Comment\nfoo,bar,3389,,,\n");
+
+        var result = Assert.Single(parsed);
+        Assert.Equal("RDP", result.Protocol);
+        Assert.Equal("", result.Gateway);
+    }
+
+    [Theory]
+    [InlineData("ssh", "SSH")]
+    [InlineData("telnet", "Telnet")]
+    [InlineData("unknown", "RDP")]
+    public void FromCsv_NormalizesProtocol(string raw, string expected)
+    {
+        var parsed = ImportExport.FromCsv($"foo,bar,3389,,,,{raw},\n");
+
+        Assert.Equal(expected, Assert.Single(parsed).Protocol);
+    }
+
+    [Fact]
     public void FromCsv_SkipsHeaderRow()
     {
         var text = "Name,Host,Port,Domain,Username,Comment\nfoo,bar,3389,,,\n";

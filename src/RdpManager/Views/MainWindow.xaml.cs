@@ -934,6 +934,7 @@ public partial class MainWindow : Window
         {
             Kind = NodeKind.Connection, Name = r.Name, Host = r.Host, Port = r.Port,
             Domain = r.Domain, Username = r.Username, Comment = r.Comment,
+            Protocol = r.Protocol, Gateway = r.Gateway,
             CredentialMode = string.IsNullOrEmpty(r.Username) ? "inheritFromParent" : "direct"
         }).ToList();
         Vm.AddImported(nodes, TargetFolder());
@@ -966,7 +967,7 @@ public partial class MainWindow : Window
         var dlg = new Microsoft.Win32.SaveFileDialog { Filter = "CSV (*.csv)|*.csv", FileName = "rdpmanager-connections.csv" };
         if (dlg.ShowDialog(this) != true) return;
         var rows = Vm.GetAllConnections().Select(c =>
-            new Services.ImportedConn(c.Name, c.Host, c.Port, c.Domain, c.Username, c.Comment));
+            new Services.ImportedConn(c.Name, c.Host, c.Port, c.Domain, c.Username, c.Comment, c.Protocol, c.Gateway));
         System.IO.File.WriteAllText(dlg.FileName, Services.ImportExport.ToCsv(rows), new System.Text.UTF8Encoding(true));
         MessageBox.Show(this, "Export complete.", "Export", MessageBoxButton.OK, MessageBoxImage.Information);
     }

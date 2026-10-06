@@ -2,7 +2,8 @@ using System.Text;
 
 namespace RdpManager.Services;
 
-public sealed record ImportedConn(string Name, string Host, int Port, string Domain, string Username, string Comment);
+public sealed record ImportedConn(string Name, string Host, int Port, string Domain, string Username, string Comment,
+    string Protocol = "RDP", string Gateway = "");
 
 /// <summary>CSV / .rdp の入出力（パスワードは扱わない）。</summary>
 public static class ImportExport
@@ -10,10 +11,10 @@ public static class ImportExport
     public static string ToCsv(IEnumerable<ImportedConn> rows)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Name,Host,Port,Domain,Username,Comment");
+        sb.AppendLine("Name,Host,Port,Domain,Username,Comment,Protocol,Gateway");
         foreach (var r in rows)
             sb.AppendLine(string.Join(",",
-                Q(r.Name), Q(r.Host), r.Port.ToString(), Q(r.Domain), Q(r.Username), Q(r.Comment)));
+                Q(r.Name), Q(r.Host), r.Port.ToString(), Q(r.Domain), Q(r.Username), Q(r.Comment), Q(r.Protocol), Q(r.Gateway)));
         return sb.ToString();
     }
 
@@ -37,7 +38,9 @@ public static class ImportExport
             // 引用符内の改行は RFC4180 上は正当だが、接続先・資格情報に残ると .rdp 生成時に別の設定行として解釈されるため除去する
             list.Add(new ImportedConn(name, StripControl(host), port,
                 StripControl(Unescape(f.ElementAtOrDefault(3) ?? "")), StripControl(Unescape(f.ElementAtOrDefault(4) ?? "")),
-                Unescape(f.ElementAtOrDefault(5) ?? "")));
+                Unescape(f.ElementAtOrDefault(5) ?? ""),
+                // Protocol / Gateway 列は後から追加したため、旧形式（6 列）の CSV では既定値になる
+                NormalizeProtocol(f.ElementAtOrDefault(6)), StripControl(Unescape(f.ElementAtOrDefault(7) ?? ""))));
         }
         return list;
     }
@@ -85,6 +88,12 @@ public static class ImportExport
             return "\"" + s.Replace("\"", "\"\"") + "\"";
         return s;
     }
+
+    private static readonly string[] Protocols = { "RDP", "SSH", "Telnet", "VNC" };
+
+    /// <summary>既知のプロトコル名（大文字小文字無視）を正規の表記にする。空・未知なら RDP。</summary>
+    private static string NormalizeProtocol(string? s)
+        => Protocols.FirstOrDefault(p => string.Equals(p, s?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? "RDP";
 
     private static string StripControl(string s) => new(s.Where(c => !char.IsControl(c)).ToArray());
 
