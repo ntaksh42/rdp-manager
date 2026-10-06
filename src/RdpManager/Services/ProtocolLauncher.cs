@@ -6,6 +6,16 @@ namespace RdpManager.Services;
 /// <summary>RDP 以外のプロトコルを対応する外部クライアントで起動する。</summary>
 public static class ProtocolLauncher
 {
+    /// <summary>実際に接続するポート。RDP 以外でポートが既定の 3389 のままなら各プロトコルの既定ポートに読み替える
+    /// （起動と死活チェックで同じ読み替えを使うため共通化）。</summary>
+    public static int EffectivePort(string protocol, int port) => port != 3389 ? port : protocol.ToUpperInvariant() switch
+    {
+        "SSH" => 22,
+        "TELNET" => 23,
+        "VNC" => 5900,
+        _ => port
+    };
+
     /// <summary>起動した場合 true。未対応・失敗時は false。</summary>
     public static bool Launch(string protocol, string host, int port, string user, out string? message)
     {
@@ -37,19 +47,19 @@ public static class ProtocolLauncher
             switch (protocol.ToUpperInvariant())
             {
                 case "SSH":
-                    var sshPort = port == 3389 ? 22 : port;
+                    var sshPort = EffectivePort(protocol, port);
                     var target = string.IsNullOrEmpty(user) ? host : $"{user}@{host}";
                     // 宛先の前に -- を入れ、万一の混入時も ssh のオプションとして解釈されないようにする
                     Process.Start(new ProcessStartInfo("cmd.exe", $"/k ssh -p {sshPort} -- {target}") { UseShellExecute = true });
                     return true;
 
                 case "TELNET":
-                    var telnetPort = port == 3389 ? 23 : port;
+                    var telnetPort = EffectivePort(protocol, port);
                     Process.Start(new ProcessStartInfo("cmd.exe", $"/k telnet {host} {telnetPort}") { UseShellExecute = true });
                     return true;
 
                 case "VNC":
-                    var vncPort = port == 3389 ? 5900 : port;
+                    var vncPort = EffectivePort(protocol, port);
                     try
                     {
                         // IPv6 リテラルはポートのコロンと区別できるよう角括弧で囲む（vnc://[fe80::1]:5900）

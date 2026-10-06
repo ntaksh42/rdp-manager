@@ -73,7 +73,7 @@ public class MainViewModel : ObservableObject
         {
             using var tcp = new System.Net.Sockets.TcpClient();
             using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(1500));
-            await tcp.ConnectAsync(node.Host, node.Port, cts.Token);
+            await tcp.ConnectAsync(node.Host, ProtocolLauncher.EffectivePort(node.Protocol, node.Port), cts.Token);
             node.Status = NodeStatus.Up;
         }
         catch
