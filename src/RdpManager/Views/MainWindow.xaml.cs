@@ -66,13 +66,20 @@ public partial class MainWindow : Window
         _sessions.SessionsChanged += UpdateSessionCount;
         _sessions.SessionNotification += OnSessionNotification;
         // コントロールは全画面状態になった時点でキーフックを入れるため、そのたびに自分のフックを先頭へ入れ直す
-        _sessions.FullscreenStateSynced += () => _fsKeyHook?.Install();
+        _sessions.FullscreenStateSynced += () => { if (IsActive) _fsKeyHook?.Install(); };
         Activated += (_, _) =>
         {
             if (_fullscreen) _fsKeyHook?.Install();
+            UpdateSessionHotkeys();
             UpdateAuxHotkeys();
         };
-        Deactivated += (_, _) => UpdateAuxHotkeys();
+        // 非アクティブ中は他アプリのキーを奪わないよう、セッション操作キーとフックを外す
+        Deactivated += (_, _) =>
+        {
+            _fsKeyHook?.Uninstall();
+            UpdateSessionHotkeys();
+            UpdateAuxHotkeys();
+        };
         _sessions.ClipboardSyncCompleted += OnClipboardSyncCompleted;
         // セッション内の Ctrl+Alt+Break / カスタムキーによる全画面切替要求（COM イベントから届くため UI スレッドへ移す）。
         // 自分で FullScreen プロパティを設定した際にも発火するため、状態が変わる時だけトグルする
@@ -251,27 +258,20 @@ public partial class MainWindow : Window
         UpdateFullscreenMenuGesture();
     }
 
-    /// <summary>全グローバルホットキーを登録する（起動時と、ホットキー取り込み後の再登録用。全画面でない前提）。</summary>
+    /// <summary>全ホットキーを登録する（起動時と、ホットキー取り込み後の再登録用）。</summary>
     private void RegisterAllHotkeys()
     {
-        // RDP セッションにフォーカスがあっても効くようグローバル登録
+        // 他アプリ使用中・最小化中からでも呼び出せるよう常時登録する（全画面切替・セッション一覧・Quick Switch）
         TryRegisterHotKey(HotkeyPause, ModControl | ModAlt, VkPause, "Ctrl+Alt+Pause");
         TryRegisterHotKey(HotkeyBreak, ModControl | ModAlt, VkCancel, "Ctrl+Alt+Break");
-        // クリップボード同期は全画面の RDP にフォーカスがあっても使える必要があるため常時登録する
-        TryRegisterHotKey(HotkeyClipboardToRemote, ModControl | ModAlt | ModShift, VkV, "Ctrl+Alt+Shift+V");
-        TryRegisterHotKey(HotkeyClipboardFromRemote, ModControl | ModAlt | ModShift, VkC, "Ctrl+Alt+Shift+C");
-        // セッション操作は RDP にフォーカスがある間も使うため、全画面切替時にも登録を維持する。
-        // MOD_NOREPEAT で長押しによる連続クローズ・連続移動を防ぐ。
-        TryRegisterHotKey(HotkeyCloseTab, ModControl | ModAlt | ModNoRepeat, VkW, "Ctrl+Alt+W");
-        TryRegisterHotKey(HotkeyMoveTabOtherPane, ModControl | ModAlt | ModShift | ModNoRepeat, VkF6, "Ctrl+Alt+Shift+F6");
-        TryRegisterHotKey(HotkeyMoveTabLeft, ModControl | ModAlt | ModShift | ModNoRepeat, VkPageUp, "Ctrl+Alt+Shift+PageUp");
-        TryRegisterHotKey(HotkeyMoveTabRight, ModControl | ModAlt | ModShift | ModNoRepeat, VkPageDown, "Ctrl+Alt+Shift+PageDown");
         TryRegisterHotKey(HotkeySessionDashboard, ModControl | ModAlt | ModNoRepeat, Vk0, "Ctrl+Alt+0");
+        TryRegisterHotKey(HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey,
+            HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey)); // 設定可能な Quick Switch ホットキー
         // 全画面中も解除キーとして機能させるため、Pause/Break と同様に RegisterAuxHotkeys には含めない
         if (App.Settings.FullscreenKey != 0)
             TryRegisterHotKey(HotkeyFullscreenCustom, App.Settings.FullscreenModifiers, App.Settings.FullscreenKey,
                 HotkeyCaptureDialog.BuildDisplayText(App.Settings.FullscreenModifiers, App.Settings.FullscreenKey));
-        RegisterSwitchHotkeys();
+        UpdateSessionHotkeys();
         UpdateAuxHotkeys();
     }
 
@@ -356,24 +356,46 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyFocusTree);
     }
 
-    // セッション切替系ホットキー。全画面中こそタブを切り替えたいため、閉じる・移動等のセッション操作キーと
-    // 同様に全画面中も登録を維持する。いずれも Ctrl+Alt+ 修飾でリモート側での使用頻度が低い。
-    private void RegisterSwitchHotkeys()
+    // セッション操作・切替系ホットキー（クリップボード同期・閉じる・移動・巡回・ジャンプ・ペイン切替）。
+    // RDP にフォーカスがある間や全画面中こそ使うため全画面中も登録を維持する。いずれも Ctrl+Alt+ 修飾でリモート側での使用頻度が低い。
+    // ただし RegisterHotKey はシステム全体に効くため、非アクティブな間も登録しておくと、別アプリで作業中に押したキーで
+    // 見えていないタブが閉じられる等の事故になる。アクティブな間だけ登録する
+    private bool _sessionHotkeysRegistered;
+
+    private void UpdateSessionHotkeys()
     {
+        bool want = IsActive && _hwnd != IntPtr.Zero;
+        if (want == _sessionHotkeysRegistered) return;
+        if (want) RegisterSessionHotkeys(); else UnregisterSessionHotkeys();
+        _sessionHotkeysRegistered = want;
+    }
+
+    private void RegisterSessionHotkeys()
+    {
+        TryRegisterHotKey(HotkeyClipboardToRemote, ModControl | ModAlt | ModShift, VkV, "Ctrl+Alt+Shift+V");
+        TryRegisterHotKey(HotkeyClipboardFromRemote, ModControl | ModAlt | ModShift, VkC, "Ctrl+Alt+Shift+C");
+        // MOD_NOREPEAT で長押しによる連続クローズ・連続移動を防ぐ。
+        TryRegisterHotKey(HotkeyCloseTab, ModControl | ModAlt | ModNoRepeat, VkW, "Ctrl+Alt+W");
+        TryRegisterHotKey(HotkeyMoveTabOtherPane, ModControl | ModAlt | ModShift | ModNoRepeat, VkF6, "Ctrl+Alt+Shift+F6");
+        TryRegisterHotKey(HotkeyMoveTabLeft, ModControl | ModAlt | ModShift | ModNoRepeat, VkPageUp, "Ctrl+Alt+Shift+PageUp");
+        TryRegisterHotKey(HotkeyMoveTabRight, ModControl | ModAlt | ModShift | ModNoRepeat, VkPageDown, "Ctrl+Alt+Shift+PageDown");
         TryRegisterHotKey(HotkeyNextTab, ModControl | ModAlt, VkPageDown, "Ctrl+Alt+PageDown");
         TryRegisterHotKey(HotkeyPrevTab, ModControl | ModAlt, VkPageUp, "Ctrl+Alt+PageUp");
-        TryRegisterHotKey(HotkeyQuickSwitch, App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey,
-            HotkeyCaptureDialog.BuildDisplayText(App.Settings.QuickSwitchModifiers, App.Settings.QuickSwitchKey)); // 設定可能な Quick Switch ホットキー
         TryRegisterHotKey(HotkeyFocusPane, ModControl | ModAlt, VkF6, "Ctrl+Alt+F6"); // 分割ペイン間のフォーカス切替
         for (uint i = 0; i < 9; i++)
             TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
     }
 
-    private void UnregisterSwitchHotkeys()
+    private void UnregisterSessionHotkeys()
     {
+        UnregisterHotKey(_hwnd, HotkeyClipboardToRemote);
+        UnregisterHotKey(_hwnd, HotkeyClipboardFromRemote);
+        UnregisterHotKey(_hwnd, HotkeyCloseTab);
+        UnregisterHotKey(_hwnd, HotkeyMoveTabOtherPane);
+        UnregisterHotKey(_hwnd, HotkeyMoveTabLeft);
+        UnregisterHotKey(_hwnd, HotkeyMoveTabRight);
         UnregisterHotKey(_hwnd, HotkeyNextTab);
         UnregisterHotKey(_hwnd, HotkeyPrevTab);
-        UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
         UnregisterHotKey(_hwnd, HotkeyFocusPane);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
@@ -385,14 +407,10 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyPause);
         UnregisterHotKey(_hwnd, HotkeyBreak);
         UnregisterHotKey(_hwnd, HotkeyFullscreenCustom);
-        UnregisterHotKey(_hwnd, HotkeyClipboardToRemote);
-        UnregisterHotKey(_hwnd, HotkeyClipboardFromRemote);
-        UnregisterHotKey(_hwnd, HotkeyCloseTab);
-        UnregisterHotKey(_hwnd, HotkeyMoveTabOtherPane);
-        UnregisterHotKey(_hwnd, HotkeyMoveTabLeft);
-        UnregisterHotKey(_hwnd, HotkeyMoveTabRight);
         UnregisterHotKey(_hwnd, HotkeySessionDashboard);
-        UnregisterSwitchHotkeys();
+        UnregisterHotKey(_hwnd, HotkeyQuickSwitch);
+        UnregisterSessionHotkeys();
+        _sessionHotkeysRegistered = false;
         UnregisterAuxHotkeys();
         _auxRegistered = false;
     }
