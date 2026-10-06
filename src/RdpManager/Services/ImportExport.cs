@@ -48,8 +48,9 @@ public static class ImportExport
 
     public static ImportedConn? FromRdp(string text, string fallbackName)
     {
-        string host = "", user = "", domain = "";
+        string host = "", user = "", domain = "", domainLine = "", gateway = "";
         int port = 3389;
+        int gatewayUsage = -1; // gatewayusagemethod（0 = ゲートウェイを使わない。未指定は -1）
         bool portFromFullAddress = false; // full address 側の明示ポートを優先するため、行順に依存せず優先度を記録する
         foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
         {
@@ -74,9 +75,20 @@ public static class ImportExport
                 if (bs > 0) { domain = v[..bs]; user = v[(bs + 1)..]; }
                 else user = v;
             }
+            else if (line.StartsWith("domain:s:", StringComparison.OrdinalIgnoreCase))
+                domainLine = line["domain:s:".Length..].Trim();
+            else if (line.StartsWith("gatewayhostname:s:", StringComparison.OrdinalIgnoreCase))
+                gateway = line["gatewayhostname:s:".Length..].Trim();
+            else if (line.StartsWith("gatewayusagemethod:i:", StringComparison.OrdinalIgnoreCase) &&
+                     int.TryParse(line["gatewayusagemethod:i:".Length..].Trim(), out var gu))
+                gatewayUsage = gu;
         }
         if (string.IsNullOrWhiteSpace(host)) return null;
-        return new ImportedConn(fallbackName, host, port, domain, user, "");
+        // ドメインは username の DOMAIN\ 側を優先し、無ければ domain:s: 行（RDCMan・RD Web 由来の .rdp）を使う
+        if (domain.Length == 0) domain = domainLine;
+        // ゲートウェイ名が残っていても「使わない」指定(0)なら取り込まない
+        if (gatewayUsage == 0) gateway = "";
+        return new ImportedConn(fallbackName, host, port, domain, user, "", Gateway: gateway);
     }
 
     private static string Q(string s)

@@ -241,6 +241,40 @@ public class ImportExportTests
     }
 
     [Fact]
+    public void FromRdp_DomainLine_IsUsedWhenUsernameHasNoDomain()
+    {
+        var result = ImportExport.FromRdp("full address:s:myhost\nusername:s:user\ndomain:s:CORP\n", "fallback");
+
+        Assert.Equal("CORP", result!.Domain);
+        Assert.Equal("user", result.Username);
+    }
+
+    [Fact]
+    public void FromRdp_UsernameDomain_WinsOverDomainLine()
+    {
+        var text = "full address:s:myhost\ndomain:s:CORP\nusername:s:" + "DOM" + '\\' + "user\n";
+        var result = ImportExport.FromRdp(text, "fallback");
+
+        Assert.Equal("DOM", result!.Domain);
+    }
+
+    [Fact]
+    public void FromRdp_GatewayHostname_IsImported()
+    {
+        var result = ImportExport.FromRdp("full address:s:myhost\ngatewayhostname:s:gw.example.com\ngatewayusagemethod:i:1\n", "fallback");
+
+        Assert.Equal("gw.example.com", result!.Gateway);
+    }
+
+    [Fact]
+    public void FromRdp_GatewayUsageDisabled_IgnoresGatewayHostname()
+    {
+        var result = ImportExport.FromRdp("full address:s:myhost\ngatewayhostname:s:gw.example.com\ngatewayusagemethod:i:0\n", "fallback");
+
+        Assert.Equal("", result!.Gateway);
+    }
+
+    [Fact]
     public void FromRdp_NoFullAddress_ReturnsNull()
     {
         var result = ImportExport.FromRdp("username:s:user\n", "fallback");

@@ -954,7 +954,7 @@ public partial class MainWindow : Window
             nodes.Add(new TreeNodeViewModel
             {
                 Kind = NodeKind.Connection, Name = conn.Name, Host = conn.Host, Port = conn.Port,
-                Domain = conn.Domain, Username = conn.Username,
+                Domain = conn.Domain, Username = conn.Username, Gateway = conn.Gateway,
                 CredentialMode = string.IsNullOrEmpty(conn.Username) ? "inheritFromParent" : "direct"
             });
         }
