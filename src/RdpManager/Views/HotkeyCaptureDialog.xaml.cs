@@ -57,10 +57,10 @@ public partial class HotkeyCaptureDialog : Window
             return;
         }
 
-        if (mods == 0)
+        if ((mods & (ModControl | ModAlt | ModWin)) == 0)
         {
-            // グローバルホットキーは修飾キーなしでは登録できないため受理しない
-            PreviewText.Text = key.ToString();
+            // 修飾なし・Shift のみはグローバル登録すると全アプリの文字入力（大文字・記号）を奪うため受理しない
+            PreviewText.Text = mods == 0 ? key.ToString() : string.Join("+", ModifierParts(mods).Append(key.ToString()));
             OkButton.IsEnabled = false;
             return;
         }
