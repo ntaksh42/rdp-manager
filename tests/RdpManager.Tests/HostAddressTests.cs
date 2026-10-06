@@ -150,4 +150,32 @@ public class HostAddressTests
     {
         Assert.Equal(expected, HostAddress.IsIPv6(host));
     }
+
+    [Theory]
+    [InlineData("server", "server", null)]
+    [InlineData("  server  ", "server", null)]
+    [InlineData("server:3390", "server", 3390)]
+    [InlineData("[::1]:3390", "::1", 3390)]
+    [InlineData("[::1]", "::1", null)]
+    [InlineData("fe80::1", "fe80::1", null)]
+    public void ParseInput_ValidValues_SplitsHostAndPort(string input, string host, int? port)
+    {
+        var parsed = HostAddress.ParseInput(input);
+
+        Assert.NotNull(parsed);
+        Assert.Equal(host, parsed!.Value.host);
+        Assert.Equal(port, parsed.Value.port);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("my server")]
+    [InlineData("server:")]
+    [InlineData("server:abc")]
+    [InlineData("server:99999")]
+    [InlineData("[::1]:0")]
+    public void ParseInput_InvalidValues_ReturnsNull(string input)
+    {
+        Assert.Null(HostAddress.ParseInput(input));
+    }
 }

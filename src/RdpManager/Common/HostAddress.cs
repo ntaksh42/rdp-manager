@@ -51,5 +51,20 @@ public static class HostAddress
         return (value, null);
     }
 
+    /// <summary>
+    /// 接続編集の Host 欄の値を検証・分解する。"host:port" / "[ipv6]:port" ならポートも返す。
+    /// 空・空白や制御文字を含む・ポート部が不正なら null。
+    /// </summary>
+    public static (string host, int? port)? ParseInput(string value)
+    {
+        value = value.Trim();
+        if (value.Length == 0 || value.Any(c => char.IsWhiteSpace(c) || char.IsControl(c))) return null;
+        var (host, port) = Parse(value);
+        if (host.Length == 0) return null;
+        // Parse は不正なポート部（"host:" や範囲外）を黙って捨てるため、ポートが取れないのに host 以外が残っていれば不正とする
+        if (port is null && value != host && value != $"[{host}]") return null;
+        return (host, port);
+    }
+
     private static bool IsValidPort(int port) => port is >= 1 and <= 65535;
 }

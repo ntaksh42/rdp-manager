@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using RdpManager.Common;
 using RdpManager.ViewModels;
 using MessageBox = System.Windows.MessageBox;
 
@@ -100,6 +101,7 @@ public partial class ConnectionEditDialog : Window
         }
 
         int port = 0;
+        string host = "";
         if (_node.IsConnection)
         {
             if (string.IsNullOrWhiteSpace(HostBox.Text))
@@ -107,7 +109,16 @@ public partial class ConnectionEditDialog : Window
                 MessageBox.Show(this, "Please enter a host / IP.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            if (!int.TryParse(PortBox.Text.Trim(), out port) || port < 1 || port > 65535)
+            // "host:port" をそのまま保存すると、外部 mstsc（ポート二重付与）・死活チェック・TERMSRV 参照でそれぞれ失敗するため分解する
+            if (HostAddress.ParseInput(HostBox.Text) is not { } parsed)
+            {
+                MessageBox.Show(this, "Host / IP must not contain spaces, and a port after ':' must be a number between 1 and 65535.",
+                    "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            host = parsed.host;
+            if (parsed.port is { } hostPort) port = hostPort;
+            else if (!int.TryParse(PortBox.Text.Trim(), out port) || port < 1 || port > 65535)
             {
                 MessageBox.Show(this, "Port must be a number between 1 and 65535.", "Input Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -134,7 +145,7 @@ public partial class ConnectionEditDialog : Window
 
         if (_node.IsConnection)
         {
-            _node.Host = HostBox.Text.Trim();
+            _node.Host = host;
             _node.Port = port;
             _node.Comment = CommentBox.Text.Trim();
             _node.Protocol = (ProtocolBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "RDP";
