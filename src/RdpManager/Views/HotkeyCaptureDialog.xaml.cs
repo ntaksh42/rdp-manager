@@ -29,8 +29,18 @@ public partial class HotkeyCaptureDialog : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        e.Handled = true;
         var key = e.Key == WpfKey.System ? e.SystemKey : e.Key;
+        var mods = CurrentModifiers();
+
+        // 修飾なしの Enter は確定、Tab / Shift+Tab はフォーカス移動として扱い、キーボードだけで設定を完了できるようにする
+        // （取り込んでしまうと、組み合わせを押した後に Enter でプレビューが Return に変わり OK が無効になる）
+        if (key == WpfKey.Tab && (mods & ~ModShift) == 0) return;
+        e.Handled = true;
+        if (key == WpfKey.Enter && mods == 0)
+        {
+            if (OkButton.IsEnabled) DialogResult = true;
+            return;
+        }
 
         if (key == WpfKey.Escape)
         {
@@ -38,8 +48,6 @@ public partial class HotkeyCaptureDialog : Window
             Close();
             return;
         }
-
-        var mods = CurrentModifiers();
 
         if (IsModifierKey(key))
         {
