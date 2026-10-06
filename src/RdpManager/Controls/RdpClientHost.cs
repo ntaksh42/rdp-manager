@@ -223,10 +223,9 @@ public sealed class RdpClientHost : AxHost
             TrySet(() => ocx.SecuredSettings.KeyboardHookMode = 2, "SecuredSettings.KeyboardHookMode");
             TrySet(() => ocx.SecuredSettings3.KeyboardHookMode = 2, "SecuredSettings3.KeyboardHookMode");
             // 全画面中はコントロールの低レベルキーフックが RegisterHotKey より先に全キーを奪うため、
-            // 解除はコントロール内蔵トグルキー Ctrl+Alt+<HotKeyFullScreen>（既定 Break）→ FullScreenRequested 経由でしか効かない。
-            // カスタム全画面キーが Ctrl+Alt+<key> ならコントロールにも同じキーを教える
-            if (App.Settings.FullscreenKey != 0 && App.Settings.FullscreenModifiers == 3)
-                TrySet(() => adv.HotKeyFullScreen = (int)App.Settings.FullscreenKey, "HotKeyFullScreen");
+            // Ctrl+Alt+Break/Pause での解除はコントロール内蔵トグルキー（HotKeyFullScreen、既定 Break）→ FullScreenRequested 経由で効く。
+            // カスタム全画面キーはアプリ側の FullscreenKeyHook が拾うため、HotKeyFullScreen は既定のまま変えない
+            // （置き換えると Break がトグルキーでなくなり、Ctrl+Alt+Break/Pause で解除できなくなる）
 
             // リモート通知用の仮想チャネル登録（切断状態でのみ有効）と受信イベントのシンク
             TrySet(() => ocx.CreateVirtualChannels(NotifyChannelName), "CreateVirtualChannels");

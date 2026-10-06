@@ -296,7 +296,7 @@ public partial class MainWindow : Window
 
     // 全画面中にセッションのキーフックへ奪われるホットキー（FullscreenKeyHook が代わりに拾う）。
     // 全画面の解除キー Pause/Break はコントロール内蔵のトグルが処理し、F11/Alt+N は全画面中は解除するため対象外。
-    // カスタム全画面キーは修飾が Ctrl+Alt 以外だと内蔵トグルに渡せず、接続済みセッションへの反映も再接続が要るため対象に含める
+    // カスタム全画面キーは内蔵トグル（HotKeyFullScreen）を変えずにこのフックだけで拾うため対象に含める
     private readonly Dictionary<int, HotkeyBinding> _fsHookKeys = new();
     private FullscreenKeyHook? _fsKeyHook;
 
