@@ -37,7 +37,8 @@ dotnet run --project src/RdpManager
 ## 使い方
 
 - ツリーの接続を**ダブルクリック**（または Enter / 「▶ Connect」）でウィンドウ内タブに接続を表示
-- 右クリック → 「Open in Split Pane」で分割表示（Session → 「Split Top/Bottom」または Ctrl+Alt+F7 で左右・上下を切替）、「Open in External Window」で外部 mstsc 起動
+- 右クリック → 「Open to the Side (Split)」で隣のペインに開く、「Open in External Window」で外部 mstsc 起動
+- **ペインは自由に分割できます**（VS Code 風）。Ctrl+Alt+F7 で右、Ctrl+Alt+F8 で下に分割し、分割したペインをさらに分割して好きな配置を作れます。境界はドラッグでサイズ変更。ツリーから開いた接続は枠が強調された「アクティブなペイン」に入ります。ペインの最後のタブを閉じるとそのペインは消え、配置は次回起動時に復元されます
 - 「🖥️ 新規接続」でホスト・ポート・資格情報・ゲートウェイ・各種設定を登録
 - 上部検索ボックスで絞り込み
 - タブは**中クリック**または右クリックメニューから閉じられます。同じ接続を再度開くと既存タブを前面に表示（切断中なら再接続）
@@ -57,8 +58,10 @@ dotnet run --project src/RdpManager
 | Ctrl+Alt+PageUp / PageDown | タブ巡回（RDP フォーカス中も有効） |
 | Ctrl+Alt+1〜9 | タブ番号ジャンプ（RDP フォーカス中も有効） |
 | Ctrl+Alt+W | 現在のタブを閉じる（RDP フォーカス中も有効） |
-| Ctrl+Alt+Shift+F6 | 現在のタブを反対側のペインへ移動 |
-| Ctrl+Alt+F7 | 分割方向を切替（左右 ⇔ 上下） |
+| Ctrl+Alt+F7 / Ctrl+Alt+F8 | アクティブなペインを右 / 下に分割（タブが2つ以上なら選択中のタブを新ペインへ移す） |
+| Ctrl+Alt+Shift+F7 | アクティブなペインを閉じ、タブを隣のペインへまとめる |
+| F6 / Ctrl+Alt+F6 | 次のペインへフォーカス |
+| Ctrl+Shift+M / Ctrl+Alt+Shift+F6 | 現在のタブを次のペインへ移動（分割していなければ右に分割） |
 | Ctrl+Alt+Shift+PageUp / PageDown | 現在のタブを左右へ移動 |
 | Ctrl+Alt+0 | セッション一覧（サムネイル）を表示。矢印で選択・Enter で切替・Space で拡大・1〜9 でジャンプ・文字入力で絞り込み |
 | Ctrl+Alt+Home（変更可） | Quick Switch（接続の検索・切替。RDP フォーカス中も有効） |

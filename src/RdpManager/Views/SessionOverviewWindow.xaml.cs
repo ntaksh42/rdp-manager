@@ -24,13 +24,13 @@ public sealed class OverviewTile : ObservableObject
     private Brush _stateColor;
     private SessionVisualState _state;
 
-    public OverviewTile(TabItem tab, RdpSessionControl session, string title, bool rightPane)
+    public OverviewTile(TabItem tab, RdpSessionControl session, string title, string? paneLabel)
     {
         Tab = tab;
         Session = session;
         Title = title;
         Host = session.HostDisplay;
-        RightPane = rightPane;
+        PaneLabel = paneLabel;
         _state = session.VisualState;
         _stateColor = SessionManager.StateBrush(_state);
         Refresh(BaseLiveWindow);
@@ -43,7 +43,8 @@ public sealed class OverviewTile : ObservableObject
     public RdpSessionControl Session { get; }
     public string Title { get; }
     public string Host { get; }
-    public bool RightPane { get; }
+    /// <summary>分割表示中ならセッションのあるペイン名（"Pane 2" など）。</summary>
+    public string? PaneLabel { get; }
 
     public ImageSource? Image { get => _image; private set { if (SetField(ref _image, value)) OnPropertyChanged(nameof(ShowPlaceholder)); } }
     public bool ShowPlaceholder => _image is null;
@@ -79,7 +80,7 @@ public sealed class OverviewTile : ObservableObject
         get
         {
             var parts = new List<string> { Host, StateText };
-            if (RightPane) parts.Add("Right pane");
+            if (PaneLabel != null) parts.Add(PaneLabel);
             if (!string.IsNullOrEmpty(Meta) && Meta != "Live") parts.Add($"Snapshot {Meta}");
             return string.Join(" · ", parts.Where(p => p.Length > 0));
         }

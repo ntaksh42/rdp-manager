@@ -24,6 +24,7 @@ using TabControl = System.Windows.Controls.TabControl;
 using TabItem = System.Windows.Controls.TabItem;
 using Keyboard = System.Windows.Input.Keyboard;
 using ModifierKeys = System.Windows.Input.ModifierKeys;
+using SplitDirection = RdpManager.Common.SplitDirection;
 
 namespace RdpManager.Views;
 
@@ -48,24 +49,16 @@ public partial class MainWindow : Window
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
 
-        _sessions = new SessionManager(SessionTabs, SessionTabsRight, SessionHost, SessionHostRight, EmptyHint,
-            LeftCol, RightCol, RightSplitterCol, RightSplitter, TopRow, SplitterRow, BottomRow, SecondPane);
-        _sessions.SetSplitVertical(App.Settings.SplitVertical);
-        SplitVerticalItem.IsChecked = App.Settings.SplitVertical;
+        _sessions = new SessionManager(PaneCanvas);
         // スプリッター確定時はリサイズデバウンス(400ms)を待たずにリモート解像度を即時反映する
+        // （ペイン間のスプリッターは SessionManager 側で同様に処理する）
         Splitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
-        RightSplitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
         // 最大化/復元（最大化ボタン・Win+↑↓・タイトルバーダブルクリック）はモーダルサイズループを
         // 通らず WM_EXITSIZEMOVE が発生しないため、StateChanged をサイズ確定点として
         // レイアウト確定後にデバウンスを待たず即時反映する
         StateChanged += (_, _) => Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
             new Action(_sessions.ApplyResizeToAll));
         StateChanged += (_, _) => { if (WindowState != WindowState.Minimized) _stateBeforeMinimize = WindowState; };
-        SessionTabs.SelectionChanged += (s, _) => { if (s == SessionTabs) _sessions.OnPaneActivated(SessionTabs); };
-        SessionTabsRight.SelectionChanged += (s, _) => { if (s == SessionTabsRight) _sessions.OnPaneActivated(SessionTabsRight); };
-        // SelectionChanged は選択が変化した時しか発火しないため、タブヘッダの再クリックも拾う
-        SessionTabs.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabs);
-        SessionTabsRight.PreviewMouseDown += (_, _) => _sessions.OnPaneActivated(SessionTabsRight);
         _sessions.InfoResolver = id => Vm.FindConnectionById(id) is { } n &&
                                        string.Equals(n.Protocol, "RDP", StringComparison.OrdinalIgnoreCase)
             ? Vm.BuildLaunchInfo(n) : null;
@@ -153,17 +146,16 @@ public partial class MainWindow : Window
     {
         Loaded -= OnLoadedRestore;
         if (!App.Settings.RestoreSessions) return;
-        foreach (var id in App.Settings.OpenOnExit.ToList())
-        {
-            var node = Vm.FindConnectionById(id);
-            if (node != null) ConnectEmbedded(node);
-        }
-        // 右ペインにあったセッションは分割ビューの配置ごと復元する
-        foreach (var id in App.Settings.OpenOnExitRight.ToList())
-        {
-            var node = Vm.FindConnectionById(id);
-            if (node != null) ConnectEmbedded(node, SessionTabsRight);
-        }
+        // 分割構成ごと復元する（各ペインを空で作り、ペイン順に保存したセッションを開いてから空ペインを畳む）
+        var (layout, panes) = App.Settings.SessionsToRestore();
+        _sessions.RestoreLayout(layout);
+        for (int i = 0; i < panes.Count; i++)
+            foreach (var id in panes[i].ToList())
+            {
+                var node = Vm.FindConnectionById(id);
+                if (node != null) ConnectEmbedded(node, paneIndex: i);
+            }
+        _sessions.PruneEmptyPanes();
     }
 
     private void OnClosingSaveSessions(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -180,12 +172,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        // ペインごとに保存し、次回起動時に分割ビューの配置を再現する
-        static string? IdOf(TabItem t) => (t.Tag as SessionTag)?.NodeId;
-        App.Settings.OpenOnExit = tabs.Where(t => t.Parent != SessionTabsRight)
-            .Select(IdOf).Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
-        App.Settings.OpenOnExitRight = tabs.Where(t => t.Parent == SessionTabsRight)
-            .Select(IdOf).Where(s => !string.IsNullOrEmpty(s)).Cast<string>().ToList();
+        // ペインごとに保存し、次回起動時に分割構成ごと再現する
+        var (paneLayout, paneIds) = _sessions.SaveLayout();
+        App.Settings.SaveOpenSessions(paneLayout, paneIds);
         SaveWindowBounds();
         App.Settings.Save();
 
@@ -199,21 +188,6 @@ public partial class MainWindow : Window
     {
         App.Settings.RestoreSessions = RestoreSessionsItem.IsChecked;
         App.Settings.Save();
-    }
-
-    private void OnToggleSplitVertical(object sender, RoutedEventArgs e) => ApplySplitVertical(SplitVerticalItem.IsChecked);
-
-    /// <summary>分割方向（左右 / 上下）を切り替えて保存する（Ctrl+Alt+F7）。</summary>
-    private void ToggleSplitOrientation() => ApplySplitVertical(!_sessions.SplitVertical);
-
-    private void ApplySplitVertical(bool vertical)
-    {
-        _sessions.SetSplitVertical(vertical);
-        SplitVerticalItem.IsChecked = vertical;
-        App.Settings.SplitVertical = vertical;
-        App.Settings.Save();
-        // ペインのサイズが変わるため、レイアウト確定後にリモート解像度を即時反映する
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(_sessions.ApplyResizeToAll));
     }
 
     private void OnToggleDarkMode(object sender, RoutedEventArgs e)
@@ -244,7 +218,9 @@ public partial class MainWindow : Window
     private const int HotkeySessionDashboard = 0x900F;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int HotkeyFocusTree = 0x9019;
-    private const int HotkeySplitOrientation = 0x901A;
+    private const int HotkeySplitRight = 0x901A;
+    private const int HotkeySplitDown = 0x901B;
+    private const int HotkeyClosePane = 0x901C;
     private const int WmHotkey = 0x0312;
     private const int WmExitSizeMove = 0x0232;
     private const uint VkF11 = 0x7A;
@@ -254,6 +230,7 @@ public partial class MainWindow : Window
     private const uint VkPageDown = 0x22;
     private const uint VkF6 = 0x75;
     private const uint VkF7 = 0x76;
+    private const uint VkF8 = 0x77;
     private const uint VkC = 0x43;
     private const uint VkV = 0x56;
     private const uint VkW = 0x57;
@@ -408,7 +385,10 @@ public partial class MainWindow : Window
         TryRegisterHotKey(HotkeyNextTab, ModControl | ModAlt, VkPageDown, "Ctrl+Alt+PageDown");
         TryRegisterHotKey(HotkeyPrevTab, ModControl | ModAlt, VkPageUp, "Ctrl+Alt+PageUp");
         TryRegisterHotKey(HotkeyFocusPane, ModControl | ModAlt, VkF6, "Ctrl+Alt+F6"); // 分割ペイン間のフォーカス切替
-        TryRegisterHotKey(HotkeySplitOrientation, ModControl | ModAlt | ModNoRepeat, VkF7, "Ctrl+Alt+F7"); // 分割方向（左右/上下）の切替
+        // ペインの分割（右/下）と結合
+        TryRegisterHotKey(HotkeySplitRight, ModControl | ModAlt | ModNoRepeat, VkF7, "Ctrl+Alt+F7");
+        TryRegisterHotKey(HotkeySplitDown, ModControl | ModAlt | ModNoRepeat, VkF8, "Ctrl+Alt+F8");
+        TryRegisterHotKey(HotkeyClosePane, ModControl | ModAlt | ModShift | ModNoRepeat, VkF7, "Ctrl+Alt+Shift+F7");
         for (uint i = 0; i < 9; i++)
             TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
     }
@@ -424,7 +404,9 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyNextTab);
         UnregisterHotKey(_hwnd, HotkeyPrevTab);
         UnregisterHotKey(_hwnd, HotkeyFocusPane);
-        UnregisterHotKey(_hwnd, HotkeySplitOrientation);
+        UnregisterHotKey(_hwnd, HotkeySplitRight);
+        UnregisterHotKey(_hwnd, HotkeySplitDown);
+        UnregisterHotKey(_hwnd, HotkeyClosePane);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
@@ -486,13 +468,15 @@ public partial class MainWindow : Window
             else if (id == HotkeyNextTab) { _sessions.CycleTab(+1); handled = true; }
             else if (id == HotkeyPrevTab) { _sessions.CycleTab(-1); handled = true; }
             else if (id == HotkeyQuickSwitch) { OnQuickSwitch(this, new RoutedEventArgs()); handled = true; }
-            else if (id == HotkeyFocusPane) { _sessions.FocusOtherPane(); handled = true; }
-            else if (id == HotkeySplitOrientation) { ToggleSplitOrientation(); handled = true; }
+            else if (id == HotkeyFocusPane) { _sessions.FocusNextPane(); handled = true; }
+            else if (id == HotkeySplitRight) { _sessions.SplitActivePane(SplitDirection.Horizontal); handled = true; }
+            else if (id == HotkeySplitDown) { _sessions.SplitActivePane(SplitDirection.Vertical); handled = true; }
+            else if (id == HotkeyClosePane) { _sessions.CloseActivePane(); handled = true; }
             else if (id == HotkeyFocusTree) { Tree.Focus(); handled = true; }
             else if (id == HotkeyClipboardToRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote); handled = true; }
             else if (id == HotkeyClipboardFromRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.RemoteToLocal); handled = true; }
             else if (id == HotkeyCloseTab) { _sessions.CloseActiveTab(); handled = true; }
-            else if (id == HotkeyMoveTabOtherPane) { _sessions.MoveActiveTabToOtherPane(); handled = true; }
+            else if (id == HotkeyMoveTabOtherPane) { _sessions.MoveActiveTabToNextPane(); handled = true; }
             else if (id == HotkeyMoveTabLeft) { _sessions.MoveActiveTab(-1); handled = true; }
             else if (id == HotkeyMoveTabRight) { _sessions.MoveActiveTab(1); handled = true; }
             else if ((id == HotkeySessionDashboard || (id >= HotkeyTab1 && id < HotkeyTab1 + 9)) && IsAltGrDown())
@@ -673,13 +657,14 @@ public partial class MainWindow : Window
     private void OnConnectEmbedded(object sender, RoutedEventArgs e) => ConnectEmbedded(Vm.SelectedNode);
     private void OnConnectExternal(object sender, RoutedEventArgs e) => Vm.ConnectExternal(Vm.SelectedNode);
 
-    private void OnConnectRight(object sender, RoutedEventArgs e) => ConnectEmbedded(Vm.SelectedNode, SessionTabsRight);
+    private void OnConnectRight(object sender, RoutedEventArgs e) => ConnectEmbedded(Vm.SelectedNode, toSide: true);
 
-    private void ConnectEmbedded(TreeNodeViewModel? node, TabControl? target = null)
+    /// <summary>接続を開く。toSide は隣のペイン（無ければ右に分割）へ、paneIndex は復元時の配置先ペイン。</summary>
+    private void ConnectEmbedded(TreeNodeViewModel? node, bool toSide = false, int? paneIndex = null)
     {
         // 同じ接続のタブが既にあれば前面に出すだけ（PreCommand の再実行や二重接続を避ける）。
-        // 右ペインを明示指定した場合は分割表示用の2セッション目として従来どおり開く。
-        if (target is null && node?.IsConnection == true &&
+        // 隣のペインを明示指定した場合は分割表示用の2セッション目として従来どおり開く。
+        if (!toSide && node?.IsConnection == true &&
             string.Equals(node.Protocol, "RDP", StringComparison.OrdinalIgnoreCase) &&
             _sessions.TryActivateExisting(node.Id.ToString()))
         {
@@ -699,7 +684,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _sessions.OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, target ?? SessionTabs);
+        _sessions.OpenSession(info, node.Name, node.Id.ToString(), node.PostCommand, toSide, paneIndex);
         // 接続設定の "Open full screen"（埋め込みではアプリウィンドウの全画面で表す）
         if (info.Fullscreen && !_fullscreen) ToggleFullscreen();
     }
@@ -775,10 +760,10 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.F) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
         else if (alt && !ctrl && !shift && e.SystemKey == Key.N) { Tree.Focus(); e.Handled = true; }
         else if (ctrl && e.Key == Key.D) { OnDuplicateNode(this, new RoutedEventArgs()); e.Handled = true; }
-        else if (ctrl && shift && e.Key == Key.M) { _sessions.MoveActiveTabToOtherPane(); e.Handled = true; }
+        else if (ctrl && shift && e.Key == Key.M) { _sessions.MoveActiveTabToNextPane(); e.Handled = true; }
         else if (ctrl && e.Key == Key.W) { _sessions.CloseActiveTab(); e.Handled = true; }
         else if (ctrl && e.Key == Key.Tab) { ShowTabSwitcher(shift); e.Handled = true; }
-        else if (e.Key == Key.F6) { _sessions.FocusOtherPane(); e.Handled = true; }
+        else if (e.Key == Key.F6) { _sessions.FocusNextPane(); e.Handled = true; }
         else if (!inTextInput && e.Key == Key.F2 && Vm.SelectedNode != null) { OnEditNode(this, new RoutedEventArgs()); e.Handled = true; }
         else if (!inTextInput && e.Key == Key.Delete && Vm.SelectedNode != null) { OnDeleteNode(this, new RoutedEventArgs()); e.Handled = true; }
     }
@@ -801,9 +786,9 @@ public partial class MainWindow : Window
         // F2/Delete はウィンドウの PreviewKeyDown 側で処理される（ここには届かない）
         if (e.Key == Key.Enter && Vm.SelectedNode?.IsConnection == true)
         {
-            // Shift+Enter は右ペインに開く（分割表示をキーボードだけで開始できるように）
+            // Shift+Enter は隣のペインに開く（分割表示をキーボードだけで開始できるように）
             bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
-            ConnectEmbedded(Vm.SelectedNode, shift ? SessionTabsRight : null);
+            ConnectEmbedded(Vm.SelectedNode, toSide: shift);
             e.Handled = true;
         }
     }
@@ -862,13 +847,19 @@ public partial class MainWindow : Window
 
     private void OnCloseCurrentTab(object sender, RoutedEventArgs e) => _sessions.CloseActiveTab();
 
-    private void OnMoveTabOtherPane(object sender, RoutedEventArgs e) => _sessions.MoveActiveTabToOtherPane();
+    private void OnMoveTabOtherPane(object sender, RoutedEventArgs e) => _sessions.MoveActiveTabToNextPane();
 
     private void OnMoveTabLeft(object sender, RoutedEventArgs e) => _sessions.MoveActiveTab(-1);
 
     private void OnMoveTabRight(object sender, RoutedEventArgs e) => _sessions.MoveActiveTab(1);
 
-    private void OnFocusOtherPane(object sender, RoutedEventArgs e) => _sessions.FocusOtherPane();
+    private void OnFocusOtherPane(object sender, RoutedEventArgs e) => _sessions.FocusNextPane();
+
+    private void OnSplitRight(object sender, RoutedEventArgs e) => _sessions.SplitActivePane(SplitDirection.Horizontal);
+
+    private void OnSplitDown(object sender, RoutedEventArgs e) => _sessions.SplitActivePane(SplitDirection.Vertical);
+
+    private void OnClosePane(object sender, RoutedEventArgs e) => _sessions.CloseActivePane();
 
     private void OnClipboardToRemote(object sender, RoutedEventArgs e)
         => _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote);
@@ -1075,7 +1066,7 @@ public partial class MainWindow : Window
         foreach (var tab in _sessions.AllTabs)
         {
             if (SessionManager.SessionOf(tab) is not { } s) continue;
-            tiles.Add(new OverviewTile(tab, s, (tab.Tag as SessionTag)?.Title ?? "Session", _sessions.IsInRightPane(tab)));
+            tiles.Add(new OverviewTile(tab, s, (tab.Tag as SessionTag)?.Title ?? "Session", _sessions.PaneLabelOf(tab)));
         }
         // グローバルホットキーなので他アプリ使用中・最小化中にも呼ばれうる。
         // WindowState=Normal だと最大化（全画面）から最小化した場合も通常サイズに戻ってしまうため、SC_RESTORE で最小化前の状態へ戻す。

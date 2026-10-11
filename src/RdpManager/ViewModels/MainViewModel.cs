@@ -226,10 +226,7 @@ public class MainViewModel : ObservableObject
 
         // 削除したノード（子孫含む）の ID が OpenOnExit に孤児として残らないよう除去
         var removedIds = SelfAndDescendants(node).Select(n => n.Id.ToString()).ToHashSet();
-        int before = App.Settings.OpenOnExit.Count + App.Settings.OpenOnExitRight.Count;
-        App.Settings.OpenOnExit.RemoveAll(removedIds.Contains);
-        App.Settings.OpenOnExitRight.RemoveAll(removedIds.Contains);
-        if (before != App.Settings.OpenOnExit.Count + App.Settings.OpenOnExitRight.Count)
+        if (App.Settings.RemoveOpenSessions(removedIds))
             App.Settings.Save();
 
         Save();
