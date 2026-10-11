@@ -18,6 +18,9 @@ using TabItem = System.Windows.Controls.TabItem;
 using TextBlock = System.Windows.Controls.TextBlock;
 using StackPanel = System.Windows.Controls.StackPanel;
 using ColumnDefinition = System.Windows.Controls.ColumnDefinition;
+using RowDefinition = System.Windows.Controls.RowDefinition;
+using GridResizeDirection = System.Windows.Controls.GridResizeDirection;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Grid = System.Windows.Controls.Grid;
 using GridSplitter = System.Windows.Controls.GridSplitter;
 using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
@@ -53,6 +56,10 @@ public sealed class SessionManager
     private readonly ColumnDefinition _rightCol;
     private readonly ColumnDefinition _rightSplitterCol;
     private readonly GridSplitter _rightSplitter;
+    private readonly RowDefinition _topRow;
+    private readonly RowDefinition _splitterRow;
+    private readonly RowDefinition _bottomRow;
+    private readonly FrameworkElement _secondPane;
     private TabControl _activePane;
     // Ctrl+Tab タブスイッチャー用の MRU（最近アクティブ化順）リスト。先頭が最新。
     private readonly List<TabItem> _mru = new();
@@ -80,7 +87,8 @@ public sealed class SessionManager
     public Func<string, LaunchInfo?>? InfoResolver { get; set; }
 
     public SessionManager(TabControl left, TabControl right, Grid leftHost, Grid rightHost, TextBlock emptyHint,
-        ColumnDefinition leftCol, ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter)
+        ColumnDefinition leftCol, ColumnDefinition rightCol, ColumnDefinition rightSplitterCol, GridSplitter rightSplitter,
+        RowDefinition topRow, RowDefinition splitterRow, RowDefinition bottomRow, FrameworkElement secondPane)
     {
         _left = left;
         _right = right;
@@ -91,6 +99,10 @@ public sealed class SessionManager
         _rightCol = rightCol;
         _rightSplitterCol = rightSplitterCol;
         _rightSplitter = rightSplitter;
+        _topRow = topRow;
+        _splitterRow = splitterRow;
+        _bottomRow = bottomRow;
+        _secondPane = secondPane;
         _activePane = left;
 
         // SelectionChanged はネストしたコントロールからバブリングすることもあるため、
@@ -580,26 +592,65 @@ public sealed class SessionManager
             SessionOf(tab)?.ApplyResizeNow();
     }
 
-    /// <summary>セッションがあるペインのカラムだけを表示する（両方空のときは左＝ヒント表示側を残す）。
+    /// <summary>分割方向。true なら上下（2つ目のペインを下段）、false なら左右。</summary>
+    public bool SplitVertical { get; private set; }
+
+    /// <summary>分割方向を切り替える。2つ目のペインとスプリッターの配置セルを付け替えるだけで
+    /// 親 Grid は変えないため、セッションの HWND は再作成されず接続も維持される。</summary>
+    public void SetSplitVertical(bool vertical)
+    {
+        SplitVertical = vertical;
+        Grid.SetColumn(_secondPane, vertical ? 0 : 2);
+        Grid.SetRow(_secondPane, vertical ? 2 : 0);
+        Grid.SetColumn(_rightSplitter, vertical ? 0 : 1);
+        Grid.SetRow(_rightSplitter, vertical ? 1 : 0);
+        _rightSplitter.Width = vertical ? double.NaN : 4;
+        _rightSplitter.Height = vertical ? 4 : double.NaN;
+        _rightSplitter.HorizontalAlignment = vertical ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+        _rightSplitter.VerticalAlignment = vertical ? VerticalAlignment.Center : VerticalAlignment.Stretch;
+        _rightSplitter.ResizeDirection = vertical ? GridResizeDirection.Rows : GridResizeDirection.Columns;
+        // 使わない側の軸は先頭の1セルだけにする
+        if (vertical)
+        {
+            _leftCol.Width = new GridLength(1, GridUnitType.Star);
+            _rightSplitterCol.Width = new GridLength(0);
+            _rightCol.Width = new GridLength(0);
+        }
+        else
+        {
+            _topRow.Height = new GridLength(1, GridUnitType.Star);
+            _splitterRow.Height = new GridLength(0);
+            _bottomRow.Height = new GridLength(0);
+        }
+        // 新しい軸にペインの表示状態を適用し直す
+        _leftVisible = null;
+        _rightVisible = null;
+        UpdateRightPane();
+    }
+
+    /// <summary>セッションがあるペインのカラム（上下分割時は行）だけを表示する（両方空のときは1つ目＝ヒント表示側を残す）。
     /// スプリッターは両ペイン表示時のみ。</summary>
     public void UpdateRightPane()
     {
         bool right = _right.Items.Count > 0;
         bool left = _left.Items.Count > 0 || !right;
-        // 表示/非表示が切り替わったときだけ Width を書き換える。無条件に上書きすると
+        // 表示/非表示が切り替わったときだけサイズを書き換える。無条件に上書きすると
         // GridSplitter でユーザーが調整した Star 比率がタブ開閉のたびに 1:1 へ戻ってしまう。
         if (_leftVisible != left)
         {
-            _leftCol.Width = left ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+            var len = left ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+            if (SplitVertical) _topRow.Height = len; else _leftCol.Width = len;
             _leftVisible = left;
         }
         if (_rightVisible != right)
         {
-            _rightCol.Width = right ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+            var len = right ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+            if (SplitVertical) _bottomRow.Height = len; else _rightCol.Width = len;
             _rightVisible = right;
         }
         bool both = left && right;
-        _rightSplitterCol.Width = both ? GridLength.Auto : new GridLength(0);
+        var splitterLen = both ? GridLength.Auto : new GridLength(0);
+        if (SplitVertical) _splitterRow.Height = splitterLen; else _rightSplitterCol.Width = splitterLen;
         _rightSplitter.Visibility = both ? Visibility.Visible : Visibility.Collapsed;
     }
 

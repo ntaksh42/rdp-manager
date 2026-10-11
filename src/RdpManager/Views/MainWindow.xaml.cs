@@ -49,7 +49,9 @@ public partial class MainWindow : Window
         Closing += OnClosingSaveSessions;
 
         _sessions = new SessionManager(SessionTabs, SessionTabsRight, SessionHost, SessionHostRight, EmptyHint,
-            LeftCol, RightCol, RightSplitterCol, RightSplitter);
+            LeftCol, RightCol, RightSplitterCol, RightSplitter, TopRow, SplitterRow, BottomRow, SecondPane);
+        _sessions.SetSplitVertical(App.Settings.SplitVertical);
+        SplitVerticalItem.IsChecked = App.Settings.SplitVertical;
         // スプリッター確定時はリサイズデバウンス(400ms)を待たずにリモート解像度を即時反映する
         Splitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
         RightSplitter.DragCompleted += (_, _) => _sessions.ApplyResizeToAll();
@@ -199,6 +201,21 @@ public partial class MainWindow : Window
         App.Settings.Save();
     }
 
+    private void OnToggleSplitVertical(object sender, RoutedEventArgs e) => ApplySplitVertical(SplitVerticalItem.IsChecked);
+
+    /// <summary>分割方向（左右 / 上下）を切り替えて保存する（Ctrl+Alt+F7）。</summary>
+    private void ToggleSplitOrientation() => ApplySplitVertical(!_sessions.SplitVertical);
+
+    private void ApplySplitVertical(bool vertical)
+    {
+        _sessions.SetSplitVertical(vertical);
+        SplitVerticalItem.IsChecked = vertical;
+        App.Settings.SplitVertical = vertical;
+        App.Settings.Save();
+        // ペインのサイズが変わるため、レイアウト確定後にリモート解像度を即時反映する
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(_sessions.ApplyResizeToAll));
+    }
+
     private void OnToggleDarkMode(object sender, RoutedEventArgs e)
     {
         App.Settings.DarkMode = DarkModeItem.IsChecked;
@@ -227,6 +244,7 @@ public partial class MainWindow : Window
     private const int HotkeySessionDashboard = 0x900F;
     private const int HotkeyTab1 = 0x9010; // 0x9010..0x9018 = Ctrl+Alt+1..9
     private const int HotkeyFocusTree = 0x9019;
+    private const int HotkeySplitOrientation = 0x901A;
     private const int WmHotkey = 0x0312;
     private const int WmExitSizeMove = 0x0232;
     private const uint VkF11 = 0x7A;
@@ -235,6 +253,7 @@ public partial class MainWindow : Window
     private const uint VkPageUp = 0x21;
     private const uint VkPageDown = 0x22;
     private const uint VkF6 = 0x75;
+    private const uint VkF7 = 0x76;
     private const uint VkC = 0x43;
     private const uint VkV = 0x56;
     private const uint VkW = 0x57;
@@ -389,6 +408,7 @@ public partial class MainWindow : Window
         TryRegisterHotKey(HotkeyNextTab, ModControl | ModAlt, VkPageDown, "Ctrl+Alt+PageDown");
         TryRegisterHotKey(HotkeyPrevTab, ModControl | ModAlt, VkPageUp, "Ctrl+Alt+PageUp");
         TryRegisterHotKey(HotkeyFocusPane, ModControl | ModAlt, VkF6, "Ctrl+Alt+F6"); // 分割ペイン間のフォーカス切替
+        TryRegisterHotKey(HotkeySplitOrientation, ModControl | ModAlt | ModNoRepeat, VkF7, "Ctrl+Alt+F7"); // 分割方向（左右/上下）の切替
         for (uint i = 0; i < 9; i++)
             TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
     }
@@ -404,6 +424,7 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeyNextTab);
         UnregisterHotKey(_hwnd, HotkeyPrevTab);
         UnregisterHotKey(_hwnd, HotkeyFocusPane);
+        UnregisterHotKey(_hwnd, HotkeySplitOrientation);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
@@ -466,6 +487,7 @@ public partial class MainWindow : Window
             else if (id == HotkeyPrevTab) { _sessions.CycleTab(-1); handled = true; }
             else if (id == HotkeyQuickSwitch) { OnQuickSwitch(this, new RoutedEventArgs()); handled = true; }
             else if (id == HotkeyFocusPane) { _sessions.FocusOtherPane(); handled = true; }
+            else if (id == HotkeySplitOrientation) { ToggleSplitOrientation(); handled = true; }
             else if (id == HotkeyFocusTree) { Tree.Focus(); handled = true; }
             else if (id == HotkeyClipboardToRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote); handled = true; }
             else if (id == HotkeyClipboardFromRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.RemoteToLocal); handled = true; }

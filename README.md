@@ -37,7 +37,7 @@ dotnet run --project src/RdpManager
 ## 使い方
 
 - ツリーの接続を**ダブルクリック**（または Enter / 「▶ Connect」）でウィンドウ内タブに接続を表示
-- 右クリック → 「Open in Right Pane (Split)」で左右分割表示、「Open in External Window」で外部 mstsc 起動
+- 右クリック → 「Open in Split Pane」で分割表示（Session → 「Split Top/Bottom」または Ctrl+Alt+F7 で左右・上下を切替）、「Open in External Window」で外部 mstsc 起動
 - 「🖥️ 新規接続」でホスト・ポート・資格情報・ゲートウェイ・各種設定を登録
 - 上部検索ボックスで絞り込み
 - タブは**中クリック**または右クリックメニューから閉じられます。同じ接続を再度開くと既存タブを前面に表示（切断中なら再接続）
@@ -58,6 +58,7 @@ dotnet run --project src/RdpManager
 | Ctrl+Alt+1〜9 | タブ番号ジャンプ（RDP フォーカス中も有効） |
 | Ctrl+Alt+W | 現在のタブを閉じる（RDP フォーカス中も有効） |
 | Ctrl+Alt+Shift+F6 | 現在のタブを反対側のペインへ移動 |
+| Ctrl+Alt+F7 | 分割方向を切替（左右 ⇔ 上下） |
 | Ctrl+Alt+Shift+PageUp / PageDown | 現在のタブを左右へ移動 |
 | Ctrl+Alt+0 | セッション一覧（サムネイル）を表示。矢印で選択・Enter で切替・Space で拡大・1〜9 でジャンプ・文字入力で絞り込み |
 | Ctrl+Alt+Home（変更可） | Quick Switch（接続の検索・切替。RDP フォーカス中も有効） |
