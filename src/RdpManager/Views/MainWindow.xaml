@@ -73,15 +73,19 @@
             </MenuItem>
             <MenuItem Header="_Session">
                 <MenuItem Header="Connect (in this window)" InputGestureText="Enter" Click="OnConnectEmbedded"/>
-                <MenuItem Header="Open in Right Pane (Split)" InputGestureText="Shift+Enter" Click="OnConnectRight"/>
+                <MenuItem Header="Open to the Side (Split)" InputGestureText="Shift+Enter" Click="OnConnectRight"/>
                 <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
                 <MenuItem x:Name="QuickSwitchMenuItem" Header="Quick Switch…" InputGestureText="Ctrl+Alt+Home" Click="OnQuickSwitch"/>
                 <MenuItem Header="Set Quick Switch Hotkey…" Click="OnSetQuickSwitchHotkey"/>
                 <Separator/>
-                <MenuItem Header="Move Tab to Other Pane" InputGestureText="Ctrl+Shift+M / Ctrl+Alt+Shift+F6" Click="OnMoveTabOtherPane"/>
+                <MenuItem Header="Split Pane Right" InputGestureText="Ctrl+Alt+F7" Click="OnSplitRight"/>
+                <MenuItem Header="Split Pane Down" InputGestureText="Ctrl+Alt+F8" Click="OnSplitDown"/>
+                <MenuItem Header="Close Pane (Merge Tabs)" InputGestureText="Ctrl+Alt+Shift+F7" Click="OnClosePane"/>
+                <MenuItem Header="Focus Next Pane" InputGestureText="F6 / Ctrl+Alt+F6" Click="OnFocusOtherPane"/>
+                <MenuItem Header="Move Tab to Next Pane" InputGestureText="Ctrl+Shift+M / Ctrl+Alt+Shift+F6" Click="OnMoveTabOtherPane"/>
+                <Separator/>
                 <MenuItem Header="Move Tab Left" InputGestureText="Ctrl+Alt+Shift+PageUp" Click="OnMoveTabLeft"/>
                 <MenuItem Header="Move Tab Right" InputGestureText="Ctrl+Alt+Shift+PageDown" Click="OnMoveTabRight"/>
-                <MenuItem Header="Focus Other Pane" InputGestureText="F6 / Ctrl+Alt+F6" Click="OnFocusOtherPane"/>
                 <Separator/>
                 <MenuItem Header="Send Local Clipboard to Session" InputGestureText="Ctrl+Alt+Shift+V" Click="OnClipboardToRemote"/>
                 <MenuItem Header="Get Clipboard from Session" InputGestureText="Ctrl+Alt+Shift+C" Click="OnClipboardFromRemote"/>
@@ -179,7 +183,7 @@
                         <TreeView.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="Connect (in this window)" InputGestureText="Enter" Click="OnConnectEmbedded"/>
-                                <MenuItem Header="Open in Right Pane (Split)" InputGestureText="Shift+Enter" Click="OnConnectRight"/>
+                                <MenuItem Header="Open to the Side (Split)" InputGestureText="Shift+Enter" Click="OnConnectRight"/>
                                 <MenuItem Header="Open in External Window (mstsc)" Click="OnConnectExternal"/>
                                 <Separator/>
                                 <MenuItem Header="Connect All in Folder" Click="OnConnectAll"/>
@@ -236,40 +240,10 @@
             <GridSplitter x:Name="Splitter" Grid.Column="1" Width="4" VerticalAlignment="Stretch"
                           HorizontalAlignment="Center" Background="{DynamicResource SplitterBg}"/>
 
-            <!-- Right pane: session tabs -->
+            <!-- Right pane: session tabs. ペイン（タブ列 + セッション）は SessionManager が分割構成から計算した
+                 矩形でこの Canvas 上に平置きする（分割・結合でペインの親が変わらず、RDP の HWND を再作成しない） -->
             <DockPanel Grid.Column="2">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition x:Name="LeftCol" Width="*"/>
-                        <ColumnDefinition x:Name="RightSplitterCol" Width="0"/>
-                        <ColumnDefinition x:Name="RightCol" Width="0"/>
-                    </Grid.ColumnDefinitions>
-                    <!-- TabControl はタブストリップ専用（Content は使わない）。セッション本体は下の
-                         ホスト Grid に常駐させ Visibility で切り替える（切替時の HWND 再作成を避ける） -->
-                    <Grid Grid.Column="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <TabControl x:Name="SessionTabs"/>
-                        <Grid x:Name="SessionHost" Grid.Row="1"/>
-                    </Grid>
-                    <GridSplitter x:Name="RightSplitter" Grid.Column="1" Width="4"
-                                  HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                                  Background="{DynamicResource SplitterBg}" Visibility="Collapsed"/>
-                    <Grid Grid.Column="2">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-                        <TabControl x:Name="SessionTabsRight"/>
-                        <Grid x:Name="SessionHostRight" Grid.Row="1"/>
-                    </Grid>
-                    <TextBlock x:Name="EmptyHint" Grid.Column="0"
-                               Text="Double-click a connection in the tree to open it here.&#x0a;(Right-click &#8594; Open in Right Pane or Shift+Enter for split view)"
-                               Foreground="{DynamicResource SubtleFg}" FontSize="14" TextAlignment="Center"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                </Grid>
+                <Canvas x:Name="PaneCanvas" ClipToBounds="True"/>
             </DockPanel>
         </Grid>
     </DockPanel>

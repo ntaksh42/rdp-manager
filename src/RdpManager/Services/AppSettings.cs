@@ -24,9 +24,14 @@ public sealed class AppSettings
     public uint FullscreenModifiers { get; set; }
     /// <summary>全画面トグル用の追加グローバルホットキーの仮想キーコード。既定は未設定（0）。</summary>
     public uint FullscreenKey { get; set; }
+    /// <summary>旧形式（左右2ペイン時代）の終了時セッション。読み込み互換のためだけに残す。</summary>
     public List<string> OpenOnExit { get; set; } = new();
-    /// <summary>終了時に右ペイン（分割ビュー）で開いていた接続。復元時に配置を再現する。</summary>
+    /// <summary>旧形式の右ペインのセッション。読み込み互換のためだけに残す。</summary>
     public List<string> OpenOnExitRight { get; set; } = new();
+    /// <summary>終了時の分割構成（PaneLayout.Serialize 形式）。null は旧形式または未保存。</summary>
+    public string? PaneLayout { get; set; }
+    /// <summary>終了時に各ペインで開いていた接続（PaneLayout のペイン順）。</summary>
+    public List<List<string>> OpenOnExitPanes { get; set; } = new();
 
     // 前回終了時のウィンドウ位置・サイズ（未保存なら null で既定のまま）
     public double? WindowLeft { get; set; }
@@ -34,6 +39,32 @@ public sealed class AppSettings
     public double? WindowWidth { get; set; }
     public double? WindowHeight { get; set; }
     public bool WindowMaximized { get; set; }
+
+    /// <summary>復元する分割構成とペインごとのノード ID。旧形式（OpenOnExit / OpenOnExitRight）の設定は
+    /// 左右分割として読み替える。</summary>
+    public (string? Layout, List<List<string>> Panes) SessionsToRestore()
+    {
+        if (PaneLayout != null) return (PaneLayout, OpenOnExitPanes);
+        if (OpenOnExitRight.Count > 0) return ("H0.5(P,P)", new() { OpenOnExit, OpenOnExitRight });
+        return (null, new() { OpenOnExit });
+    }
+
+    /// <summary>終了時のセッションを新形式で記録する（旧形式の欄は空にして二重に復元しないようにする）。</summary>
+    public void SaveOpenSessions(string layout, List<List<string>> panes)
+    {
+        PaneLayout = layout;
+        OpenOnExitPanes = panes;
+        OpenOnExit = new();
+        OpenOnExitRight = new();
+    }
+
+    /// <summary>削除された接続の ID を終了時セッションから取り除く。1件でも除いたら true。</summary>
+    public bool RemoveOpenSessions(ISet<string> ids)
+    {
+        int removed = OpenOnExit.RemoveAll(ids.Contains) + OpenOnExitRight.RemoveAll(ids.Contains);
+        foreach (var pane in OpenOnExitPanes) removed += pane.RemoveAll(ids.Contains);
+        return removed > 0;
+    }
 
     private static string FilePath =>
         Path.Combine(ConnectionStore.Directory, "appsettings.json");
