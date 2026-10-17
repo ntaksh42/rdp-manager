@@ -78,13 +78,15 @@ public sealed class PaneLayout
     public bool Contains(int paneId) => Find(paneId) != null;
 
     /// <summary>指定ペインを direction 方向に2分割し、後ろ側（右または下）に作った新ペインの ID を返す。
-    /// 存在しないペインなら -1。</summary>
-    public int Split(int paneId, SplitDirection direction)
+    /// before なら新ペインを前側（左または上）に作る。存在しないペインなら -1。</summary>
+    public int Split(int paneId, SplitDirection direction, bool before = false)
     {
         if (Find(paneId) is not { } target) return -1;
         var parent = target.Parent;
         var created = new PaneNode(_nextId++);
-        var split = new SplitNode(direction, target, created, 0.5);
+        var split = before
+            ? new SplitNode(direction, created, target, 0.5)
+            : new SplitNode(direction, target, created, 0.5);
         Replace(parent, target, split);
         return created.Id;
     }
@@ -115,6 +117,23 @@ public sealed class PaneLayout
         if (idx < 0) return ids[0];
         int n = ids.Count;
         return ids[((idx + delta) % n + n) % n];
+    }
+
+    /// <summary>ペインを囲む最も内側の direction 方向の分割について、境界を delta（比率）だけ動かす
+    /// （正なら右/下へ）。該当する分割が無ければ false。</summary>
+    public bool NudgeDivider(int paneId, SplitDirection direction, double delta)
+    {
+        LayoutNode? node = Find(paneId);
+        while (node?.Parent is { } parent)
+        {
+            if (parent.Direction == direction)
+            {
+                SetRatio(parent, parent.Ratio + delta);
+                return true;
+            }
+            node = parent;
+        }
+        return false;
     }
 
     /// <summary>分割比率を設定する（MinRatio..MaxRatio に丸める）。</summary>

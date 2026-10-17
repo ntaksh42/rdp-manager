@@ -16,6 +16,12 @@ public sealed class AppSettings
     public bool RemoteNotifications { get; set; } = true;
     /// <summary>外部 mstsc 起動時に全モニタへ展開する（use multimon）。</summary>
     public bool UseMultimon { get; set; }
+    /// <summary>接続ツリーをウィンドウの右側に置く（既定は左）。</summary>
+    public bool TreeOnRight { get; set; }
+    /// <summary>接続ツリーを隠す（セッション表示を広く取る）。</summary>
+    public bool TreeHidden { get; set; }
+    /// <summary>メニュー・ツールバーとステータスバーを隠す（Alt でメニューを一時表示）。</summary>
+    public bool BarsHidden { get; set; }
     /// <summary>Quick Switch を開くグローバルホットキーの修飾キー（MOD_* のビット和）。既定は Ctrl+Alt。</summary>
     public uint QuickSwitchModifiers { get; set; } = 0x1 | 0x2;
     /// <summary>Quick Switch を開くグローバルホットキーの仮想キーコード。既定は VK_HOME。</summary>
