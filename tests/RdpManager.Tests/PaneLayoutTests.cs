@@ -131,4 +131,47 @@ public class PaneLayoutTests
         Assert.Equal(3, layout.PaneIds.Distinct().Count());
         Assert.Contains(created, layout.PaneIds);
     }
+
+    [Fact]
+    public void NudgeDivider_MovesInnermostSplitOfThatDirection()
+    {
+        // 左 | (右上 / 右下)。右下から横方向に動かすと外側の左右分割、縦方向なら内側の上下分割が動く
+        var layout = new PaneLayout();
+        int left = layout.PaneIds[0];
+        int right = layout.Split(left, SplitDirection.Horizontal);
+        int bottom = layout.Split(right, SplitDirection.Vertical);
+
+        Assert.True(layout.NudgeDivider(bottom, SplitDirection.Horizontal, 0.1));
+        Assert.True(layout.NudgeDivider(bottom, SplitDirection.Vertical, -0.2));
+        Assert.Equal("H0.6(P,V0.3(P,P))", layout.Serialize());
+    }
+
+    [Fact]
+    public void NudgeDivider_NoMatchingSplit_ReturnsFalseAndClamps()
+    {
+        var layout = new PaneLayout();
+        int left = layout.PaneIds[0];
+        Assert.False(layout.NudgeDivider(left, SplitDirection.Horizontal, 0.1));
+
+        layout.Split(left, SplitDirection.Horizontal);
+        Assert.False(layout.NudgeDivider(left, SplitDirection.Vertical, 0.1));
+        Assert.True(layout.NudgeDivider(left, SplitDirection.Horizontal, 5));
+        Assert.Equal("H0.95(P,P)", layout.Serialize());
+    }
+
+    [Fact]
+    public void SplitBefore_PlacesNewPaneLeftOrAbove()
+    {
+        var layout = new PaneLayout();
+        int original = layout.PaneIds[0];
+        int left = layout.Split(original, SplitDirection.Horizontal, before: true);
+        int top = layout.Split(original, SplitDirection.Vertical, before: true);
+
+        var (panes, _) = layout.Compute(new Rect(0, 0, 1004, 604), 4);
+        Assert.Equal(new[] { left, top, original }, layout.PaneIds);
+        Assert.Equal(new Rect(0, 0, 500, 604), panes[left]);
+        Assert.Equal(new Rect(504, 0, 500, 300), panes[top]);
+        Assert.Equal(new Rect(504, 304, 500, 300), panes[original]);
+        Assert.Equal("H0.5(P,V0.5(P,P))", layout.Serialize());
+    }
 }

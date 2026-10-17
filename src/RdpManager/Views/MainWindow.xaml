@@ -7,7 +7,9 @@
         Background="{DynamicResource WindowBg}"
         TextElement.Foreground="{DynamicResource TextFg}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
-        PreviewKeyDown="OnWindowPreviewKeyDown">
+        PreviewKeyDown="OnWindowPreviewKeyDown"
+        PreviewKeyUp="OnWindowPreviewKeyUp"
+        PreviewMouseMove="OnWindowPreviewMouseMove">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -42,9 +44,9 @@
         <vm:MainViewModel/>
     </Window.DataContext>
 
-    <DockPanel>
+    <DockPanel x:Name="RootDock">
         <!-- メニューとツールボタンを1行に統合してヘッダを省スペース化 -->
-        <Border x:Name="MainToolBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}"
+        <Border x:Name="MainToolBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}" MouseLeave="OnToolBarMouseLeave"
                 BorderBrush="{DynamicResource SplitterBg}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="False">
                 <Menu x:Name="MainMenu" DockPanel.Dock="Left" Background="Transparent" VerticalAlignment="Center">
@@ -99,6 +101,9 @@
             </MenuItem>
             <MenuItem Header="_View">
                 <MenuItem Header="Focus Connection Tree" InputGestureText="Alt+N" Click="OnFocusTree"/>
+                <MenuItem x:Name="TreeVisibleItem" Header="Show Connection Tree" InputGestureText="Ctrl+Alt+F9" IsCheckable="True" Click="OnToggleTreeVisible"/>
+                <MenuItem x:Name="BarsVisibleItem" Header="Show Menu and Status Bar" InputGestureText="Ctrl+Alt+F10" IsCheckable="True" Click="OnToggleBarsVisible"/>
+                <MenuItem x:Name="TreeOnRightItem" Header="Connection Tree on Right" InputGestureText="Ctrl+Shift+B" IsCheckable="True" Click="OnToggleTreeSide"/>
                 <Separator/>
                 <MenuItem Header="Session Overview…" InputGestureText="Ctrl+Alt+0" Click="OnSessionDashboard"/>
                 <MenuItem Header="Refresh Host Status" Click="OnRefreshStatus"/>
@@ -139,21 +144,35 @@
             <StatusBarItem x:Name="HotkeyWarningItem" Visibility="Collapsed"><TextBlock x:Name="HotkeyWarningText"/></StatusBarItem>
         </StatusBar>
 
-        <Grid>
+        <Grid x:Name="MainGrid">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="TreeColumn" Width="280" MinWidth="200"/>
                 <ColumnDefinition x:Name="SplitterColumn" Width="Auto"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition x:Name="SessionColumn" Width="*"/>
             </Grid.ColumnDefinitions>
+            <!-- バーを隠している間、Alt でツールバー（メニュー）を一時的に移して重ねる Popup（RDP の HWND より上に描ける） -->
+            <Popup x:Name="BarsPopup" PlacementTarget="{Binding ElementName=MainGrid}" Placement="Relative"
+                   StaysOpen="True" Closed="OnBarsPopupClosed"
+                   LostKeyboardFocus="OnBarsPopupLostFocus" PreviewKeyDown="OnBarsPopupKeyDown"/>
 
             <!-- Connection tree -->
             <DockPanel x:Name="TreePane" Grid.Column="0" Background="{DynamicResource PanelBg}">
                 <Grid DockPanel.Dock="Top" Margin="6">
-                    <TextBox x:Name="SearchBox"
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <!-- ドラッグしてウィンドウの左右どちらかの端へツリーを寄せるグリップ -->
+                    <TextBlock x:Name="TreeGrip" Text="⋮⋮" Foreground="{DynamicResource SubtleFg}"
+                               VerticalAlignment="Center" Padding="2,0,6,0" Background="Transparent" Cursor="SizeAll"
+                               ToolTip="Drag to dock the connection tree on the left or right (Ctrl+Shift+B)"
+                               MouseLeftButtonDown="OnTreeGripDown" MouseMove="OnTreeGripMove"
+                               MouseLeftButtonUp="OnTreeGripUp" LostMouseCapture="OnTreeGripLostCapture"/>
+                    <TextBox x:Name="SearchBox" Grid.Column="1"
                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                              VerticalContentAlignment="Center" Padding="4,3"
                              KeyDown="OnSearchKeyDown"/>
-                    <TextBlock Text="🔍 Search connections…  (Ctrl+F)" Foreground="{DynamicResource SubtleFg}" Margin="8,0"
+                    <TextBlock Grid.Column="1" Text="🔍 Search connections…  (Ctrl+F)" Foreground="{DynamicResource SubtleFg}" Margin="8,0"
                                IsHitTestVisible="False" VerticalAlignment="Center">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
@@ -242,7 +261,7 @@
 
             <!-- Right pane: session tabs. ペイン（タブ列 + セッション）は SessionManager が分割構成から計算した
                  矩形でこの Canvas 上に平置きする（分割・結合でペインの親が変わらず、RDP の HWND を再作成しない） -->
-            <DockPanel Grid.Column="2">
+            <DockPanel x:Name="SessionArea" Grid.Column="2">
                 <Canvas x:Name="PaneCanvas" ClipToBounds="True"/>
             </DockPanel>
         </Grid>

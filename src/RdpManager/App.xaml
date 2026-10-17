@@ -79,12 +79,13 @@
         </Style>
         <Style TargetType="TabItem">
             <Setter Property="Foreground" Value="{DynamicResource TextFg}"/>
+            <Setter Property="Padding" Value="10,4"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
                         <Border x:Name="Bd" Background="{DynamicResource TabBg}"
                                 BorderBrush="{DynamicResource SplitterBg}" BorderThickness="1,1,1,0"
-                                Margin="0,2,2,0" Padding="10,4">
+                                Margin="0,2,2,0" Padding="{TemplateBinding Padding}">
                             <ContentPresenter ContentSource="Header" VerticalAlignment="Center"
                                               RecognizesAccessKey="True"/>
                         </Border>
@@ -101,6 +102,10 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+        <!-- セッションのタブ列用。リモート画面の表示領域を広く取るため上下の余白を詰める -->
+        <Style x:Key="SessionTabItem" TargetType="TabItem" BasedOn="{StaticResource {x:Type TabItem}}">
+            <Setter Property="Padding" Value="8,1"/>
         </Style>
 
         <!-- 標準ボタン（ダイアログの OK/Cancel/Save 等）をテーマ追従にする -->

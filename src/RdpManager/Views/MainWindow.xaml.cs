@@ -22,6 +22,7 @@ using DragDrop = System.Windows.DragDrop;
 using DependencyObject = System.Windows.DependencyObject;
 using TabControl = System.Windows.Controls.TabControl;
 using TabItem = System.Windows.Controls.TabItem;
+using MenuItem = System.Windows.Controls.MenuItem;
 using Keyboard = System.Windows.Input.Keyboard;
 using ModifierKeys = System.Windows.Input.ModifierKeys;
 using SplitDirection = RdpManager.Common.SplitDirection;
@@ -46,6 +47,9 @@ public partial class MainWindow : Window
         UseMultimonItem.IsChecked = App.Settings.UseMultimon;
         EnableLoggingItem.IsChecked = App.Settings.EnableLogging;
         RemoteNotificationsItem.IsChecked = App.Settings.RemoteNotifications;
+        ApplyTreeSide(App.Settings.TreeOnRight);
+        UpdateTreeVisibility(!App.Settings.TreeHidden);
+        UpdateBarsVisibility(!App.Settings.BarsHidden);
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
 
@@ -221,6 +225,9 @@ public partial class MainWindow : Window
     private const int HotkeySplitRight = 0x901A;
     private const int HotkeySplitDown = 0x901B;
     private const int HotkeyClosePane = 0x901C;
+    private const int HotkeyToggleTree = 0x901D;
+    private const int HotkeyToggleBars = 0x901E;
+    private const int HotkeyNudgeLeft = 0x901F; // 0x901F..0x9022 = Ctrl+Alt+Shift+←↑→↓（ペイン境界の移動）
     private const int WmHotkey = 0x0312;
     private const int WmExitSizeMove = 0x0232;
     private const uint VkF11 = 0x7A;
@@ -231,6 +238,9 @@ public partial class MainWindow : Window
     private const uint VkF6 = 0x75;
     private const uint VkF7 = 0x76;
     private const uint VkF8 = 0x77;
+    private const uint VkF9 = 0x78;
+    private const uint VkF10 = 0x79;
+    private const uint VkLeft = 0x25; // 0x25..0x28 = ←↑→↓
     private const uint VkC = 0x43;
     private const uint VkV = 0x56;
     private const uint VkW = 0x57;
@@ -248,7 +258,8 @@ public partial class MainWindow : Window
     private WindowStyle _savedStyle;
     private ResizeMode _savedResize;
     private WindowState _savedState;
-    private GridLength _savedTreeWidth;
+    // ツリーを隠す直前の幅（再表示時に戻す）
+    private GridLength _treeWidth = new(280);
     private Rect _savedBounds;
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -389,6 +400,13 @@ public partial class MainWindow : Window
         TryRegisterHotKey(HotkeySplitRight, ModControl | ModAlt | ModNoRepeat, VkF7, "Ctrl+Alt+F7");
         TryRegisterHotKey(HotkeySplitDown, ModControl | ModAlt | ModNoRepeat, VkF8, "Ctrl+Alt+F8");
         TryRegisterHotKey(HotkeyClosePane, ModControl | ModAlt | ModShift | ModNoRepeat, VkF7, "Ctrl+Alt+Shift+F7");
+        // ツリー・メニュー/ステータスバーの表示切替（セッションにフォーカスがあっても画面を広げられるように）
+        TryRegisterHotKey(HotkeyToggleTree, ModControl | ModAlt | ModNoRepeat, VkF9, "Ctrl+Alt+F9");
+        TryRegisterHotKey(HotkeyToggleBars, ModControl | ModAlt | ModNoRepeat, VkF10, "Ctrl+Alt+F10");
+        // ペイン境界の移動（長押しで連続移動できるよう NOREPEAT なし）。Ctrl+Alt+矢印は画面回転と衝突するため Shift 付き
+        string[] arrows = { "Left", "Up", "Right", "Down" };
+        for (uint i = 0; i < 4; i++)
+            TryRegisterHotKey(HotkeyNudgeLeft + (int)i, ModControl | ModAlt | ModShift, VkLeft + i, $"Ctrl+Alt+Shift+{arrows[i]}");
         for (uint i = 0; i < 9; i++)
             TryRegisterHotKey(HotkeyTab1 + (int)i, ModControl | ModAlt, 0x31 + i, $"Ctrl+Alt+{i + 1}"); // Ctrl+Alt+1..9
     }
@@ -407,6 +425,9 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeySplitRight);
         UnregisterHotKey(_hwnd, HotkeySplitDown);
         UnregisterHotKey(_hwnd, HotkeyClosePane);
+        UnregisterHotKey(_hwnd, HotkeyToggleTree);
+        UnregisterHotKey(_hwnd, HotkeyToggleBars);
+        for (int i = 0; i < 4; i++) UnregisterHotKey(_hwnd, HotkeyNudgeLeft + i);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
 
@@ -459,6 +480,7 @@ public partial class MainWindow : Window
     {
         if (msg == WmHotkey)
         {
+            _altTapPending = false; // Alt+N 等はキー押下が WM_HOTKEY に置き換わるため、Alt 単独押しと誤認しないように
             var id = wParam.ToInt32();
             if (id == HotkeyF11 || id == HotkeyPause || id == HotkeyBreak || id == HotkeyFullscreenCustom)
             {
@@ -472,7 +494,16 @@ public partial class MainWindow : Window
             else if (id == HotkeySplitRight) { _sessions.SplitActivePane(SplitDirection.Horizontal); handled = true; }
             else if (id == HotkeySplitDown) { _sessions.SplitActivePane(SplitDirection.Vertical); handled = true; }
             else if (id == HotkeyClosePane) { _sessions.CloseActivePane(); handled = true; }
-            else if (id == HotkeyFocusTree) { Tree.Focus(); handled = true; }
+            else if (id == HotkeyFocusTree) { FocusTree(); handled = true; }
+            else if (id == HotkeyToggleTree) { ToggleTreeVisible(); handled = true; }
+            else if (id == HotkeyToggleBars) { ToggleBarsVisible(); handled = true; }
+            else if (id >= HotkeyNudgeLeft && id < HotkeyNudgeLeft + 4)
+            {
+                // ←↑→↓ の順。←→ は左右分割、↑↓ は上下分割の境界を 5% ずつ動かす
+                int k = id - HotkeyNudgeLeft;
+                _sessions.NudgeActiveDivider(k % 2 == 0 ? SplitDirection.Horizontal : SplitDirection.Vertical, k < 2 ? -0.05 : 0.05);
+                handled = true;
+            }
             else if (id == HotkeyClipboardToRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote); handled = true; }
             else if (id == HotkeyClipboardFromRemote) { _sessions.SyncActiveClipboard(ClipboardSyncDirection.RemoteToLocal); handled = true; }
             else if (id == HotkeyCloseTab) { _sessions.CloseActiveTab(); handled = true; }
@@ -507,20 +538,14 @@ public partial class MainWindow : Window
             _savedStyle = WindowStyle;
             _savedResize = ResizeMode;
             _savedState = WindowState;
-            _savedTreeWidth = TreeColumn.Width;
             // 最大化中は Left/Top/Width/Height が最大化後の値になるため、その場合は RestoreBounds（通常時の境界）を保存する
             _savedBounds = WindowState == WindowState.Normal || RestoreBounds.IsEmpty
                 ? new Rect(Left, Top, Width, Height)
                 : RestoreBounds;
 
             MainMenu.Visibility = Visibility.Collapsed;
-            MainToolBar.Visibility = Visibility.Collapsed;
-            MainStatus.Visibility = Visibility.Collapsed;
-            TreePane.Visibility = Visibility.Collapsed;
-            Splitter.Visibility = Visibility.Collapsed;
-            TreeColumn.MinWidth = 0; // MinWidth(200) が残ると左に空白が出るため0に
-            TreeColumn.Width = new GridLength(0);
-            SplitterColumn.Width = new GridLength(0);
+            UpdateBarsVisibility(show: false);
+            UpdateTreeVisibility(show: false);
 
             WindowStyle = WindowStyle.None;
             ResizeMode = ResizeMode.NoResize;
@@ -554,13 +579,8 @@ public partial class MainWindow : Window
         else
         {
             MainMenu.Visibility = Visibility.Visible;
-            MainToolBar.Visibility = Visibility.Visible;
-            MainStatus.Visibility = Visibility.Visible;
-            TreePane.Visibility = Visibility.Visible;
-            Splitter.Visibility = Visibility.Visible;
-            TreeColumn.MinWidth = 200;
-            TreeColumn.Width = _savedTreeWidth;
-            SplitterColumn.Width = GridLength.Auto;
+            UpdateBarsVisibility(!App.Settings.BarsHidden);
+            UpdateTreeVisibility(!App.Settings.TreeHidden);
 
             WindowStyle = _savedStyle;
             ResizeMode = _savedResize;
@@ -576,7 +596,8 @@ public partial class MainWindow : Window
                 new Action(_sessions.ApplyResizeToAll));
             // フォーカスが RDP コントロール内に残ると Ctrl+Tab 等のアプリ側ショートカットが
             // リモートへ流れてしまうため、解除直後はアプリ側（ツリー）へキーボードフォーカスを戻す
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() => Tree.Focus()));
+            // ツリーを隠している場合はウィンドウ自体へ戻す
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(() => { if (!Tree.Focus()) Focus(); }));
         }
     }
 
@@ -729,6 +750,7 @@ public partial class MainWindow : Window
     // ── キーボードショートカット ──
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        _altTapPending = e.Key == Key.System && e.SystemKey is Key.LeftAlt or Key.RightAlt;
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
         bool alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
@@ -757,10 +779,11 @@ public partial class MainWindow : Window
         }
         else if (ctrl && shift && e.Key == Key.N) { OnNewFolder(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && e.Key == Key.N) { OnNewConnection(this, new RoutedEventArgs()); e.Handled = true; }
-        else if (ctrl && e.Key == Key.F) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
-        else if (alt && !ctrl && !shift && e.SystemKey == Key.N) { Tree.Focus(); e.Handled = true; }
+        else if (ctrl && e.Key == Key.F) { OnFocusSearch(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (alt && !ctrl && !shift && e.SystemKey == Key.N) { FocusTree(); e.Handled = true; }
         else if (ctrl && e.Key == Key.D) { OnDuplicateNode(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && shift && e.Key == Key.M) { _sessions.MoveActiveTabToNextPane(); e.Handled = true; }
+        else if (ctrl && shift && e.Key == Key.B) { SetTreeSide(!App.Settings.TreeOnRight); e.Handled = true; }
         else if (ctrl && e.Key == Key.W) { _sessions.CloseActiveTab(); e.Handled = true; }
         else if (ctrl && e.Key == Key.Tab) { ShowTabSwitcher(shift); e.Handled = true; }
         else if (e.Key == Key.F6) { _sessions.FocusNextPane(); e.Handled = true; }
@@ -837,13 +860,199 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void OnFocusSearch(object sender, RoutedEventArgs e)
+    private void OnFocusSearch(object sender, RoutedEventArgs e) => RevealTreeThen(() =>
     {
         SearchBox.Focus();
         SearchBox.SelectAll();
+    });
+
+    private void OnFocusTree(object sender, RoutedEventArgs e) => FocusTree();
+
+    // ── ツリー・メニュー/ステータスバーの表示切替（セッション表示を広く取るため）──
+
+    private void FocusTree() => RevealTreeThen(() => Tree.Focus());
+
+    /// <summary>ツリーを隠していれば表示してから action を実行する（Alt+N / Ctrl+F で隠れたツリーへ移れるように）。
+    /// 表示直後はレイアウト前でフォーカスできないため、レイアウト後に回す。</summary>
+    private void RevealTreeThen(Action action)
+    {
+        if (!App.Settings.TreeHidden || _fullscreen) { action(); return; }
+        SetTreeHidden(false);
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, action);
     }
 
-    private void OnFocusTree(object sender, RoutedEventArgs e) => Tree.Focus();
+    private void OnToggleTreeVisible(object sender, RoutedEventArgs e) => ToggleTreeVisible();
+    private void OnToggleBarsVisible(object sender, RoutedEventArgs e) => ToggleBarsVisible();
+
+    // 全画面中はどちらも隠れているため切り替えない（解除時に設定どおり戻る）
+    private void ToggleTreeVisible() { if (!_fullscreen) SetTreeHidden(!App.Settings.TreeHidden); }
+    private void ToggleBarsVisible() { if (!_fullscreen) SetBarsHidden(!App.Settings.BarsHidden); }
+
+    private void SetTreeHidden(bool hidden)
+    {
+        App.Settings.TreeHidden = hidden;
+        App.Settings.Save();
+        UpdateTreeVisibility(!hidden);
+        // フォーカスが隠れたツリーに残るとキー操作が効かなくなるため、選択中のセッションへ移す
+        if (hidden && TreePane.IsKeyboardFocusWithin) { Focus(); _sessions.FocusActiveSession(); }
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(_sessions.ApplyResizeToAll));
+    }
+
+    private void SetBarsHidden(bool hidden)
+    {
+        App.Settings.BarsHidden = hidden;
+        App.Settings.Save();
+        UpdateBarsVisibility(!hidden);
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(_sessions.ApplyResizeToAll));
+    }
+
+    private void UpdateTreeVisibility(bool show)
+    {
+        if (!show && TreePane.Visibility == Visibility.Visible) _treeWidth = TreeColumn.Width;
+        TreePane.Visibility = Splitter.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        TreeColumn.MinWidth = show ? 200 : 0; // MinWidth(200) が残ると空白が出るため隠す間は0に
+        TreeColumn.Width = show ? _treeWidth : new GridLength(0);
+        SplitterColumn.Width = show ? GridLength.Auto : new GridLength(0);
+        TreeVisibleItem.IsChecked = !App.Settings.TreeHidden;
+    }
+
+    private void UpdateBarsVisibility(bool show)
+    {
+        MainToolBar.Visibility = MainStatus.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        BarsVisibleItem.IsChecked = !App.Settings.BarsHidden;
+    }
+
+    // バーを隠している間は Alt の単独押しでメニュー（ツールバー行）を一時表示する。Alt+キーの組み合わせは対象外。
+    // 行として戻すとセッション領域の高さが変わりリモート解像度が変わってしまうため、ツールバーを Popup（独立 HWND で
+    // RDP 画面の上にも描ける）へ一時的に移して重ねる
+    private bool _altTapPending;
+
+    private void OnWindowPreviewKeyUp(object sender, KeyEventArgs e)
+    {
+        bool altUp = e.Key == Key.System && e.SystemKey is Key.LeftAlt or Key.RightAlt;
+        if (!altUp || !_altTapPending) return;
+        _altTapPending = false;
+        if (!ShowBarsPopup()) return;
+        // 表示直後はレイアウト前でフォーカスできないため、レイアウト後に先頭メニューへフォーカスする
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
+            new Action(() => (MainMenu.Items[0] as MenuItem)?.Focus()));
+        e.Handled = true;
+    }
+
+    /// <summary>バーを隠している間、マウスをウィンドウ上端へ寄せたらメニューを重ねて出す。最上段は常にタブ列などの
+    /// WPF 要素（RDP の HWND ではない）なのでマウス移動を受け取れ、監視用のタイマーやフックは要らない。</summary>
+    private void OnWindowPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.GetPosition(RootDock).Y <= 3) ShowBarsPopup();
+    }
+
+    /// <summary>ツールバーを Popup へ移して重ねる。開いた場合 true。</summary>
+    private bool ShowBarsPopup()
+    {
+        if (!App.Settings.BarsHidden || _fullscreen || BarsPopup.IsOpen) return false;
+        RootDock.Children.Remove(MainToolBar);
+        MainToolBar.Visibility = Visibility.Visible;
+        BarsPopup.Width = RootDock.ActualWidth;
+        BarsPopup.Child = MainToolBar;
+        BarsPopup.IsOpen = true;
+        return true;
+    }
+
+    /// <summary>メニュー操作中（キーボードフォーカスがある・サブメニューが開いている）でなければ閉じる。</summary>
+    private void CloseBarsPopupIfIdle()
+    {
+        bool open = MainMenu.Items.OfType<MenuItem>().Any(m => m.IsSubmenuOpen);
+        if (!open && !MainToolBar.IsKeyboardFocusWithin && !MainToolBar.IsMouseOver) BarsPopup.IsOpen = false;
+    }
+
+    /// <summary>一時表示したメニューからフォーカスが外れたら（項目の実行・Esc・他所のクリック）閉じる。</summary>
+    private void OnBarsPopupLostFocus(object sender, RoutedEventArgs e)
+        => Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(CloseBarsPopupIfIdle));
+
+    private void OnToolBarMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (BarsPopup.IsOpen) CloseBarsPopupIfIdle();
+    }
+
+    private void OnBarsPopupKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape || MainMenu.Items.OfType<MenuItem>().Any(m => m.IsSubmenuOpen)) return;
+        BarsPopup.IsOpen = false;
+        e.Handled = true;
+    }
+
+    /// <summary>Popup に移したツールバーを元の行へ戻す（設定・全画面に応じた表示状態で）。</summary>
+    private void OnBarsPopupClosed(object? sender, EventArgs e)
+    {
+        BarsPopup.Child = null;
+        MainToolBar.Visibility = App.Settings.BarsHidden || _fullscreen ? Visibility.Collapsed : Visibility.Visible;
+        RootDock.Children.Insert(0, MainToolBar);
+    }
+
+    // ── 接続ツリーの左右ドッキング（グリップのドラッグ / Ctrl+Shift+B）──
+
+    private DockOverlayWindow? _treeDockOverlay;
+    private bool _treeGripDragging;
+    private bool? _treeDropRight;
+
+    private void OnToggleTreeSide(object sender, RoutedEventArgs e) => SetTreeSide(!App.Settings.TreeOnRight);
+
+    private void SetTreeSide(bool right)
+    {
+        App.Settings.TreeOnRight = right;
+        App.Settings.Save();
+        ApplyTreeSide(right);
+    }
+
+    /// <summary>列定義の並びと各要素の列番号を入れ替えてツリーを左右に寄せる。セッション領域は親が変わらないため
+    /// RDP の HWND は再作成されない（全画面切替が参照する TreeColumn などの列定義もそのまま使える）。</summary>
+    private void ApplyTreeSide(bool right)
+    {
+        var cols = MainGrid.ColumnDefinitions;
+        cols.Clear();
+        foreach (var c in right ? new[] { SessionColumn, SplitterColumn, TreeColumn } : new[] { TreeColumn, SplitterColumn, SessionColumn })
+            cols.Add(c);
+        Grid.SetColumn(TreePane, right ? 2 : 0);
+        Grid.SetColumn(SessionArea, right ? 0 : 2);
+        TreeOnRightItem.IsChecked = right;
+    }
+
+    private void OnTreeGripDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!TreeGrip.CaptureMouse()) return;
+        _treeGripDragging = true;
+        // ガイドはセッション（RDP の HWND）の上にも描く必要があるため、透明な所有ウィンドウで重ねる
+        _treeDockOverlay ??= new DockOverlayWindow { Owner = this };
+        _treeDockOverlay.PlaceOver(MainGrid);
+        _treeDockOverlay.ShowGuide(null);
+        _treeDockOverlay.Show();
+        e.Handled = true;
+    }
+
+    private void OnTreeGripMove(object sender, MouseEventArgs e)
+    {
+        if (!_treeGripDragging) return;
+        bool right = e.GetPosition(MainGrid).X > MainGrid.ActualWidth / 2;
+        double width = TreeColumn.ActualWidth;
+        _treeDockOverlay?.ShowGuide(new Rect(right ? MainGrid.ActualWidth - width : 0, 0, width, MainGrid.ActualHeight));
+        _treeDropRight = right;
+    }
+
+    private void OnTreeGripUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_treeGripDragging) return;
+        var right = _treeDropRight;
+        TreeGrip.ReleaseMouseCapture(); // LostMouseCapture → ドラッグ状態を片付ける
+        if (right is bool r && r != App.Settings.TreeOnRight) SetTreeSide(r);
+        e.Handled = true;
+    }
+
+    private void OnTreeGripLostCapture(object sender, MouseEventArgs e)
+    {
+        _treeGripDragging = false;
+        _treeDropRight = null;
+        _treeDockOverlay?.Hide();
+    }
 
     private void OnCloseCurrentTab(object sender, RoutedEventArgs e) => _sessions.CloseActiveTab();
 

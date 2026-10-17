@@ -24,6 +24,8 @@ using Canvas = System.Windows.Controls.Canvas;
 using Point = System.Windows.Point;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using MouseButtonState = System.Windows.Input.MouseButtonState;
+using Key = System.Windows.Input.Key;
 using DispatcherPriority = System.Windows.Threading.DispatcherPriority;
 
 namespace RdpManager.Controls;
@@ -50,8 +52,8 @@ public sealed record SessionTag(string? NodeId, string? PostCommand, LaunchInfo?
 /// </summary>
 public sealed class SessionManager
 {
-    /// <summary>ペイン境界（スプリッター）の太さ。</summary>
-    private const double SplitterThickness = 4;
+    /// <summary>ペイン境界（スプリッター）の太さ。リモート画面を広く取るため最小の1px（キーボードでも動かせる）。</summary>
+    private const double SplitterThickness = 1;
 
     /// <summary>1つのペイン（タブ列 + セッションのホスト）。Frame が Canvas 上に配置される要素。</summary>
     private sealed class Pane
@@ -79,6 +81,17 @@ public sealed class SessionManager
     private Border? _dragging;
     private Point _dragStart;
     private PaneLayout.SplitterRect _dragRect;
+
+    /// <summary>タブのドロップ先。Zone が null ならタブ列の Index の位置へ挿入、それ以外はペイン本体へのドッキング。
+    /// Guide はガイド表示用の矩形（Canvas 座標）。</summary>
+    private sealed record DropTarget(Pane Pane, DockZone? Zone, int Index, Rect Guide);
+
+    // タブドラッグの状態。押下しただけの候補（_tabDragCandidate）と、閾値を超えて始まったドラッグ（_tabDragging）を分ける
+    private TabItem? _tabDragCandidate;
+    private Point _tabDragOrigin;
+    private bool _tabDragging;
+    private DropTarget? _drop;
+    private DockOverlayWindow? _dockOverlay;
 
     /// <summary>タブの開閉でセッション数が変わったときに通知（ステータスバー表示用）。</summary>
     public event Action? SessionsChanged;
@@ -132,7 +145,7 @@ public sealed class SessionManager
         grid.Children.Add(tabs);
         grid.Children.Add(host);
         grid.Children.Add(hint);
-        var frame = new Border { Child = grid, BorderBrush = Brushes.Transparent };
+        var frame = new Border { Child = grid };
         var pane = new Pane { Id = id, Frame = frame, Tabs = tabs, Host = host, Hint = hint };
         tabs.Tag = pane;
 
@@ -181,11 +194,11 @@ public sealed class SessionManager
         bool empty = pane.Tabs.Items.Count == 0;
         pane.Hint.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         pane.Tabs.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
-        // 分割中だけ枠を出し、操作対象（ツリーから開く先・ホットキーの対象）のペインを強調する
-        bool split = _layout.PaneCount > 1;
-        pane.Frame.BorderThickness = new Thickness(split ? 1 : 0);
-        if (split && pane == _activePane) pane.Frame.SetResourceReference(Border.BorderBrushProperty, "AccentBg");
-        else pane.Frame.BorderBrush = Brushes.Transparent;
+        // 分割中は操作対象（ツリーから開く先・ホットキーの対象）のペインを、タブ列下の線と空表示の文字色で強調する。
+        // 枠線にするとペイン間の線が太くなり、また太さの増減でリモート解像度が変わるため使わない
+        bool highlight = _layout.PaneCount > 1 && pane == _activePane;
+        pane.Tabs.SetResourceReference(System.Windows.Controls.Control.BorderBrushProperty, highlight ? "AccentBg" : "SplitterBg");
+        pane.Hint.SetResourceReference(TextBlock.ForegroundProperty, highlight ? "TextFg" : "SubtleFg");
     }
 
     /// <summary>レイアウトツリーから各ペインとスプリッターの位置を計算して Canvas 上に配置する。</summary>
@@ -431,6 +444,7 @@ public sealed class SessionManager
             Tag = tag,
             ToolTip = HostAddress.FormatWithPort(info.Host, info.Port)
         };
+        tab.SetResourceReference(FrameworkElement.StyleProperty, "SessionTabItem");
         // 開いた後に接続が編集されていても、手動再接続では最新のホスト・資格情報を使う
         if (nodeId != null)
             session.RefreshInfo = () =>
@@ -481,6 +495,7 @@ public sealed class SessionManager
             if (e.ChangedButton == MouseButton.Middle) { CloseSession(tab, session); e.Handled = true; }
         };
         tab.ContextMenu = BuildTabMenu(tab, session, titleText);
+        HookTabDrag(tab);
 
         session.StateChanged += (_, _) => dot.Fill = StateBrush(session.VisualState);
         // 全画面中に接続が成立した（開いた/再接続した）セッションにも全画面状態を反映する
@@ -752,8 +767,9 @@ public sealed class SessionManager
     }
 
     /// <summary>タブとセッション本体を別ペインへ付け替える。一度だけ WindowsFormsHost の HWND 再作成が
-    /// 走るが接続は維持される（タブ切替の常時コストとは異なり明示操作の一回きりのため許容）。</summary>
-    private void MoveTabToPane(TabItem tab, Pane target)
+    /// 走るが接続は維持される（タブ切替の常時コストとは異なり明示操作の一回きりのため許容）。
+    /// index を指定するとタブ列のその位置へ挿入する（範囲外なら末尾）。</summary>
+    private void MoveTabToPane(TabItem tab, Pane target, int index = -1)
     {
         if (PaneOf(tab) is not { } source || source == target || SessionOf(tab) is not { } session) return;
         // 移動元から外すと隣のタブが自動選択されて MRU の2番手に割り込み、Ctrl+Tab の戻り先が変わるため、
@@ -764,7 +780,8 @@ public sealed class SessionManager
             source.Tabs.Items.Remove(tab);
             source.Host.Children.Remove(session);
             target.Host.Children.Add(session);
-            target.Tabs.Items.Add(tab);
+            if (index >= 0 && index <= target.Tabs.Items.Count) target.Tabs.Items.Insert(index, tab);
+            else target.Tabs.Items.Add(tab);
             target.Tabs.SelectedItem = tab;
         }
         finally { _reordering = false; }
@@ -778,10 +795,15 @@ public sealed class SessionManager
     /// <summary>同じペイン内でタブを左右へ移動する。</summary>
     private void MoveTab(TabItem tab, int delta)
     {
-        if (PaneOf(tab) is not { } pane) return;
+        if (PaneOf(tab) is { } pane) ReorderTab(pane, tab, pane.Tabs.Items.IndexOf(tab) + delta);
+    }
+
+    /// <summary>同じペイン内でタブを newIndex の位置へ移す（範囲外は端に丸める）。</summary>
+    private void ReorderTab(Pane pane, TabItem tab, int newIndex)
+    {
         var items = pane.Tabs.Items;
         int oldIndex = items.IndexOf(tab);
-        int newIndex = Math.Clamp(oldIndex + delta, 0, items.Count - 1);
+        newIndex = Math.Clamp(newIndex, 0, items.Count - 1);
         if (oldIndex == newIndex) return;
         _reordering = true;
         try
@@ -822,6 +844,15 @@ public sealed class SessionManager
             _canvas.Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() => w.Focus()));
     }
 
+    /// <summary>アクティブペインを囲む境界をキーボードで動かす（Ctrl+Alt+Shift+矢印。1px のスプリッターは掴みにくいため）。</summary>
+    public void NudgeActiveDivider(SplitDirection direction, double delta)
+    {
+        if (_layout.NudgeDivider(ResolveActivePane().Id, direction, delta)) Relayout();
+    }
+
+    /// <summary>アクティブペインの選択中セッションへキーボードフォーカスを移す。</summary>
+    public void FocusActiveSession() => FocusSelected(ResolveActivePane());
+
     private Pane ResolveActivePane()
         => _panes.ContainsValue(_activePane) ? _activePane : _panes[_layout.PaneIds[0]];
 
@@ -837,6 +868,125 @@ public sealed class SessionManager
     {
         foreach (var tab in AllTabs)
             SessionOf(tab)?.ApplyResizeNow();
+    }
+
+    // ── タブのドラッグ＆ドロップ（並べ替え・ペイン間移動・ドッキング分割）──
+    // WPF 標準の DragDrop（OLE）は埋め込み RDP の HWND 上でドロップ先を判定できないため、タブでマウスを
+    // キャプチャして Canvas 座標とペイン矩形から自前でドロップ先を求める。
+
+    private void HookTabDrag(TabItem tab)
+    {
+        tab.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            _tabDragCandidate = tab;
+            _tabDragOrigin = e.GetPosition(_canvas);
+        };
+        tab.PreviewMouseMove += (_, e) => OnTabDragMove(tab, e);
+        tab.PreviewMouseLeftButtonUp += (_, e) =>
+        {
+            if (!_tabDragging) { _tabDragCandidate = null; return; }
+            var drop = _drop;
+            EndTabDrag();
+            if (drop != null) ApplyDrop(tab, drop);
+            e.Handled = true;
+        };
+        tab.LostMouseCapture += (_, _) => EndTabDrag();
+        tab.PreviewKeyDown += (_, e) =>
+        {
+            if (_tabDragging && e.Key == Key.Escape) { EndTabDrag(); e.Handled = true; }
+        };
+    }
+
+    private void OnTabDragMove(TabItem tab, MouseEventArgs e)
+    {
+        if (_tabDragCandidate != tab || e.LeftButton != MouseButtonState.Pressed) return;
+        var pos = e.GetPosition(_canvas);
+        if (!_tabDragging)
+        {
+            if (Math.Abs(pos.X - _tabDragOrigin.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(pos.Y - _tabDragOrigin.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+            if (!tab.CaptureMouse()) return;
+            _tabDragging = true;
+            tab.Focus(); // Esc で取り消せるようにキーボードフォーカスをタブへ
+            ShowDockOverlay();
+        }
+        _drop = HitDropTarget(tab, pos);
+        _dockOverlay?.ShowGuide(_drop?.Guide);
+        e.Handled = true;
+    }
+
+    private void EndTabDrag()
+    {
+        var tab = _tabDragCandidate;
+        bool wasDragging = _tabDragging;
+        // ReleaseMouseCapture が LostMouseCapture 経由でここへ再入するため、先に状態を消す
+        _tabDragCandidate = null;
+        _tabDragging = false;
+        _drop = null;
+        if (!wasDragging) return;
+        _dockOverlay?.Hide();
+        if (tab is { IsMouseCaptured: true }) tab.ReleaseMouseCapture();
+    }
+
+    private void ShowDockOverlay()
+    {
+        if (Window.GetWindow(_canvas) is not { } owner) return;
+        _dockOverlay ??= new DockOverlayWindow { Owner = owner };
+        _dockOverlay.PlaceOver(_canvas);
+        _dockOverlay.ShowGuide(null);
+        _dockOverlay.Show();
+    }
+
+    private Rect BoundsInCanvas(FrameworkElement element)
+        => element.TransformToAncestor(_canvas).TransformBounds(new Rect(element.RenderSize));
+
+    /// <summary>Canvas 座標 pos にドロップしたときの移動先。何も起きない位置なら null。</summary>
+    private DropTarget? HitDropTarget(TabItem tab, Point pos)
+    {
+        if (PaneOf(tab) is not { } source) return null;
+        foreach (var pane in _panes.Values)
+        {
+            var frame = BoundsInCanvas(pane.Frame);
+            if (!frame.Contains(pos)) continue;
+            var body = frame;
+            if (pane.Tabs.Visibility == Visibility.Visible)
+            {
+                var strip = BoundsInCanvas(pane.Tabs);
+                if (strip.Contains(pos))
+                {
+                    // タブ列: 挿入位置に縦線を出す。自ペインの唯一のタブは動かしようがない
+                    if (pane == source && source.Tabs.Items.Count < 2) return null;
+                    var others = pane.Tabs.Items.OfType<TabItem>().Where(t => t != tab).Select(BoundsInCanvas).ToList();
+                    int index = DockHitTest.InsertIndex(others.Select(r => r.X + r.Width / 2).ToList(), pos.X);
+                    double x = index < others.Count ? others[index].X : others.Count > 0 ? others[^1].Right : strip.X;
+                    return new DropTarget(pane, null, index, new Rect(x - 1.5, strip.Y, 3, strip.Height));
+                }
+                body = new Rect(frame.X, strip.Bottom, frame.Width, Math.Max(0, frame.Bottom - strip.Bottom));
+            }
+            if (DockHitTest.ZoneAt(body, pos) is not { } zone) return null;
+            // 自ペインへの移動は無意味、唯一のタブで自ペインを分割しても元ペインが消えるだけで配置が変わらない
+            if (pane == source && (zone == DockZone.Center || source.Tabs.Items.Count < 2)) return null;
+            return new DropTarget(pane, zone, -1, DockHitTest.PreviewRect(body, zone));
+        }
+        return null;
+    }
+
+    private void ApplyDrop(TabItem tab, DropTarget drop)
+    {
+        if (PaneOf(tab) is not { } source) return;
+        var target = drop.Pane;
+        if (drop.Zone is null && target == source)
+        {
+            ReorderTab(source, tab, drop.Index);
+            return;
+        }
+        if (drop.Zone is { } zone && DockHitTest.SplitOf(zone) is { } split)
+            target = CreatePane(_layout.Split(target.Id, split.Direction, split.Before));
+        MoveTabToPane(tab, target, drop.Index);
+        if (source.Tabs.Items.Count == 0) RemovePane(source);
+        ActivatePane(target);
+        OnLayoutChanged();
+        FocusSelected(target);
     }
 
     // ── レイアウトの保存・復元 ──
