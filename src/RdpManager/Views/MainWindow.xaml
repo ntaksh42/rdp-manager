@@ -83,6 +83,10 @@
                 <MenuItem Header="Split Pane Right" InputGestureText="Ctrl+Alt+F7" Click="OnSplitRight"/>
                 <MenuItem Header="Split Pane Down" InputGestureText="Ctrl+Alt+F8" Click="OnSplitDown"/>
                 <MenuItem Header="Close Pane (Merge Tabs)" InputGestureText="Ctrl+Alt+Shift+F7" Click="OnClosePane"/>
+                <MenuItem Header="Save Layout…" InputGestureText="Ctrl+Shift+S" Click="OnSaveLayout"/>
+                <MenuItem x:Name="LayoutsMenu" Header="Layouts" InputGestureText="Ctrl+Shift+L" SubmenuOpened="OnLayoutsMenuOpened">
+                    <MenuItem Header="(No saved layouts)" IsEnabled="False"/>
+                </MenuItem>
                 <MenuItem Header="Focus Next Pane" InputGestureText="F6 / Ctrl+Alt+F6" Click="OnFocusOtherPane"/>
                 <MenuItem Header="Move Tab to Next Pane" InputGestureText="Ctrl+Shift+M / Ctrl+Alt+Shift+F6" Click="OnMoveTabOtherPane"/>
                 <Separator/>

@@ -784,6 +784,8 @@ public partial class MainWindow : Window
         else if (ctrl && e.Key == Key.D) { OnDuplicateNode(this, new RoutedEventArgs()); e.Handled = true; }
         else if (ctrl && shift && e.Key == Key.M) { _sessions.MoveActiveTabToNextPane(); e.Handled = true; }
         else if (ctrl && shift && e.Key == Key.B) { SetTreeSide(!App.Settings.TreeOnRight); e.Handled = true; }
+        else if (ctrl && shift && e.Key == Key.S) { OnSaveLayout(this, new RoutedEventArgs()); e.Handled = true; }
+        else if (ctrl && shift && e.Key == Key.L) { ShowLayoutPicker(); e.Handled = true; }
         else if (ctrl && e.Key == Key.W) { _sessions.CloseActiveTab(); e.Handled = true; }
         else if (ctrl && e.Key == Key.Tab) { ShowTabSwitcher(shift); e.Handled = true; }
         else if (e.Key == Key.F6) { _sessions.FocusNextPane(); e.Handled = true; }
@@ -1069,6 +1071,96 @@ public partial class MainWindow : Window
     private void OnSplitDown(object sender, RoutedEventArgs e) => _sessions.SplitActivePane(SplitDirection.Vertical);
 
     private void OnClosePane(object sender, RoutedEventArgs e) => _sessions.CloseActivePane();
+
+    // ── 名前付きレイアウト ──
+
+    private void OnSaveLayout(object sender, RoutedEventArgs e)
+    {
+        if (_sessions.SessionCount == 0)
+        {
+            MessageBox.Show(this, "Open at least one session to save a layout.", "Save Layout",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var dlg = new RenameSessionDialog("", "Save Layout", "Layout name:") { Owner = this };
+        if (dlg.ShowDialog() != true) return;
+        var name = dlg.NewName;
+        if (App.Settings.SavedLayouts.Any(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase)) &&
+            MessageBox.Show(this, $"Overwrite the layout \"{name}\"?", "Save Layout",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        var (layout, panes) = _sessions.SaveLayout();
+        App.Settings.SaveNamedLayout(name, layout, panes);
+        App.Settings.Save();
+    }
+
+    /// <summary>保存レイアウトを復元する。開いているセッションは全て閉じてから、分割構成と各ペインの接続を再現する。</summary>
+    private void LoadLayout(SavedLayout saved)
+    {
+        int n = _sessions.SessionCount;
+        if (n > 0 && MessageBox.Show(this,
+                $"Close {n} open tab(s) and load the layout \"{saved.Name}\"?", "Load Layout",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        _sessions.CloseAll();
+        _sessions.RestoreLayout(saved.Layout);
+        for (int i = 0; i < saved.Panes.Count; i++)
+            foreach (var id in saved.Panes[i])
+                if (Vm.FindConnectionById(id) is { } node) ConnectEmbedded(node, paneIndex: i);
+        _sessions.PruneEmptyPanes();
+    }
+
+    private void DeleteLayout(SavedLayout saved)
+    {
+        if (MessageBox.Show(this, $"Delete the layout \"{saved.Name}\"?", "Delete Layout",
+                MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        App.Settings.DeleteNamedLayout(saved.Name);
+        App.Settings.Save();
+    }
+
+    /// <summary>保存レイアウトの「読み込み」項目と「削除」サブメニューを parent に組み立てる。</summary>
+    private void FillLayoutItems(ItemsControl parent)
+    {
+        parent.Items.Clear();
+        var layouts = App.Settings.SavedLayouts.ToList();
+        if (layouts.Count == 0)
+        {
+            parent.Items.Add(new MenuItem { Header = "(No saved layouts)", IsEnabled = false });
+            return;
+        }
+        foreach (var l in layouts)
+        {
+            var saved = l;
+            var item = new MenuItem { Header = saved.Name.Replace("_", "__") };
+            item.Click += (_, _) => LoadLayout(saved);
+            parent.Items.Add(item);
+        }
+        parent.Items.Add(new Separator());
+        var delete = new MenuItem { Header = "Delete" };
+        foreach (var l in layouts)
+        {
+            var saved = l;
+            var item = new MenuItem { Header = saved.Name.Replace("_", "__") };
+            item.Click += (_, _) => DeleteLayout(saved);
+            delete.Items.Add(item);
+        }
+        parent.Items.Add(delete);
+    }
+
+    private void OnLayoutsMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, LayoutsMenu)) return;
+        FillLayoutItems(LayoutsMenu);
+    }
+
+    /// <summary>Ctrl+Shift+L: 保存レイアウトの一覧をキーボードで開く。</summary>
+    private void ShowLayoutPicker()
+    {
+        var menu = new ContextMenu { Placement = System.Windows.Controls.Primitives.PlacementMode.Center, PlacementTarget = this };
+        FillLayoutItems(menu);
+        menu.IsOpen = true;
+    }
 
     private void OnClipboardToRemote(object sender, RoutedEventArgs e)
         => _sessions.SyncActiveClipboard(ClipboardSyncDirection.LocalToRemote);
