@@ -3,6 +3,14 @@ using System.Text.Json;
 
 namespace RdpManager.Services;
 
+/// <summary>名前付きで保存したレイアウト。Layout は PaneLayout.Serialize 形式、Panes はペイン順のノード ID。</summary>
+public sealed class SavedLayout
+{
+    public string Name { get; set; } = "";
+    public string Layout { get; set; } = "";
+    public List<List<string>> Panes { get; set; } = new();
+}
+
 /// <summary>アプリ全体の軽量設定（テーマ等）。connections.json とは別ファイル。</summary>
 public sealed class AppSettings
 {
@@ -39,6 +47,9 @@ public sealed class AppSettings
     /// <summary>終了時に各ペインで開いていた接続（PaneLayout のペイン順）。</summary>
     public List<List<string>> OpenOnExitPanes { get; set; } = new();
 
+    /// <summary>ユーザーが名前を付けて保存したレイアウト（分割構成 + 各ペインの接続）。</summary>
+    public List<SavedLayout> SavedLayouts { get; set; } = new();
+
     // 前回終了時のウィンドウ位置・サイズ（未保存なら null で既定のまま）
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }
@@ -64,13 +75,28 @@ public sealed class AppSettings
         OpenOnExitRight = new();
     }
 
-    /// <summary>削除された接続の ID を終了時セッションから取り除く。1件でも除いたら true。</summary>
+    /// <summary>削除された接続の ID を終了時セッションと保存済みレイアウトから取り除く。1件でも除いたら true。</summary>
     public bool RemoveOpenSessions(ISet<string> ids)
     {
         int removed = OpenOnExit.RemoveAll(ids.Contains) + OpenOnExitRight.RemoveAll(ids.Contains);
         foreach (var pane in OpenOnExitPanes) removed += pane.RemoveAll(ids.Contains);
+        foreach (var saved in SavedLayouts)
+            foreach (var pane in saved.Panes) removed += pane.RemoveAll(ids.Contains);
         return removed > 0;
     }
+
+    /// <summary>名前付きレイアウトを保存する。同名（大文字小文字無視）があれば上書きし、その位置を保つ。</summary>
+    public void SaveNamedLayout(string name, string layout, List<List<string>> panes)
+    {
+        var item = new SavedLayout { Name = name, Layout = layout, Panes = panes };
+        int i = SavedLayouts.FindIndex(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (i >= 0) SavedLayouts[i] = item;
+        else SavedLayouts.Add(item);
+    }
+
+    /// <summary>名前付きレイアウトを削除する。見つからなければ false。</summary>
+    public bool DeleteNamedLayout(string name)
+        => SavedLayouts.RemoveAll(l => string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase)) > 0;
 
     private static string FilePath =>
         Path.Combine(ConnectionStore.Directory, "appsettings.json");

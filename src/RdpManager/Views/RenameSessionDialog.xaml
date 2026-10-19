@@ -6,7 +6,7 @@
         Background="{DynamicResource WindowBg}"
         TextElement.Foreground="{DynamicResource TextFg}">
     <StackPanel Margin="14">
-        <TextBlock Text="Tab name:" Margin="0,0,0,6"/>
+        <TextBlock x:Name="PromptText" Text="Tab name:" Margin="0,0,0,6"/>
         <TextBox x:Name="NameBox" Margin="0,0,0,14" KeyDown="OnNameBoxKeyDown"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="OK" Width="90" Padding="0,4" Margin="0,0,8,0" IsDefault="True" Click="OnOk"/>

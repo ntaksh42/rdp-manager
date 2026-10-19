@@ -14,6 +14,40 @@ public class AppSettingsTests : IDisposable
     public void Dispose() => Directory.Delete(_dir, recursive: true);
 
     [Fact]
+    public void SaveNamedLayout_SameNameOverwritesInPlace()
+    {
+        var s = new AppSettings();
+        s.SaveNamedLayout("Work", "H0.5(P,P)", new() { new() { "a" }, new() { "b" } });
+        s.SaveNamedLayout("Home", "P", new() { new() { "c" } });
+        s.SaveNamedLayout("work", "P", new() { new() { "d" } });
+
+        Assert.Equal(2, s.SavedLayouts.Count);
+        Assert.Equal("work", s.SavedLayouts[0].Name);
+        Assert.Equal("P", s.SavedLayouts[0].Layout);
+    }
+
+    [Fact]
+    public void DeleteNamedLayout_RemovesByNameIgnoringCase()
+    {
+        var s = new AppSettings();
+        s.SaveNamedLayout("Work", "P", new() { new() { "a" } });
+
+        Assert.True(s.DeleteNamedLayout("WORK"));
+        Assert.False(s.DeleteNamedLayout("Work"));
+        Assert.Empty(s.SavedLayouts);
+    }
+
+    [Fact]
+    public void RemoveOpenSessions_AlsoPrunesSavedLayouts()
+    {
+        var s = new AppSettings();
+        s.SaveNamedLayout("Work", "H0.5(P,P)", new() { new() { "a", "b" }, new() { "c" } });
+
+        Assert.True(s.RemoveOpenSessions(new HashSet<string> { "b" }));
+        Assert.Equal(new[] { "a" }, s.SavedLayouts[0].Panes[0]);
+    }
+
+    [Fact]
     public void LoadFrom_MissingFile_ReturnsDefaults()
     {
         var s = AppSettings.LoadFrom(SettingsPath);
