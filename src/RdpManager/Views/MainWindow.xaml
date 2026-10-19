@@ -7,9 +7,7 @@
         Background="{DynamicResource WindowBg}"
         TextElement.Foreground="{DynamicResource TextFg}"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display"
-        PreviewKeyDown="OnWindowPreviewKeyDown"
-        PreviewKeyUp="OnWindowPreviewKeyUp"
-        PreviewMouseMove="OnWindowPreviewMouseMove">
+        PreviewKeyDown="OnWindowPreviewKeyDown">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
@@ -46,8 +44,7 @@
 
     <DockPanel x:Name="RootDock">
         <!-- メニューとツールボタンを1行に統合してヘッダを省スペース化 -->
-        <Border x:Name="MainToolBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}" MouseLeave="OnToolBarMouseLeave"
-                BorderBrush="{DynamicResource SplitterBg}" BorderThickness="0,0,0,1">
+        <Border x:Name="MainToolBar" DockPanel.Dock="Top" Background="{DynamicResource BarBg}"                BorderBrush="{DynamicResource SplitterBg}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="False">
                 <Menu x:Name="MainMenu" DockPanel.Dock="Left" Background="Transparent" VerticalAlignment="Center">
             <MenuItem Header="_File">
@@ -106,7 +103,6 @@
             <MenuItem Header="_View">
                 <MenuItem Header="Focus Connection Tree" InputGestureText="Alt+N" Click="OnFocusTree"/>
                 <MenuItem x:Name="TreeVisibleItem" Header="Show Connection Tree" InputGestureText="Ctrl+Alt+F9" IsCheckable="True" Click="OnToggleTreeVisible"/>
-                <MenuItem x:Name="BarsVisibleItem" Header="Show Menu and Status Bar" InputGestureText="Ctrl+Alt+F10" IsCheckable="True" Click="OnToggleBarsVisible"/>
                 <MenuItem x:Name="TreeOnRightItem" Header="Connection Tree on Right" InputGestureText="Ctrl+Shift+B" IsCheckable="True" Click="OnToggleTreeSide"/>
                 <Separator/>
                 <MenuItem Header="Session Overview…" InputGestureText="Ctrl+Alt+0" Click="OnSessionDashboard"/>
@@ -136,6 +132,7 @@
                     <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="✎" ToolTip="Edit (F2)" Click="OnEditNode"/>
                     <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="🗑" ToolTip="Delete (Del)" Click="OnDeleteNode"/>
                     <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="▶" ToolTip="Connect (Enter)" Click="OnConnectEmbedded"/>
+                    <Button Style="{StaticResource ToolButton}" Padding="6,2" Content="💾" ToolTip="Save Layout… (Ctrl+Shift+S)" Click="OnSaveLayout"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -154,10 +151,6 @@
                 <ColumnDefinition x:Name="SplitterColumn" Width="Auto"/>
                 <ColumnDefinition x:Name="SessionColumn" Width="*"/>
             </Grid.ColumnDefinitions>
-            <!-- バーを隠している間、Alt でツールバー（メニュー）を一時的に移して重ねる Popup（RDP の HWND より上に描ける） -->
-            <Popup x:Name="BarsPopup" PlacementTarget="{Binding ElementName=MainGrid}" Placement="Relative"
-                   StaysOpen="True" Closed="OnBarsPopupClosed"
-                   LostKeyboardFocus="OnBarsPopupLostFocus" PreviewKeyDown="OnBarsPopupKeyDown"/>
 
             <!-- Connection tree -->
             <DockPanel x:Name="TreePane" Grid.Column="0" Background="{DynamicResource PanelBg}">

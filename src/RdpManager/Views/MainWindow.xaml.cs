@@ -50,7 +50,6 @@ public partial class MainWindow : Window
         RemoteNotificationsItem.IsChecked = App.Settings.RemoteNotifications;
         ApplyTreeSide(App.Settings.TreeOnRight);
         UpdateTreeVisibility(!App.Settings.TreeHidden);
-        UpdateBarsVisibility(!App.Settings.BarsHidden);
         Loaded += OnLoadedRestore;
         Closing += OnClosingSaveSessions;
 
@@ -227,7 +226,6 @@ public partial class MainWindow : Window
     private const int HotkeySplitDown = 0x901B;
     private const int HotkeyClosePane = 0x901C;
     private const int HotkeyToggleTree = 0x901D;
-    private const int HotkeyToggleBars = 0x901E;
     private const int HotkeyNudgeLeft = 0x901F; // 0x901F..0x9022 = Ctrl+Alt+Shift+←↑→↓（ペイン境界の移動）
     private const int WmHotkey = 0x0312;
     private const int WmExitSizeMove = 0x0232;
@@ -240,7 +238,6 @@ public partial class MainWindow : Window
     private const uint VkF7 = 0x76;
     private const uint VkF8 = 0x77;
     private const uint VkF9 = 0x78;
-    private const uint VkF10 = 0x79;
     private const uint VkLeft = 0x25; // 0x25..0x28 = ←↑→↓
     private const uint VkC = 0x43;
     private const uint VkV = 0x56;
@@ -401,9 +398,8 @@ public partial class MainWindow : Window
         TryRegisterHotKey(HotkeySplitRight, ModControl | ModAlt | ModNoRepeat, VkF7, "Ctrl+Alt+F7");
         TryRegisterHotKey(HotkeySplitDown, ModControl | ModAlt | ModNoRepeat, VkF8, "Ctrl+Alt+F8");
         TryRegisterHotKey(HotkeyClosePane, ModControl | ModAlt | ModShift | ModNoRepeat, VkF7, "Ctrl+Alt+Shift+F7");
-        // ツリー・メニュー/ステータスバーの表示切替（セッションにフォーカスがあっても画面を広げられるように）
+        // ツリーの表示切替（セッションにフォーカスがあっても画面を広げられるように）
         TryRegisterHotKey(HotkeyToggleTree, ModControl | ModAlt | ModNoRepeat, VkF9, "Ctrl+Alt+F9");
-        TryRegisterHotKey(HotkeyToggleBars, ModControl | ModAlt | ModNoRepeat, VkF10, "Ctrl+Alt+F10");
         // ペイン境界の移動（長押しで連続移動できるよう NOREPEAT なし）。Ctrl+Alt+矢印は画面回転と衝突するため Shift 付き
         string[] arrows = { "Left", "Up", "Right", "Down" };
         for (uint i = 0; i < 4; i++)
@@ -427,7 +423,6 @@ public partial class MainWindow : Window
         UnregisterHotKey(_hwnd, HotkeySplitDown);
         UnregisterHotKey(_hwnd, HotkeyClosePane);
         UnregisterHotKey(_hwnd, HotkeyToggleTree);
-        UnregisterHotKey(_hwnd, HotkeyToggleBars);
         for (int i = 0; i < 4; i++) UnregisterHotKey(_hwnd, HotkeyNudgeLeft + i);
         for (int i = 0; i < 9; i++) UnregisterHotKey(_hwnd, HotkeyTab1 + i);
     }
@@ -481,7 +476,6 @@ public partial class MainWindow : Window
     {
         if (msg == WmHotkey)
         {
-            _altTapPending = false; // Alt+N 等はキー押下が WM_HOTKEY に置き換わるため、Alt 単独押しと誤認しないように
             var id = wParam.ToInt32();
             if (id == HotkeyF11 || id == HotkeyPause || id == HotkeyBreak || id == HotkeyFullscreenCustom)
             {
@@ -497,7 +491,6 @@ public partial class MainWindow : Window
             else if (id == HotkeyClosePane) { _sessions.CloseActivePane(); handled = true; }
             else if (id == HotkeyFocusTree) { FocusTree(); handled = true; }
             else if (id == HotkeyToggleTree) { ToggleTreeVisible(); handled = true; }
-            else if (id == HotkeyToggleBars) { ToggleBarsVisible(); handled = true; }
             else if (id >= HotkeyNudgeLeft && id < HotkeyNudgeLeft + 4)
             {
                 // ←↑→↓ の順。←→ は左右分割、↑↓ は上下分割の境界を 5% ずつ動かす
@@ -580,7 +573,7 @@ public partial class MainWindow : Window
         else
         {
             MainMenu.Visibility = Visibility.Visible;
-            UpdateBarsVisibility(!App.Settings.BarsHidden);
+            UpdateBarsVisibility(show: true);
             UpdateTreeVisibility(!App.Settings.TreeHidden);
 
             WindowStyle = _savedStyle;
@@ -751,7 +744,6 @@ public partial class MainWindow : Window
     // ── キーボードショートカット ──
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        _altTapPending = e.Key == Key.System && e.SystemKey is Key.LeftAlt or Key.RightAlt;
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         bool shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
         bool alt = (Keyboard.Modifiers & ModifierKeys.Alt) != 0;
@@ -885,11 +877,9 @@ public partial class MainWindow : Window
     }
 
     private void OnToggleTreeVisible(object sender, RoutedEventArgs e) => ToggleTreeVisible();
-    private void OnToggleBarsVisible(object sender, RoutedEventArgs e) => ToggleBarsVisible();
 
-    // 全画面中はどちらも隠れているため切り替えない（解除時に設定どおり戻る）
+    // 全画面中は隠れているため切り替えない（解除時に設定どおり戻る）
     private void ToggleTreeVisible() { if (!_fullscreen) SetTreeHidden(!App.Settings.TreeHidden); }
-    private void ToggleBarsVisible() { if (!_fullscreen) SetBarsHidden(!App.Settings.BarsHidden); }
 
     private void SetTreeHidden(bool hidden)
     {
@@ -898,14 +888,6 @@ public partial class MainWindow : Window
         UpdateTreeVisibility(!hidden);
         // フォーカスが隠れたツリーに残るとキー操作が効かなくなるため、選択中のセッションへ移す
         if (hidden && TreePane.IsKeyboardFocusWithin) { Focus(); _sessions.FocusActiveSession(); }
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(_sessions.ApplyResizeToAll));
-    }
-
-    private void SetBarsHidden(bool hidden)
-    {
-        App.Settings.BarsHidden = hidden;
-        App.Settings.Save();
-        UpdateBarsVisibility(!hidden);
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, new Action(_sessions.ApplyResizeToAll));
     }
 
@@ -922,74 +904,6 @@ public partial class MainWindow : Window
     private void UpdateBarsVisibility(bool show)
     {
         MainToolBar.Visibility = MainStatus.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        BarsVisibleItem.IsChecked = !App.Settings.BarsHidden;
-    }
-
-    // バーを隠している間は Alt の単独押しでメニュー（ツールバー行）を一時表示する。Alt+キーの組み合わせは対象外。
-    // 行として戻すとセッション領域の高さが変わりリモート解像度が変わってしまうため、ツールバーを Popup（独立 HWND で
-    // RDP 画面の上にも描ける）へ一時的に移して重ねる
-    private bool _altTapPending;
-
-    private void OnWindowPreviewKeyUp(object sender, KeyEventArgs e)
-    {
-        bool altUp = e.Key == Key.System && e.SystemKey is Key.LeftAlt or Key.RightAlt;
-        if (!altUp || !_altTapPending) return;
-        _altTapPending = false;
-        if (!ShowBarsPopup()) return;
-        // 表示直後はレイアウト前でフォーカスできないため、レイアウト後に先頭メニューへフォーカスする
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input,
-            new Action(() => (MainMenu.Items[0] as MenuItem)?.Focus()));
-        e.Handled = true;
-    }
-
-    /// <summary>バーを隠している間、マウスをウィンドウ上端へ寄せたらメニューを重ねて出す。最上段は常にタブ列などの
-    /// WPF 要素（RDP の HWND ではない）なのでマウス移動を受け取れ、監視用のタイマーやフックは要らない。</summary>
-    private void OnWindowPreviewMouseMove(object sender, MouseEventArgs e)
-    {
-        if (e.GetPosition(RootDock).Y <= 3) ShowBarsPopup();
-    }
-
-    /// <summary>ツールバーを Popup へ移して重ねる。開いた場合 true。</summary>
-    private bool ShowBarsPopup()
-    {
-        if (!App.Settings.BarsHidden || _fullscreen || BarsPopup.IsOpen) return false;
-        RootDock.Children.Remove(MainToolBar);
-        MainToolBar.Visibility = Visibility.Visible;
-        BarsPopup.Width = RootDock.ActualWidth;
-        BarsPopup.Child = MainToolBar;
-        BarsPopup.IsOpen = true;
-        return true;
-    }
-
-    /// <summary>メニュー操作中（キーボードフォーカスがある・サブメニューが開いている）でなければ閉じる。</summary>
-    private void CloseBarsPopupIfIdle()
-    {
-        bool open = MainMenu.Items.OfType<MenuItem>().Any(m => m.IsSubmenuOpen);
-        if (!open && !MainToolBar.IsKeyboardFocusWithin && !MainToolBar.IsMouseOver) BarsPopup.IsOpen = false;
-    }
-
-    /// <summary>一時表示したメニューからフォーカスが外れたら（項目の実行・Esc・他所のクリック）閉じる。</summary>
-    private void OnBarsPopupLostFocus(object sender, RoutedEventArgs e)
-        => Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, new Action(CloseBarsPopupIfIdle));
-
-    private void OnToolBarMouseLeave(object sender, MouseEventArgs e)
-    {
-        if (BarsPopup.IsOpen) CloseBarsPopupIfIdle();
-    }
-
-    private void OnBarsPopupKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Escape || MainMenu.Items.OfType<MenuItem>().Any(m => m.IsSubmenuOpen)) return;
-        BarsPopup.IsOpen = false;
-        e.Handled = true;
-    }
-
-    /// <summary>Popup に移したツールバーを元の行へ戻す（設定・全画面に応じた表示状態で）。</summary>
-    private void OnBarsPopupClosed(object? sender, EventArgs e)
-    {
-        BarsPopup.Child = null;
-        MainToolBar.Visibility = App.Settings.BarsHidden || _fullscreen ? Visibility.Collapsed : Visibility.Visible;
-        RootDock.Children.Insert(0, MainToolBar);
     }
 
     // ── 接続ツリーの左右ドッキング（グリップのドラッグ / Ctrl+Shift+B）──
